@@ -1302,7 +1302,6 @@ textarea {
   .landing-hero h1 {
     max-width: none;
   }
-}
 
 @media (max-width: 640px) {
   .page-shell,
