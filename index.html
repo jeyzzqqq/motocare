@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MotoCare | Motorcycle Maintenance Log</title>
+    <meta
+      name="description"
+      content="MotoCare helps motorcycle owners manage maintenance schedules, repairs, and expenses in one polished digital log."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <main class="landing-shell">
+      <section class="landing-hero page-shell">
+        <div class="landing-hero-copy">
+          <div class="auth-brand landing-brand">
+            <span class="auth-brand-logo">
+              <img src="./assets/icons/logo.svg" alt="MotoCare logo" class="h-8 w-8" />
+            </span>
+            <span>MotoCare</span>
+          </div>
+
+          <span class="mini-pill mt-6"><i class="fa-solid fa-shield-halved"></i> Reliable motorcycle care</span>
+          <h1>MotoCare keeps every ride, service, and expense in one clean place.</h1>
+          <p>
+            A premium digital maintenance log for motorcycle owners who want simple tracking without spreadsheet chaos.
+            Plan service, record repairs, and watch expenses with a polished dashboard built for mobile and desktop.
+          </p>
+
+          <div class="landing-actions">
+            <button id="getStartedButton" class="primary-button inline-flex items-center justify-center" type="button">Get Started</button>
+          </div>
+
+          <div class="landing-badges">
+            <span class="landing-badge"><i class="fa-solid fa-calendar-check"></i> Maintenance reminders</span>
+            <span class="landing-badge"><i class="fa-solid fa-receipt"></i> Repair history</span>
+            <span class="landing-badge"><i class="fa-solid fa-chart-line"></i> Expense tracking</span>
+            <span class="landing-badge"><i class="fa-solid fa-lock"></i> Firebase Auth</span>
+          </div>
+        </div>
+
+        <div class="landing-hero-panel">
+          <div id="login-section" class="auth-card" style="scroll-margin-top: 96px;">
+            <div class="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <h2 id="authHeading" class="text-2xl font-extrabold tracking-tight text-slate-900">Welcome back</h2>
+                <p id="authDescription" class="auth-helper mt-1">Sign in to manage your motorcycle records.</p>
+              </div>
+              <span class="mini-pill"><i class="fa-solid fa-shield-halved"></i> Secure access</span>
+            </div>
+
+            <div class="auth-switch" role="tablist" aria-label="Authentication mode">
+              <button type="button" class="active" data-auth-tab="login">Login</button>
+              <button type="button" data-auth-tab="signup">Sign Up</button>
+            </div>
+
+            <div id="firebaseNotice" class="empty-state mb-4 text-sm hidden">
+              Firebase is not configured yet. Add your project settings in <span class="font-semibold">js/firebase.js</span> to enable login and data storage.
+            </div>
+
+            <button id="googleAuthButton" class="primary-button w-full inline-flex items-center justify-center gap-2 mb-4" type="button">
+              <i class="fa-brands fa-google"></i>
+              Continue with Google
+            </button>
+
+            <div class="auth-helper text-center mb-3">or continue with email</div>
+
+            <form id="authForm" class="space-y-4" novalidate>
+              <div class="form-group" data-signup-only>
+                <label for="displayName">Full name</label>
+                <div class="auth-field">
+                  <i class="fa-regular fa-user"></i>
+                  <input id="displayName" name="displayName" type="text" placeholder="Your name" autocomplete="name" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="email">Email</label>
+                <div class="auth-field">
+                  <i class="fa-regular fa-envelope"></i>
+                  <input id="email" name="email" type="email" placeholder="Enter your email" autocomplete="email" required />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="password">Password</label>
+                <div class="auth-field auth-field-password">
+                  <i class="fa-solid fa-lock"></i>
+                  <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required />
+                  <button
+                    type="button"
+                    class="password-toggle"
+                    data-password-toggle
+                    data-target="password"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                  >
+                    <i class="fa-regular fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group" data-signup-only>
+                <label for="confirmPassword">Confirm password</label>
+                <div class="auth-field auth-field-password">
+                  <i class="fa-solid fa-lock"></i>
+                  <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Re-enter your password" autocomplete="new-password" />
+                  <button
+                    type="button"
+                    class="password-toggle"
+                    data-password-toggle
+                    data-target="confirmPassword"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                  >
+                    <i class="fa-regular fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between gap-3 text-sm">
+                <button type="button" class="link-button" data-auth-switch="forgot">Forgot password?</button>
+                <span class="auth-helper">Protected Firebase Auth sign-in</span>
+              </div>
+
+              <div id="authMessage" class="empty-state hidden"></div>
+
+              <button id="authSubmit" class="primary-button w-full" type="submit">Login</button>
+            </form>
+
+            <p class="auth-footnote" id="signupHint">
+              Need an account? <button type="button" class="link-button" data-auth-switch="signup">Create one with email</button>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-shell landing-feature-grid">
+        <article class="landing-feature-card">
+          <i class="fa-solid fa-motorcycle"></i>
+          <h3>Bike profile</h3>
+          <p>Keep make, model, year, mileage, color, and plate details current.</p>
+        </article>
+        <article class="landing-feature-card">
+          <i class="fa-solid fa-screwdriver-wrench"></i>
+          <h3>Service planning</h3>
+          <p>Use timelines and reminders to keep routine maintenance on schedule.</p>
+        </article>
+        <article class="landing-feature-card">
+          <i class="fa-solid fa-dollar-sign"></i>
+          <h3>Expense tracking</h3>
+          <p>View spending trends, totals, and category breakdowns without clutter.</p>
+        </article>
+      </section>
+
+    </main>
+
+    <script>
+      const getStartedButton = document.getElementById('getStartedButton');
+      const loginSection = document.getElementById('login-section');
+      const landingEmail = document.getElementById('email');
+
+      function highlightSection() {
+        if (!loginSection || typeof loginSection.animate !== 'function') {
+          return;
+        }
+
+        loginSection.animate(
+          [
+            { opacity: 0.96, transform: 'translateY(8px)' },
+            { opacity: 1, transform: 'translateY(0)' }
+          ],
+          { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+        );
+      }
+
+      getStartedButton?.addEventListener('click', () => {
+        if (!loginSection) {
+          return;
+        }
+
+        const navOffset = 96;
+        const sectionTop = loginSection.getBoundingClientRect().top + window.scrollY - navOffset;
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const currentScroll = window.scrollY;
+        let targetScroll = Math.min(maxScroll, Math.max(0, sectionTop));
+
+        if (Math.abs(targetScroll - currentScroll) < 8 && maxScroll > currentScroll) {
+          targetScroll = Math.min(maxScroll, currentScroll + 260);
+        }
+
+        window.scrollTo({ top: targetScroll, behavior: 'smooth' });
+        highlightSection();
+
+        window.setTimeout(() => {
+          landingEmail?.focus({ preventScroll: true });
+        }, 420);
+      });
+    </script>
+    <script type="module" src="./js/auth.js"></script>
+  </body>
+</html>

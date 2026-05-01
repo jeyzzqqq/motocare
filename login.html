@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MotoCare | Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/style.css?v=20260426" />
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="auth-hero">
+        <div class="auth-hero-card">
+          <div class="auth-brand">
+            <span class="auth-brand-logo">
+              <img src="./assets/icons/logo.svg" alt="MotoCare logo" class="h-8 w-8" />
+            </span>
+            <span>MotoCare</span>
+          </div>
+          <h1>MotoCare</h1>
+          <p>
+            A web-based digital maintenance log system for motorcycle owners. Track service schedules, repair history,
+            and expenses from one polished dashboard.
+          </p>
+          <div class="auth-badges">
+            <span class="auth-badge">Maintenance reminders</span>
+            <span class="auth-badge">Repair records</span>
+            <span class="auth-badge">Expense tracking</span>
+            <span class="auth-badge">Firebase ready</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="auth-panel">
+        <div class="auth-card">
+          <div class="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <h2 id="authHeading" class="text-2xl font-extrabold tracking-tight text-slate-900">Welcome back</h2>
+              <p id="authDescription" class="auth-helper mt-1">
+                Sign in to manage your motorcycle records.
+              </p>
+            </div>
+            <span class="mini-pill"><i class="fa-solid fa-shield-halved"></i> Secure access</span>
+          </div>
+
+          <div class="auth-switch" role="tablist" aria-label="Authentication mode">
+            <button type="button" class="active" data-auth-tab="login">Login</button>
+            <button type="button" data-auth-tab="signup">Sign Up</button>
+          </div>
+
+          <div id="firebaseNotice" class="empty-state mb-4 text-sm hidden">
+            Firebase is not configured yet. Add your project settings in <span class="font-semibold">js/firebase.js</span> to enable login and data storage.
+          </div>
+
+          <button id="googleAuthButton" class="primary-button w-full inline-flex items-center justify-center gap-2 mb-4" type="button">
+            <i class="fa-brands fa-google"></i>
+            Continue with Google
+          </button>
+
+          <div class="auth-helper text-center mb-3">or continue with email</div>
+
+          <form id="authForm" class="space-y-4" novalidate>
+            <div class="form-group" data-signup-only>
+              <label for="displayName">Full name</label>
+              <div class="auth-field">
+                <i class="fa-regular fa-user"></i>
+                <input id="displayName" name="displayName" type="text" placeholder="Your name" autocomplete="name" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email</label>
+              <div class="auth-field">
+                <i class="fa-regular fa-envelope"></i>
+                <input id="email" name="email" type="email" placeholder="Enter your email" autocomplete="email" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="password">Password</label>
+              <div class="auth-field auth-field-password">
+                <i class="fa-solid fa-lock"></i>
+                <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-password-toggle
+                  data-target="password"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group" data-signup-only>
+              <label for="confirmPassword">Confirm password</label>
+              <div class="auth-field auth-field-password">
+                <i class="fa-solid fa-lock"></i>
+                <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Re-enter your password" autocomplete="new-password" />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-password-toggle
+                  data-target="confirmPassword"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-3 text-sm">
+              <button type="button" class="link-button" data-auth-switch="forgot">Forgot password?</button>
+              <span class="auth-helper">Protected Firebase Auth sign-in</span>
+            </div>
+
+            <div id="authMessage" class="empty-state hidden"></div>
+
+            <button id="authSubmit" class="primary-button w-full" type="submit">Login</button>
+          </form>
+
+          <p class="auth-footnote" id="signupHint">
+            Need an account? <button type="button" class="link-button" data-auth-switch="signup">Create one with email</button>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./js/auth.js?v=20260426"></script>
+  </body>
+</html>

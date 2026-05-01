@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MotoCare | Maintenance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <div class="flex items-center gap-3">
+            <img src="./assets/icons/logo.svg" alt="MotoCare logo" class="h-12 w-12 rounded-2xl bg-white/10 p-1" />
+            <div>
+              <p class="text-white/70 text-sm">MotoCare</p>
+              <h2 data-user-name>Rider</h2>
+            </div>
+          </div>
+          <p class="mt-4">Track upcoming service tasks with a timeline-style checklist.</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a class="sidebar-link" data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+          <a class="sidebar-link" data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i> Profile</a>
+          <a class="sidebar-link active" data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i> Maintenance</a>
+          <a class="sidebar-link" data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i> Repairs</a>
+          <a class="sidebar-link" data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-chart-line"></i> Expenses</a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a class="secondary-button text-center" href="./add-record.html"><i class="fa-solid fa-plus mr-2"></i>Add Record</a>
+          <button id="logoutButton" class="secondary-button">Logout</button>
+        </div>
+      </aside>
+
+      <main class="app-main page-shell">
+        <header class="topbar">
+          <div class="page-heading">
+            <h1>Maintenance Schedule</h1>
+            <p>Track service tasks and mark completed work as you go.</p>
+          </div>
+          <div class="topbar-actions">
+            <div class="profile-pill">
+              <div class="profile-avatar" data-user-avatar>R</div>
+              <div>
+                <div class="text-sm font-semibold text-slate-900" data-user-name>Rider</div>
+                <div class="text-xs text-slate-500" data-user-email>guest@motocare.app</div>
+              </div>
+            </div>
+            <a class="icon-button" href="./dashboard.html" aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left"></i></a>
+          </div>
+        </header>
+
+        <section id="maintenanceStats" class="stat-grid"></section>
+
+        <section class="section-card mt-5">
+          <div class="section-header">
+            <div>
+              <h2>All Tasks</h2>
+              <div class="section-detail">A clean timeline of due, pending, and completed work.</div>
+            </div>
+            <span class="section-badge"><i class="fa-solid fa-list-check"></i> Checklist view</span>
+          </div>
+          <div id="maintenanceTimeline" class="timeline-wrap"></div>
+        </section>
+      </main>
+    </div>
+
+    <nav class="mobile-nav" aria-label="Mobile navigation">
+      <a data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i><span>Home</span></a>
+      <a data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i><span>Profile</span></a>
+      <a data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i><span>Schedule</span></a>
+      <a data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i><span>History</span></a>
+      <a data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-dollar-sign"></i><span>Expenses</span></a>
+    </nav>
+
+    <a class="floating-action" href="./add-record.html" aria-label="Add new record"><i class="fa-solid fa-plus fa-lg"></i></a>
+    <a class="floating-help" href="mailto:support@motocare.app" aria-label="Contact support"><i class="fa-regular fa-circle-question"></i></a>
+
+    <script type="module" src="./js/maintenance.js"></script>
+  </body>
+</html>

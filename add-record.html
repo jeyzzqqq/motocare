@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MotoCare | Add Record</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <div class="flex items-center gap-3">
+            <img src="./assets/icons/logo.svg" alt="MotoCare logo" class="h-12 w-12 rounded-2xl bg-white/10 p-1" />
+            <div>
+              <p class="text-white/70 text-sm">MotoCare</p>
+              <h2 data-user-name>Rider</h2>
+            </div>
+          </div>
+          <p class="mt-4">Log maintenance, repairs, and expenses in one fast form.</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a class="sidebar-link" data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+          <a class="sidebar-link" data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i> Profile</a>
+          <a class="sidebar-link" data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i> Maintenance</a>
+          <a class="sidebar-link" data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i> Repairs</a>
+          <a class="sidebar-link" data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-chart-line"></i> Expenses</a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a class="secondary-button text-center" href="./dashboard.html"><i class="fa-solid fa-arrow-left mr-2"></i>Back to dashboard</a>
+          <button id="logoutButton" class="secondary-button">Logout</button>
+        </div>
+      </aside>
+
+      <main class="app-main page-shell">
+        <header class="topbar">
+          <div class="page-heading">
+            <h1>Add Record</h1>
+            <p>Log a maintenance task, repair, or expense entry in seconds.</p>
+          </div>
+          <div class="topbar-actions">
+            <div class="profile-pill">
+              <div class="profile-avatar" data-user-avatar>R</div>
+              <div>
+                <div class="text-sm font-semibold text-slate-900" data-user-name>Rider</div>
+                <div class="text-xs text-slate-500" data-user-email>guest@motocare.app</div>
+              </div>
+            </div>
+            <a class="icon-button" href="./dashboard.html" aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left"></i></a>
+          </div>
+        </header>
+
+        <section class="grid-two">
+          <article class="form-panel">
+            <div class="form-header">
+              <div>
+                <h2>Record Details</h2>
+                <div class="section-detail">Complete the form and save to the correct collection.</div>
+              </div>
+              <span class="section-badge"><i class="fa-solid fa-circle-plus"></i> Fast entry</span>
+            </div>
+
+            <form id="recordForm" class="space-y-5" novalidate>
+              <div class="form-group">
+                <label for="recordType">Record type</label>
+                <select id="recordType" class="form-control">
+                  <option value="maintenance">Maintenance</option>
+                  <option value="repairs">Repair</option>
+                  <option value="expenses">Expense</option>
+                </select>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="title">Title</label>
+                  <input id="title" class="form-control" type="text" placeholder="Oil Change" required />
+                </div>
+                <div class="form-group">
+                  <label for="date">Date</label>
+                  <input id="date" class="form-control" type="date" required />
+                </div>
+                <div class="form-group" id="amountGroup">
+                  <label for="amount">Cost / Amount</label>
+                  <input id="amount" class="form-control" type="number" min="0" step="1" placeholder="150" />
+                </div>
+                <div class="form-group">
+                  <label for="mileage">Mileage</label>
+                  <input id="mileage" class="form-control" type="number" min="0" step="1" placeholder="12450" />
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="category">Category / Type</label>
+                  <input id="category" class="form-control" type="text" placeholder="Engine / Parts / Brakes" />
+                </div>
+                <div class="form-group">
+                  <label for="serviceProvider">Mechanic / Vendor</label>
+                  <input id="serviceProvider" class="form-control" type="text" placeholder="Self Service or City Moto Shop" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="notes">Notes</label>
+                <textarea id="notes" class="form-control" placeholder="Add additional details about the service or repair."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="receiptUrl">Receipt URL / Preview</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-image"></i>
+                  <input id="receiptUrl" class="form-control" type="url" placeholder="https://..." />
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button id="saveRecordButton" type="submit" class="save-button">Save record</button>
+                <a href="./dashboard.html" class="secondary-button inline-flex items-center justify-center">Cancel</a>
+              </div>
+              <div id="recordMessage" class="empty-state hidden"></div>
+            </form>
+          </article>
+
+          <aside class="section-card">
+            <div class="section-header">
+              <div>
+                <h2>Preview</h2>
+                <div class="section-detail">A quick summary of the item you are about to log.</div>
+              </div>
+              <span class="section-badge"><i class="fa-solid fa-eye"></i> Live preview</span>
+            </div>
+
+            <div class="summary-card p-0 shadow-none bg-transparent border-0">
+              <div class="stat-card primary mb-4">
+                <div class="label">Summary</div>
+                <div class="value" id="previewTitle">Oil Change</div>
+                <div class="detail" id="previewMeta">Maintenance • Apr 25, 2026</div>
+              </div>
+              <div id="receiptPreview" class="empty-state flex items-center justify-center min-h-[220px] text-center">
+                Receipt preview will appear here if you paste a URL.
+              </div>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <nav class="mobile-nav" aria-label="Mobile navigation">
+      <a data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i><span>Home</span></a>
+      <a data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i><span>Profile</span></a>
+      <a data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i><span>Schedule</span></a>
+      <a data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i><span>History</span></a>
+      <a data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-dollar-sign"></i><span>Expenses</span></a>
+    </nav>
+
+    <a class="floating-help" href="mailto:support@motocare.app" aria-label="Contact support"><i class="fa-regular fa-circle-question"></i></a>
+
+    <script type="module" src="./js/addRecord.js"></script>
+  </body>
+</html>
