@@ -96,6 +96,47 @@
     <a class="floating-action" href="./add-record.html" aria-label="Add new record"><i class="fa-solid fa-plus fa-lg"></i></a>
     <a class="floating-help" href="mailto:support@motocare.app" aria-label="Contact support"><i class="fa-regular fa-circle-question"></i></a>
 
+    <!-- Edit Repair Modal -->
+    <dialog id="editRepairModal" class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Edit Repair Record</h2>
+          <button type="button" class="icon-button" data-modal-close aria-label="Close dialog">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <form id="editRepairForm" class="modal-body space-y-4" novalidate>
+          <div class="form-group">
+            <label for="editRepairTitle">Title</label>
+            <input id="editRepairTitle" class="form-control" type="text" required />
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="editRepairType">Type</label>
+              <input id="editRepairType" class="form-control" type="text" placeholder="Repair type" />
+            </div>
+            <div class="form-group">
+              <label for="editRepairDate">Date</label>
+              <input id="editRepairDate" class="form-control" type="date" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="editRepairCost">Cost</label>
+            <input id="editRepairCost" class="form-control" type="number" min="0" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="editRepairNotes">Notes</label>
+            <textarea id="editRepairNotes" class="form-control" placeholder="Additional notes..."></textarea>
+          </div>
+          <div id="editRepairMessage" class="empty-state hidden"></div>
+          <div class="modal-actions">
+            <button type="button" class="secondary-button" data-modal-close>Cancel</button>
+            <button type="submit" class="primary-button">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <script type="module" src="./js/repairs.js"></script>
   </body>
 </html>

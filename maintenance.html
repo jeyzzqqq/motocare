@@ -82,6 +82,43 @@
     <a class="floating-action" href="./add-record.html" aria-label="Add new record"><i class="fa-solid fa-plus fa-lg"></i></a>
     <a class="floating-help" href="mailto:support@motocare.app" aria-label="Contact support"><i class="fa-regular fa-circle-question"></i></a>
 
+    <!-- Edit Maintenance Modal -->
+    <dialog id="editMaintenanceModal" class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Edit Maintenance Task</h2>
+          <button type="button" class="icon-button" data-modal-close aria-label="Close dialog">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <form id="editMaintenanceForm" class="modal-body space-y-4" novalidate>
+          <div class="form-group">
+            <label for="editTaskTitle">Title</label>
+            <input id="editTaskTitle" class="form-control" type="text" required />
+          </div>
+          <div class="form-group">
+            <label for="editTaskCategory">Category</label>
+            <input id="editTaskCategory" class="form-control" type="text" placeholder="Engine / Brakes / Tires" />
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="editTaskDate">Due Date</label>
+              <input id="editTaskDate" class="form-control" type="date" required />
+            </div>
+            <div class="form-group">
+              <label for="editTaskMileage">Mileage</label>
+              <input id="editTaskMileage" class="form-control" type="number" min="0" step="1" />
+            </div>
+          </div>
+          <div id="editTaskMessage" class="empty-state hidden"></div>
+          <div class="modal-actions">
+            <button type="button" class="secondary-button" data-modal-close>Cancel</button>
+            <button type="submit" class="primary-button">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <script type="module" src="./js/maintenance.js"></script>
   </body>
 </html>

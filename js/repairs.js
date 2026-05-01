@@ -5,8 +5,17 @@ const statsTarget = document.getElementById("repairStats");
 const listTarget = document.getElementById("repairList");
 const searchInput = document.getElementById("repairSearch");
 const logoutButton = document.getElementById("logoutButton");
+const editModal = document.getElementById("editRepairModal");
+const editForm = document.getElementById("editRepairForm");
+const editTitle = document.getElementById("editRepairTitle");
+const editType = document.getElementById("editRepairType");
+const editDate = document.getElementById("editRepairDate");
+const editCost = document.getElementById("editRepairCost");
+const editNotes = document.getElementById("editRepairNotes");
+const editMessage = document.getElementById("editRepairMessage");
 
 let cachedRepairs = [];
+let currentEditingRepair = null;
 
 function renderRepair(repair) {
   return `
@@ -56,6 +65,28 @@ function updateStats() {
   ]);
 }
 
+function openEditModal(repair) {
+  currentEditingRepair = repair;
+  editTitle.value = repair.title || "";
+  editType.value = repair.type || "";
+  editDate.value = repair.date || "";
+  editCost.value = repair.cost || "";
+  editNotes.value = repair.notes || "";
+  editMessage.classList.add("hidden");
+  editModal.showModal();
+}
+
+function closeEditModal() {
+  editModal.close();
+  currentEditingRepair = null;
+}
+
+function showEditMessage(text, tone = "neutral") {
+  editMessage.textContent = text;
+  editMessage.className = `empty-state ${tone === "error" ? "border-red-200 bg-red-50 text-red-700" : tone === "success" ? "border-green-200 bg-green-50 text-green-700" : ""}`.trim();
+  editMessage.classList.remove("hidden");
+}
+
 function wireActions() {
   document.querySelectorAll(".edit-repair").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -63,19 +94,7 @@ function wireActions() {
       if (!current) {
         return;
       }
-      const title = window.prompt("Edit repair title:", current.title || "")?.trim();
-      if (!title) {
-        return;
-      }
-      const type = window.prompt("Edit repair type:", current.type || "Repair")?.trim() || "Repair";
-      const date = window.prompt("Edit date (YYYY-MM-DD):", current.date || "")?.trim() || current.date;
-      const costRaw = window.prompt("Edit cost:", String(current.cost || 0));
-      const cost = Number(costRaw || current.cost || 0);
-      const notes = window.prompt("Edit notes:", current.notes || "")?.trim() || "";
-
-      await saveUserRecord("repairs", { ...current, title, type, date, cost, notes }, current.id);
-      await refreshData();
-      applyFilter();
+      openEditModal(current);
     });
   });
 
@@ -110,6 +129,51 @@ async function refreshData() {
   listTarget.innerHTML = '<div class="empty-state">Loading repairs...</div>';
   cachedRepairs = await listUserRecords("repairs");
   updateStats();
+}
+
+// Modal event listeners
+if (editModal) {
+  document.querySelectorAll("[data-modal-close]").forEach((button) => {
+    button.addEventListener("click", closeEditModal);
+  });
+
+  editModal.addEventListener("click", (event) => {
+    if (event.target === editModal) {
+      closeEditModal();
+    }
+  });
+
+  editForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    showEditMessage("");
+
+    if (!currentEditingRepair) {
+      return;
+    }
+
+    const title = editTitle.value.trim();
+    if (!title) {
+      showEditMessage("Title is required.", "error");
+      return;
+    }
+
+    try {
+      await saveUserRecord("repairs", {
+        ...currentEditingRepair,
+        title,
+        type: editType.value.trim() || "Repair",
+        date: editDate.value,
+        cost: Number(editCost.value || 0),
+        notes: editNotes.value.trim()
+      }, currentEditingRepair.id);
+      
+      closeEditModal();
+      await refreshData();
+      applyFilter();
+    } catch (error) {
+      showEditMessage(error?.message || "Could not save repair.", "error");
+    }
+  });
 }
 
 async function boot(user) {

@@ -4,9 +4,39 @@ import { formatDate, integer, populateUserIdentity, renderSummaryCards, setActiv
 const statsTarget = document.getElementById("maintenanceStats");
 const timelineTarget = document.getElementById("maintenanceTimeline");
 const logoutButton = document.getElementById("logoutButton");
+const editModal = document.getElementById("editMaintenanceModal");
+const editForm = document.getElementById("editMaintenanceForm");
+const editTitle = document.getElementById("editTaskTitle");
+const editCategory = document.getElementById("editTaskCategory");
+const editDate = document.getElementById("editTaskDate");
+const editMileage = document.getElementById("editTaskMileage");
+const editMessage = document.getElementById("editTaskMessage");
+
+let currentEditingTask = null;
 
 function sortByDueDate(records) {
   return [...records].sort((left, right) => new Date(left.dueDate || left.date || 0) - new Date(right.dueDate || right.date || 0));
+}
+
+function openEditModal(task) {
+  currentEditingTask = task;
+  editTitle.value = task.title || "";
+  editCategory.value = task.category || "";
+  editDate.value = task.dueDate || task.date || "";
+  editMileage.value = task.mileage || "";
+  editMessage.classList.add("hidden");
+  editModal.showModal();
+}
+
+function closeEditModal() {
+  editModal.close();
+  currentEditingTask = null;
+}
+
+function showEditMessage(text, tone = "neutral") {
+  editMessage.textContent = text;
+  editMessage.className = `empty-state ${tone === "error" ? "border-red-200 bg-red-50 text-red-700" : tone === "success" ? "border-green-200 bg-green-50 text-green-700" : ""}`.trim();
+  editMessage.classList.remove("hidden");
 }
 
 function renderTask(task) {
@@ -72,24 +102,7 @@ async function refresh() {
       if (!currentTask) {
         return;
       }
-      const title = window.prompt("Edit maintenance title:", currentTask.title || "")?.trim();
-      if (!title) {
-        return;
-      }
-      const category = window.prompt("Edit category:", currentTask.category || "Maintenance")?.trim() || "Maintenance";
-      const dueDate = window.prompt("Edit due date (YYYY-MM-DD):", currentTask.dueDate || currentTask.date || "")?.trim() || currentTask.dueDate || currentTask.date;
-      const mileageRaw = window.prompt("Edit mileage:", String(currentTask.mileage || 0));
-      const mileage = Number(mileageRaw || currentTask.mileage || 0);
-      await saveUserRecord("maintenance", {
-        ...currentTask,
-        title,
-        category,
-        dueDate,
-        date: dueDate,
-        mileage,
-        status: currentTask.status || "pending"
-      }, currentTask.id);
-      await refresh();
+      openEditModal(currentTask);
     });
   });
 
@@ -102,6 +115,51 @@ async function refresh() {
       await deleteUserRecord("maintenance", recordId);
       await refresh();
     });
+  });
+}
+
+// Modal event listeners
+if (editModal) {
+  document.querySelectorAll("[data-modal-close]").forEach((button) => {
+    button.addEventListener("click", closeEditModal);
+  });
+
+  editModal.addEventListener("click", (event) => {
+    if (event.target === editModal) {
+      closeEditModal();
+    }
+  });
+
+  editForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    showEditMessage("");
+
+    if (!currentEditingTask) {
+      return;
+    }
+
+    const title = editTitle.value.trim();
+    if (!title) {
+      showEditMessage("Title is required.", "error");
+      return;
+    }
+
+    try {
+      await saveUserRecord("maintenance", {
+        ...currentEditingTask,
+        title,
+        category: editCategory.value.trim() || "Maintenance",
+        dueDate: editDate.value,
+        date: editDate.value,
+        mileage: Number(editMileage.value || 0),
+        status: currentEditingTask.status || "pending"
+      }, currentEditingTask.id);
+      
+      closeEditModal();
+      await refresh();
+    } catch (error) {
+      showEditMessage(error?.message || "Could not save task.", "error");
+    }
   });
 }
 
