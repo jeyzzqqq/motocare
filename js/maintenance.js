@@ -68,7 +68,12 @@ function renderTask(task) {
 }
 
 async function refresh() {
-  timelineTarget.innerHTML = '<div class="empty-state">Loading maintenance tasks...</div>';
+  // Show skeleton loaders while loading
+  timelineTarget.innerHTML = `
+    <div class="skeleton-card skeleton"></div>
+    <div class="skeleton-card skeleton"></div>
+    <div class="skeleton-card skeleton"></div>
+  `;
   const tasks = sortByDueDate(await listUserRecords("maintenance"));
   const completed = tasks.filter((task) => task.status === "done" || task.status === "completed");
   const dueNow = tasks.filter((task) => task.status === "due");
