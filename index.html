@@ -31,6 +31,24 @@
         .scale-in {
             animation: scaleIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
+        /* Password toggle button styling */
+        .password-toggle-btn {
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .password-toggle-btn:hover i {
+            color: #059669;
+        }
+        .password-toggle-btn i {
+            transition: color 0.2s ease;
+            color: #6b7280; /* default gray */
+            font-size: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-green-700 to-green-900 min-h-screen flex items-center justify-center p-4">
@@ -71,9 +89,15 @@
                     <div>
                         <label class="block text-gray-700 mb-2">Password</label>
                         <div class="relative">
-                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
                             <input type="password" id="loginPassword" placeholder="Enter your password" required
-                                class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                                class="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                            <button type="button" id="loginPasswordToggle" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility('loginPassword', 'loginPasswordToggle')" class="absolute right-3 top-1/2 -translate-y-1/2 hover:text-gray-600 transition-colors cursor-pointer password-toggle-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
@@ -83,8 +107,8 @@
                         </button>
                     </div>
 
-                    <button type="submit" class="w-full bg-green-700 text-white py-3.5 rounded-xl hover:bg-green-800 transition-all shadow-lg hover:shadow-xl active:scale-95">
-                        Login
+                    <button type="submit" class="w-full bg-green-700 text-white py-3.5 rounded-xl hover:bg-green-800 transition-all shadow-lg hover:shadow-xl active:scale-95 font-medium">
+                        <i class="lucide lucide-log-in mr-2"></i>Login
                     </button>
                 </form>
 
@@ -102,23 +126,35 @@
                     <div>
                         <label class="block text-gray-700 mb-2">Password</label>
                         <div class="relative">
-                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
                             <input type="password" id="signupPassword" placeholder="Enter your password" required
-                                class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                                class="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                            <button type="button" id="signupPasswordToggle" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility('signupPassword', 'signupPasswordToggle')" class="absolute right-3 top-1/2 -translate-y-1/2 hover:text-gray-600 transition-colors cursor-pointer password-toggle-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
                     <div>
                         <label class="block text-gray-700 mb-2">Confirm Password</label>
                         <div class="relative">
-                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
                             <input type="password" id="signupConfirmPassword" placeholder="Confirm your password" required
-                                class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                                class="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                            <button type="button" id="confirmPasswordToggle" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility('signupConfirmPassword', 'confirmPasswordToggle')" class="absolute right-3 top-1/2 -translate-y-1/2 hover:text-gray-600 transition-colors cursor-pointer password-toggle-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
-                    <button type="submit" class="w-full bg-green-700 text-white py-3.5 rounded-xl hover:bg-green-800 transition-all shadow-lg hover:shadow-xl active:scale-95">
-                        Sign Up
+                    <button type="submit" class="w-full bg-green-700 text-white py-3.5 rounded-xl hover:bg-green-800 transition-all shadow-lg hover:shadow-xl active:scale-95 font-medium">
+                        <i class="lucide lucide-user-plus mr-2"></i>Sign Up
                     </button>
                 </form>
 
@@ -162,7 +198,9 @@
     <script type="module" src="./js/auth.js"></script>
     <script src="./js/utils.js"></script>
     
-    <script>
+    <script type="module">
+        import { login, signUp, googleSignIn } from "./js/auth.js";
+
         let isLoginMode = true;
 
         function switchTab(mode) {
@@ -192,6 +230,101 @@
         function toggleForm() {
             switchTab(isLoginMode ? 'signup' : 'login');
         }
+
+        // Expose functions to global scope for inline onclick handlers
+        window.switchTab = switchTab;
+        window.toggleForm = toggleForm;
+
+        // PASSWORD TOGGLE FUNCTIONALITY
+        window.togglePasswordVisibility = function(inputId, toggleBtnId) {
+            const input = document.getElementById(inputId);
+            const toggleBtn = document.getElementById(toggleBtnId);
+
+            if (!input || !toggleBtn) return;
+
+            // Debug log for visibility during development
+            console.debug('togglePasswordVisibility called for', inputId);
+
+            // Determine new state
+            const willShow = input.type === 'password';
+            input.type = willShow ? 'text' : 'password';
+
+            // Update accessible attributes
+            toggleBtn.setAttribute('aria-pressed', willShow ? 'true' : 'false');
+            toggleBtn.title = willShow ? 'Hide password' : 'Show password';
+
+            // Replace inner HTML with explicit icon markup so the visual always updates
+            const iconHtml = willShow
+                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">\n                    <path d="M2 2l20 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>\n                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>\n                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>\n                </svg>'
+                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">\n                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>\n                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>\n                </svg>';
+            toggleBtn.innerHTML = iconHtml;
+        };
+
+        // LOGIN FORM SUBMISSION
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                await login(email, password);
+                showToast('Login successful!', 'success');
+                setTimeout(() => {
+                    window.location.href = './dashboard.html';
+                }, 1000);
+            } catch (error) {
+                showToast(error.message || 'Login failed', 'error');
+                console.error('Login error:', error);
+            }
+        });
+
+        // SIGNUP FORM SUBMISSION
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const confirmPassword = document.getElementById('signupConfirmPassword').value;
+
+            if (password !== confirmPassword) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            try {
+                console.debug('Attempting signUp for', email);
+                const userCred = await signUp(email, password);
+                console.debug('signUp success', userCred);
+                showToast('Sign up successful! Logging you in...', 'success');
+                setTimeout(() => {
+                    window.location.href = './dashboard.html';
+                }, 1000);
+            } catch (error) {
+                const code = error.code || 'unknown';
+                const msg = error.message || 'Sign up failed';
+                showToast(`${msg} (${code})`, 'error');
+                console.error('Sign up error:', error);
+            }
+        });
+
+        // GOOGLE SIGN-IN BUTTON
+        document.getElementById('googleSignInBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                console.debug('Starting Google sign-in');
+                await googleSignIn();
+                showToast('Signed in with Google', 'success');
+                setTimeout(() => { window.location.href = './dashboard.html'; }, 800);
+            } catch (error) {
+                const code = error.code || 'unknown';
+                showToast(error.message ? `${error.message} (${code})` : 'Google sign-in failed', 'error');
+                console.error('Google sign-in error:', error);
+            }
+        });
     </script>
 </body>
 </html>

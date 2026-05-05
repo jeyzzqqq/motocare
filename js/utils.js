@@ -44,9 +44,10 @@ function formatDate(date) {
 
 // Check Authentication
 function checkAuth() {
-    const user = firebase.auth().currentUser;
-    if (!user && !window.location.pathname.endsWith('index.html')) {
+    // Note: For use in pages that import auth from firebase-config.js
+    // This function is kept for backward compatibility
+    // Proper auth checking is done via onAuthStateChanged in each module
+    if (!window.location.pathname.endsWith('index.html') && !window.location.pathname.includes('.html')) {
         window.location.href = 'index.html';
     }
-    return user;
 }

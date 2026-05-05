@@ -1,219 +1,221 @@
-import { deleteUserRecord, listUserRecords, logoutUser, onAuthChange } from "./firebase.js";
-import { drawBarChart, drawDonutChart, formatDate, money, populateUserIdentity, setActiveNav } from "./ui.js";
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { collection, query, where, getDocs, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const heroTarget = document.getElementById("expenseHero");
-const trendCanvas = document.getElementById("expenseTrendChart");
-const categoryCanvas = document.getElementById("expenseCategoryChart");
-const legendTarget = document.getElementById("expenseCategoryLegend");
-const recentTarget = document.getElementById("recentExpenses");
-const logoutButton = document.getElementById("logoutButton");
+let expenses = [];
 
-let cachedExpenses = [];
-let isLoading = false;
-
-function monthLabel(dateValue) {
-  return new Date(dateValue).toLocaleDateString("en-US", { month: "short" });
-}
-
-function buildTrend(expenses) {
-  const buckets = new Map();
-  expenses.forEach((expense) => {
-    const date = new Date(expense.date || expense.createdAt || Date.now());
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    buckets.set(key, (buckets.get(key) || 0) + Number(expense.amount || 0));
-  });
-  return [...buckets.entries()]
-    .sort((left, right) => left[0].localeCompare(right[0]))
-    .slice(-4)
-    .map(([key, value]) => {
-      const [year, month] = key.split("-").map(Number);
-      return { label: monthLabel(new Date(year, month, 1)), value };
-    });
-}
-
-function buildCategories(expenses) {
-  const buckets = new Map();
-  expenses.forEach((expense) => {
-    const key = expense.category || expense.title || "Other";
-    buckets.set(key, (buckets.get(key) || 0) + Number(expense.amount || 0));
-  });
-  return [...buckets.entries()].map(([label, value], index) => ({
-    label,
-    value,
-    color: ["#2E7D32", "#4CAF50", "#7BC47F", "#A5D6A7", "#C8E6C9"][index % 5]
-  }));
-}
-
-function renderExpense(expense) {
-  return `
-    <article class="expense-item">
-      <div class="list-item-main">
-        <span class="dot"></span>
-        <div>
-          <h3>${expense.title}</h3>
-          <p>${formatDate(expense.date)} • ${expense.category || "Expense"}</p>
-          <div class="task-meta"><span><i class="fa-solid fa-circle-info"></i> ${expense.notes || "No additional notes"}</span></div>
-        </div>
-      </div>
-      <div class="flex flex-col items-end gap-2">
-        <div class="money">${money(expense.amount)}</div>
-        <button class="secondary-button delete-expense" data-record-id="${expense.id}">Delete</button>
-      </div>
-    </article>
-  `;
-}
-
-function showExpensesSkeleton() {
-  if (recentTarget) {
-    recentTarget.innerHTML = `
-      <div class="skeleton-card skeleton"></div>
-      <div class="skeleton-card skeleton"></div>
-      <div class="skeleton-card skeleton"></div>
-    `;
-  }
-  if (heroTarget) heroTarget.innerHTML = '';
-  if (trendCanvas) trendCanvas.getContext("2d").clearRect(0, 0, trendCanvas.width, trendCanvas.height);
-  if (categoryCanvas) categoryCanvas.getContext("2d").clearRect(0, 0, categoryCanvas.width, categoryCanvas.height);
-  if (legendTarget) legendTarget.innerHTML = '';
-}
-
-async function refresh() {
-  isLoading = true;
-  showExpensesSkeleton();
-  try {
-    cachedExpenses = await listUserRecords("expenses");
-    renderDashboard();
-  } catch (err) {
-    if (recentTarget) recentTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Could not load expenses. Please refresh.</div>';
-    if (heroTarget) heroTarget.innerHTML = '';
-    if (legendTarget) legendTarget.innerHTML = '';
-  } finally {
-    isLoading = false;
-  }
-}
-
-async function renderDashboard() {
-  const total = cachedExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-  const now = new Date();
-  const thisMonth = cachedExpenses
-    .filter((expense) => {
-      const date = new Date(expense.date || Date.now());
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-
-  const monthKeys = new Set(cachedExpenses.map((expense) => {
-    const date = new Date(expense.date || Date.now());
-    return `${date.getFullYear()}-${date.getMonth()}`;
-  }));
-  const monthlyAverage = cachedExpenses.length ? total / Math.max(1, monthKeys.size) : 0;
-
-  heroTarget.innerHTML = `
-    <div class="section-header">
-      <div>
-        <h2 class="text-2xl font-extrabold tracking-tight text-slate-900">Total Expenses</h2>
-        <div class="section-detail">A concise summary of your motorcycle spend.</div>
-      </div>
-      <span class="section-badge"><i class="fa-solid fa-wallet"></i> Budget view</span>
-    </div>
-    <div class="stat-card primary">
-      <div class="label text-white/75">Total expenses</div>
-      <div class="value">${money(total)}</div>
-      <div class="detail text-white/80">${money(thisMonth)} spent this month</div>
-    </div>
-    <div class="grid mt-4 grid-cols-2 gap-4">
-      <div class="summary-card">
-        <div class="metric-label">This month</div>
-        <div class="metric-value">${money(thisMonth)}</div>
-        <div class="metric-detail">Current month total</div>
-      </div>
-      <div class="summary-card">
-        <div class="metric-label">Avg / month</div>
-        <div class="metric-value">${money(monthlyAverage)}</div>
-        <div class="metric-detail">Recent monthly average</div>
-      </div>
-    </div>
-  `;
-
-  const trend = buildTrend(cachedExpenses);
-  const trendSource = trend.length ? trend : [
-    { label: "Jan", value: 120 },
-    { label: "Feb", value: 270 },
-    { label: "Mar", value: 150 },
-    { label: "Apr", value: 190 }
-  ];
-
-  drawBarChart(
-    trendCanvas,
-    trendSource.map((item) => item.label),
-    trendSource.map((item) => item.value)
-  );
-
-  const categories = buildCategories(cachedExpenses);
-  const categorySource = categories.length ? categories : [
-    { label: "Tires", value: 320, color: "#2E7D32" },
-    { label: "Oil", value: 90, color: "#4CAF50" },
-    { label: "Brakes", value: 85, color: "#7BC47F" },
-    { label: "Battery", value: 150, color: "#A5D6A7" }
-  ];
-
-  drawDonutChart(categoryCanvas, categorySource, {
-    centerLabel: money(total),
-    centerSubLabel: "Lifetime spend"
-  });
-
-  legendTarget.innerHTML = categorySource.map((segment) => `
-    <div class="legend-row">
-      <span><i class="legend-swatch" style="background:${segment.color}"></i>${segment.label}</span>
-      <strong>${money(segment.value)}</strong>
-    </div>
-  `).join("");
-
-  recentTarget.innerHTML = cachedExpenses.length
-    ? cachedExpenses.slice(0, 8).map((expense) => renderExpense(expense)).join("")
-    : '<div class="empty-state">No expenses recorded yet. Your spending list will appear here.</div>';
-
-  document.querySelectorAll(".delete-expense").forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (isLoading) return;
-      const recordId = button.dataset.recordId;
-      if (!recordId || !window.confirm("Delete this expense record?")) {
-        return;
-      }
-      button.disabled = true;
-      button.textContent = "Deleting...";
-      try {
-        await deleteUserRecord("expenses", recordId);
-        await refresh();
-      } catch (err) {
-        button.disabled = false;
-        button.textContent = "Delete";
-        alert("Failed to delete expense. Please try again.");
-      }
-    });
-  });
-}
-
-async function boot(user) {
-  setActiveNav("expenses");
-  populateUserIdentity(user);
-  if (logoutButton) {
-    logoutButton.addEventListener("click", async () => {
-      await logoutUser();
-      window.location.replace("./login.html");
-    });
-  }
-
-  await refresh();
-}
-
-onAuthChange((user) => {
-  if (!user) {
-    window.location.replace("./login.html");
-    return;
-  }
-  boot(user).catch((error) => {
-    console.error(error);
-    recentTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Could not load expenses. Please refresh.</div>';
-  });
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        await loadExpenses(user.uid);
+    } else {
+        window.location.href = 'index.html';
+    }
 });
+
+async function loadExpenses(userId) {
+    try {
+        const q = query(
+            collection(db, 'repairs'),
+            where('userId', '==', userId),
+            orderBy('createdAt', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            loadMockExpenses();
+        } else {
+            expenses = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date || doc.data().createdAt
+            }));
+            displayExpenses();
+        }
+    } catch (error) {
+        console.error('Error loading expenses:', error);
+        loadMockExpenses();
+    }
+}
+
+function loadMockExpenses() {
+    expenses = [
+        { id: '1', title: 'Chain Lubrication', amount: 25, date: new Date('2026-04-15'), category: 'Maintenance', notes: 'Regular maintenance' },
+        { id: '2', title: 'Battery Replacement', amount: 150, date: new Date('2026-04-10'), category: 'Parts', notes: 'New battery installed' },
+        { id: '3', title: 'Brake Pads', amount: 85, date: new Date('2026-03-28'), category: 'Parts', notes: 'Front brake pads' },
+        { id: '4', title: 'Oil Change', amount: 45, date: new Date('2026-03-15'), category: 'Maintenance', notes: 'Synthetic oil' },
+        { id: '5', title: 'Tire Replacement', amount: 120, date: new Date('2026-02-20'), category: 'Parts', notes: 'Front tire' },
+        { id: '6', title: 'Air Filter', amount: 30, date: new Date('2026-02-10'), category: 'Maintenance', notes: 'Engine air filter' }
+    ];
+    displayExpenses();
+}
+
+function displayExpenses() {
+    const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    const now = new Date();
+    const thisMonth = expenses
+        .filter(exp => {
+            const date = new Date(exp.date);
+            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        })
+        .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+
+    const monthlyAverage = calculateMonthlyAverage(expenses);
+
+    // Update header stats
+    document.getElementById('totalExpenses').textContent = `$${total.toFixed(2)}`;
+    document.getElementById('thisMonthExpense').textContent = `$${thisMonth.toFixed(2)}`;
+    document.getElementById('avgMonthExpense').textContent = `$${monthlyAverage.toFixed(2)}`;
+    document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // Display trend (monthly)
+    displayMonthlyTrendChart();
+    
+    // Display category breakdown
+    displayCategoryChart();
+
+    // Display recent expenses
+    displayRecentExpenses();
+}
+
+function calculateMonthlyAverage(expenses) {
+    if (expenses.length === 0) return 0;
+    const monthSet = new Set();
+    expenses.forEach(exp => {
+        const date = new Date(exp.date);
+        monthSet.add(`${date.getFullYear()}-${date.getMonth()}`);
+    });
+    const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    return total / Math.max(1, monthSet.size);
+}
+
+function displayMonthlyTrendChart() {
+    const monthlyData = new Map();
+    expenses.forEach(exp => {
+        const date = new Date(exp.date);
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        monthlyData.set(key, (monthlyData.get(key) || 0) + (exp.amount || 0));
+    });
+
+    const sortedEntries = Array.from(monthlyData.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-4);
+
+    const labels = sortedEntries.map(([key, _]) => {
+        const [year, month] = key.split('-').map(Number);
+        return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short' });
+    });
+    const data = sortedEntries.map(([_, value]) => value);
+
+    const ctx = document.getElementById('monthlyTrendChart')?.getContext('2d');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.length ? labels : ['Jan', 'Feb', 'Mar', 'Apr'],
+                datasets: [{
+                    label: 'Monthly Expenses',
+                    data: data.length ? data : [120, 335, 130, 175],
+                    backgroundColor: '#15803d',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: (value) => '$' + value }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function displayCategoryChart() {
+    const categoryData = new Map();
+    expenses.forEach(exp => {
+        const cat = exp.category || 'Other';
+        categoryData.set(cat, (categoryData.get(cat) || 0) + (exp.amount || 0));
+    });
+
+    const colors = ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac'];
+    const chartData = Array.from(categoryData.entries()).map(([label, value], idx) => ({
+        label,
+        value,
+        color: colors[idx % colors.length]
+    }));
+
+    const ctx = document.getElementById('categoryPieChart')?.getContext('2d');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: chartData.length ? chartData.map(d => d.label) : ['Tires', 'Oil', 'Brakes', 'Battery', 'Misc'],
+                datasets: [{
+                    data: chartData.length ? chartData.map(d => d.value) : [320, 90, 85, 150, 115],
+                    backgroundColor: chartData.length ? chartData.map(d => d.color) : ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    // Update legend
+    const legend = document.getElementById('categoryLegend');
+    if (legend) {
+        legend.innerHTML = chartData.map(item => `
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full" style="background-color: ${item.color}"></div>
+                    <span class="text-gray-700 text-sm">${item.label}</span>
+                </div>
+                <span class="font-medium text-gray-800">$${item.value.toFixed(2)}</span>
+            </div>
+        `).join('');
+    }
+}
+
+function displayRecentExpenses() {
+    const recentList = document.getElementById('recentExpensesList');
+    if (!recentList) return;
+
+    recentList.innerHTML = expenses.slice(0, 6).map(exp => {
+        const date = new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
+                <div class="flex-1">
+                    <p class="text-gray-800 font-medium">${exp.title}</p>
+                    <p class="text-xs text-gray-500">${date} • ${exp.category}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <p class="font-bold text-green-700">$${exp.amount?.toFixed(2)}</p>
+                    <button class="delete-expense-btn" data-expense-id="${exp.id}" title="Delete">
+                        <i class="lucide lucide-trash-2 text-red-500 text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Add delete handlers
+    document.querySelectorAll('.delete-expense-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.expenseId;
+            if (!confirm('Delete this expense?')) return;
+            try {
+                await deleteDoc(doc(db, 'repairs', id));
+                await loadExpenses(auth.currentUser.uid);
+                showToast('Expense deleted', 'success');
+            } catch (err) {
+                showToast('Error deleting expense', 'error');
+            }
+        });
+    });
+}

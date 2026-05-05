@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 let selectedFile = null;
 
@@ -93,9 +93,6 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     };
     
     try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
         // Add to Firestore
         await addDoc(collection(db, 'repairs'), formData);
         

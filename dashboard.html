@@ -7,7 +7,67 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+    <style>
+        /* Logout button enhanced styling */
+        .logout-btn {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .logout-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);
+        }
+        .logout-btn:active {
+            transform: scale(0.95);
+        }
+        /* Tooltip styling */
+        .logout-tooltip {
+            position: absolute;
+            bottom: -40px;
+            right: 0;
+            background-color: rgba(239, 68, 68, 0.95);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+        .logout-btn:hover .logout-tooltip {
+            opacity: 1;
+        }
+        /* Logout icon button (rounded UI style) */
+        .logout-icon-btn {
+            background-color: #ffffff;
+            color: #faf6f6; /* icon color */
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border-radius: 9999px; /* fully rounded */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.18s ease, transform 0.12s ease;
+        }
+        .logout-icon-btn:active { transform: scale(0.98); }
+        .logout-icon-btn:hover { background-color: #f3f4f6; }
+        .logout-icon-btn svg { display: block; }
+        /* Dark mode: invert for visibility */
+        @media (prefers-color-scheme: dark) {
+            .logout-icon-btn { background-color: #0f172a; color: #f8fafc; }
+            .logout-icon-btn:hover { background-color: #0b1220; }
+        }
+        .btn-danger:active {
+            transform: scale(0.98);
+        }
+    </style>
 <body class="bg-gray-50 min-h-screen pb-20">
     <div class="max-w-lg mx-auto">
         <div class="p-4 space-y-6">
@@ -17,9 +77,20 @@
                     <h1 class="text-3xl text-gray-800">Dashboard</h1>
                     <p class="text-gray-500 text-sm mt-1">Welcome back, <span id="userName">Rider</span>!</p>
                 </div>
-                <button id="logoutBtn" class="p-2.5 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors">
-                    <i class="lucide lucide-log-out text-gray-600 text-xl"></i>
-                </button>
+                <div class="relative">
+                    <button id="logoutBtn" class="logout-btn logout-icon-btn" title="Logout from MotoCare" aria-label="Logout">
+                        <!-- Rounded square with exiting arrow (slightly overlapping) -->
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <!-- rounded square box -->
+                            <rect x="3" y="5" width="12" height="14" rx="3" stroke="currentColor" stroke-width="1.6" fill="none" />
+                            <!-- shaft that exits the box -->
+                            <path d="M11 12H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                            <!-- arrow head outside the box -->
+                            <path d="M18 9L22 12L18 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span class="logout-tooltip">Logout</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Quick Stats -->

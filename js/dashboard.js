@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -8,6 +8,20 @@ onAuthStateChanged(auth, async (user) => {
         await loadDashboardData(user.uid);
     } else {
         window.location.href = 'index.html';
+    }
+});
+
+// LOGOUT HANDLER
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    try {
+        await signOut(auth);
+        showToast('Logged out successfully', 'success');
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 500);
+    } catch (error) {
+        console.error('Logout error:', error);
+        showToast('Error logging out', 'error');
     }
 });
 
