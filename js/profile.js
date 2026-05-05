@@ -8,7 +8,7 @@ let userId = null;
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         userId = user.uid;
-        await loadProfile(userId);
+        await loadProfile(user.uid);
     } else {
         window.location.href = 'index.html';
     }
@@ -21,30 +21,32 @@ async function loadProfile(uid) {
         
         if (docSnap.exists()) {
             const data = docSnap.data();
+            if (data.uid && data.uid !== uid) {
+                loadEmptyProfile();
+                return;
+            }
             populateProfile(data);
         } else {
-            // Use default values
-            loadDefaultProfile();
+            loadEmptyProfile();
         }
     } catch (error) {
         console.error('Error loading profile:', error);
-        loadDefaultProfile();
+        loadEmptyProfile();
     }
 }
 
-function loadDefaultProfile() {
-    const defaultData = {
-        make: 'Honda',
-        model: 'CBR 600RR',
-        year: '2024',
-        vin: '1HGBH41JXMN109186',
-        plateNumber: 'MC-4567',
-        mileage: '12,450',
-        fuelType: 'Gasoline',
-        purchaseDate: 'Jan 15, 2024',
-        color: 'Racing Red'
-    };
-    populateProfile(defaultData);
+function loadEmptyProfile() {
+    populateProfile({
+        make: '',
+        model: '',
+        year: '',
+        vin: '',
+        plateNumber: '',
+        mileage: '',
+        fuelType: '',
+        purchaseDate: '',
+        color: ''
+    });
 }
 
 function populateProfile(data) {
@@ -98,6 +100,13 @@ window.cancelEdit = function() {
 }
 
 window.saveProfile = async function() {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+        showToast('Please sign in again to save your profile.', 'error');
+        window.location.href = 'index.html';
+        return;
+    }
+
     if (!userId) return;
 
     const makeModel = document.getElementById('makeModel').value.split(' ');
@@ -105,6 +114,7 @@ window.saveProfile = async function() {
     const model = makeModel.slice(1).join(' ');
 
     const profileData = {
+        uid: currentUser.uid,
         make: make,
         model: model,
         year: document.getElementById('year').value,

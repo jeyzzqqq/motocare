@@ -5,7 +5,8 @@ import { collection, query, where, getDocs, orderBy, limit } from "https://www.g
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         document.getElementById('userName').textContent = user.email.split('@')[0];
-        await loadDashboardData(user.uid);
+        setDashboardLoadingState();
+        await loadDashboardData(user);
     } else {
         window.location.href = 'index.html';
     }
@@ -25,74 +26,109 @@ document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     }
 });
 
-async function loadDashboardData(userId) {
+async function loadDashboardData(user) {
     try {
-        // Load upcoming maintenance
-        const maintenanceQuery = query(
-            collection(db, 'maintenance'),
-            where('userId', '==', userId),
-            where('status', '!=', 'completed'),
-            orderBy('dueDate'),
-            limit(3)
-        );
-        const maintenanceSnapshot = await getDocs(maintenanceQuery);
+        const currentUser = auth.currentUser || user;
+        const uid = currentUser?.uid;
+
+        if (!uid) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        const [maintenanceSnapshot, repairsSnapshot] = await Promise.all([
+            getDocs(query(
+                collection(db, 'maintenance'),
+                where('uid', '==', uid)
+            )),
+            getDocs(query(
+                collection(db, 'repairs'),
+                where('uid', '==', uid)
+            ))
+        ]);
+
         displayUpcomingMaintenance(maintenanceSnapshot.docs);
-
-        // Load recent repairs
-        const repairsQuery = query(
-            collection(db, 'repairs'),
-            where('userId', '==', userId),
-            orderBy('date', 'desc'),
-            limit(2)
-        );
-        const repairsSnapshot = await getDocs(repairsQuery);
         displayRecentRepairs(repairsSnapshot.docs);
-
-        // Load expense data
-        const expensesQuery = query(
-            collection(db, 'expenses'),
-            where('userId', '==', userId),
-            orderBy('date', 'desc'),
-            limit(4)
-        );
-        const expensesSnapshot = await getDocs(expensesQuery);
-        displayExpenseChart(expensesSnapshot.docs);
-        displayMaintenancePieChart();
+        displayExpenseChart(repairsSnapshot.docs);
+        displayMaintenancePieChart(maintenanceSnapshot.docs);
     } catch (error) {
         console.error('Error loading dashboard data:', error);
-        // Load mock data if Firebase fails
-        loadMockData();
+        renderDashboardEmptyState();
     }
 }
 
-function loadMockData() {
-    const upcomingMaintenance = [
-        { task: 'Oil Change', date: 'Apr 22, 2026', status: 'due', icon: 'wrench' },
-        { task: 'Tire Inspection', date: 'Apr 25, 2026', status: 'upcoming', icon: 'alert-circle' },
-        { task: 'Brake Check', date: 'May 5, 2026', status: 'upcoming', icon: 'check-circle-2' }
-    ];
-
-    const recentRepairs = [
-        { task: 'Chain Lubrication', date: 'Apr 15, 2026', cost: '$25' },
-        { task: 'Battery Replacement', date: 'Apr 10, 2026', cost: '$150' }
-    ];
-
-    displayUpcomingMaintenanceMock(upcomingMaintenance);
-    displayRecentRepairsMock(recentRepairs);
-    displayExpenseChartMock();
-    displayMaintenancePieChart();
+function setDashboardLoadingState() {
+    renderEmptyList('upcomingMaintenanceList', 'Loading...');
+    renderEmptyList('recentRepairsList', 'Loading...');
+    const expenseChart = document.getElementById('expenseChart');
+    if (expenseChart?.parentElement) {
+        expenseChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">Loading...</div>';
+    }
+    const maintenancePieChart = document.getElementById('maintenancePieChart');
+    if (maintenancePieChart?.parentElement) {
+        maintenancePieChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">Loading...</div>';
+    }
 }
 
-function displayUpcomingMaintenanceMock(items) {
+function renderDashboardEmptyState() {
+    renderEmptyList('upcomingMaintenanceList');
+    renderEmptyList('recentRepairsList');
+    renderEmptyChart('expenseChart');
+    renderEmptyChart('maintenancePieChart');
+    const maintenanceLegend = document.getElementById('maintenanceLegend');
+    if (maintenanceLegend) {
+        maintenanceLegend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
+    }
+    document.getElementById('totalServices').textContent = '0';
+    document.getElementById('totalSpent').textContent = '$0';
+}
+
+function renderEmptyList(containerId, message = 'No records yet') {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.innerHTML = `<div class="text-gray-500 text-sm py-3">${message}</div>`;
+    }
+}
+
+function renderEmptyChart(containerId, message = 'No records yet') {
+    const canvas = document.getElementById(containerId);
+    if (canvas && canvas.parentElement) {
+        canvas.parentElement.innerHTML = `<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">${message}</div>`;
+    }
+}
+
+function getRecordDate(docData) {
+    const raw = docData.date || docData.dueDate || docData.createdAt;
+    return raw ? new Date(raw) : null;
+}
+
+function displayUpcomingMaintenance(docs) {
     const container = document.getElementById('upcomingMaintenanceList');
-    container.innerHTML = items.map(item => `
+    const items = docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((item) => item.uid && item.status !== 'completed');
+
+    if (!items.length) {
+        renderEmptyList('upcomingMaintenanceList');
+        document.getElementById('totalServices').textContent = '0';
+        return;
+    }
+
+    const sortedItems = items.sort((a, b) => {
+        const dateA = new Date(a.dueDate || a.date || 0).getTime();
+        const dateB = new Date(b.dueDate || b.date || 0).getTime();
+        return dateA - dateB;
+    });
+
+    document.getElementById('totalServices').textContent = String(sortedItems.length);
+    container.innerHTML = items.slice(0, 3).map(item => `
         <div onclick="window.location.href='schedule.html'" class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer active:shadow-inner">
             <div class="w-10 h-10 rounded-full flex items-center justify-center ${item.status === 'due' ? 'bg-red-100' : 'bg-green-100'}">
-                <i class="lucide lucide-${item.icon} ${item.status === 'due' ? 'text-red-600' : 'text-green-700'} text-xl"></i>
+                <i class="lucide lucide-${item.icon || 'wrench'} ${item.status === 'due' ? 'text-red-600' : 'text-green-700'} text-xl"></i>
             </div>
             <div class="flex-1">
-                <p class="text-gray-800 font-medium">${item.task}</p>
-                <p class="text-xs text-gray-500">${item.date}</p>
+                <p class="text-gray-800 font-medium">${item.task || item.title || 'Maintenance item'}</p>
+                <p class="text-xs text-gray-500">${item.dueDate || item.date || ''}</p>
             </div>
             <div class="flex items-center gap-2">
                 <div class="w-2 h-2 rounded-full ${item.status === 'due' ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}"></div>
@@ -102,36 +138,79 @@ function displayUpcomingMaintenanceMock(items) {
     `).join('');
 }
 
-function displayRecentRepairsMock(items) {
+function displayRecentRepairs(docs) {
     const container = document.getElementById('recentRepairsList');
-    container.innerHTML = items.map(item => `
+    const items = docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((item) => item.uid);
+
+    if (!items.length) {
+        renderEmptyList('recentRepairsList');
+        document.getElementById('totalSpent').textContent = '$0';
+        return;
+    }
+
+    const sortedItems = items.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    const totalSpent = sortedItems.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+    document.getElementById('totalSpent').textContent = `$${totalSpent.toFixed(2)}`;
+
+    container.innerHTML = sortedItems.slice(0, 2).map(item => `
         <div onclick="window.location.href='history.html'" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                     <i class="lucide lucide-check-circle-2 text-green-700 text-xl"></i>
                 </div>
                 <div>
-                    <p class="text-gray-800 font-medium">${item.task}</p>
-                    <p class="text-xs text-gray-500">${item.date}</p>
+                    <p class="text-gray-800 font-medium">${item.title || item.task || 'Repair'}</p>
+                    <p class="text-xs text-gray-500">${item.date || item.createdAt || ''}</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <span class="text-green-700 font-semibold">${item.cost}</span>
+                <span class="text-green-700 font-semibold">$${Number(item.cost || 0).toFixed(2)}</span>
                 <i class="lucide lucide-chevron-right text-gray-400"></i>
             </div>
         </div>
     `).join('');
 }
 
-function displayExpenseChartMock() {
+function displayExpenseChart(docs) {
     const ctx = document.getElementById('expenseChart').getContext('2d');
+    const items = docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((item) => item.uid);
+
+    if (!items.length) {
+        renderEmptyChart('expenseChart');
+        return;
+    }
+
+    const monthlyTotals = new Map();
+    items.forEach((item) => {
+        const date = getRecordDate(item);
+        if (!date) return;
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        monthlyTotals.set(key, (monthlyTotals.get(key) || 0) + Number(item.cost || 0));
+    });
+
+    const sortedEntries = Array.from(monthlyTotals.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const labels = sortedEntries.map(([key]) => {
+        const [year, month] = key.split('-').map(Number);
+        return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short' });
+    });
+    const data = sortedEntries.map(([, value]) => value);
+
+    if (!labels.length) {
+        renderEmptyChart('expenseChart');
+        return;
+    }
+
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr'],
+            labels,
             datasets: [{
                 label: 'Expenses',
-                data: [120, 200, 150, 300],
+                data,
                 backgroundColor: '#15803d',
                 borderRadius: 8
             }]
@@ -158,12 +237,33 @@ function displayExpenseChartMock() {
     });
 }
 
-function displayMaintenancePieChart() {
+function displayMaintenancePieChart(docs) {
+    const items = docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }))
+        .filter((item) => item.uid);
+
+    const completed = items.filter((item) => item.status === 'completed').length;
+    const pending = items.filter((item) => item.status !== 'completed').length;
+
+    if (!items.length) {
+        renderEmptyChart('maintenancePieChart');
+        const legend = document.getElementById('maintenanceLegend');
+        if (legend) {
+            legend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
+        }
+        return;
+    }
+
     const ctx = document.getElementById('maintenancePieChart').getContext('2d');
     const data = [
-        { name: 'Completed', value: 8, color: '#15803d' },
-        { name: 'Pending', value: 3, color: '#9E9E9E' }
-    ];
+        { name: 'Completed', value: completed, color: '#15803d' },
+        { name: 'Pending', value: pending, color: '#9E9E9E' }
+    ].filter((item) => item.value > 0);
+
+    if (!data.length) {
+        renderEmptyChart('maintenancePieChart');
+        return;
+    }
 
     new Chart(ctx, {
         type: 'doughnut',
@@ -198,6 +298,3 @@ function displayMaintenancePieChart() {
         </div>
     `).join('');
 }
-
-// Load mock data on page load
-loadMockData();

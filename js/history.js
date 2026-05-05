@@ -13,53 +13,105 @@ onAuthStateChanged(auth, async (user) => {
 async function loadExpenses(userId) {
     try {
         const q = query(
-            collection(db, 'expenses'),
-            where('userId', '==', userId),
+            collection(db, 'repairs'),
+            where('uid', '==', userId),
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
+        const records = querySnapshot.docs
+            .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
+            .filter(record => record.uid === userId);
         
-        if (querySnapshot.empty) {
-            loadMockExpenses();
+        if (records.length === 0) {
+            renderEmptyState();
         } else {
-            displayExpenses(querySnapshot.docs);
+            displayExpenses(records);
         }
     } catch (error) {
         console.error('Error loading expenses:', error);
-        loadMockExpenses();
+        renderEmptyState();
     }
 }
 
-function loadMockExpenses() {
-    const monthlyExpenses = [
-        { month: 'Jan', amount: 120 },
-        { month: 'Feb', amount: 335 },
-        { month: 'Mar', amount: 130 },
-        { month: 'Apr', amount: 175 }
-    ];
+function renderEmptyState() {
+    document.getElementById('totalExpenses').textContent = '$0';
+    document.getElementById('thisMonthExpense').textContent = '$0';
+    document.getElementById('avgMonthExpense').textContent = '$0';
+    document.getElementById('trendText').textContent = 'No records yet';
+    const indicator = document.getElementById('trendIndicator');
+    if (indicator) {
+        indicator.innerHTML = '<i class="lucide lucide-minus text-gray-300 text-xl"></i><span class="text-sm">No records yet</span>';
+    }
+    const monthlyChart = document.getElementById('monthlyTrendChart');
+    if (monthlyChart?.parentElement) {
+        monthlyChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
+    }
+    const pieChart = document.getElementById('categoryPieChart');
+    if (pieChart?.parentElement) {
+        pieChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
+    }
+    const legend = document.getElementById('categoryLegend');
+    if (legend) {
+        legend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
+    }
+    const container = document.getElementById('recentExpensesList');
+    if (container) {
+        container.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+    }
+}
 
-    const categoryExpenses = [
-        { name: 'Tires', value: 320, color: '#15803d' },
-        { name: 'Oil Changes', value: 90, color: '#16a34a' },
-        { name: 'Brake Service', value: 85, color: '#22c55e' },
-        { name: 'Battery', value: 150, color: '#4ade80' },
-        { name: 'Misc', value: 115, color: '#86efac' }
-    ];
+function displayExpenses(records) {
+    const normalized = records.map((record) => {
+        const date = record.date || record.createdAt || '';
+        const parsedDate = date ? new Date(date) : null;
+        return {
+            rawDate: parsedDate,
+            amount: Number(record.cost || 0),
+            name: record.category || 'Maintenance',
+            color: '#15803d',
+            item: record.title || record.task || 'Repair',
+            category: record.category || 'Maintenance',
+            date: parsedDate ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+        };
+    });
 
-    const recentExpenses = [
-        { id: 1, item: 'Chain Lubrication', amount: 25, date: 'Apr 15', category: 'Maintenance' },
-        { id: 2, item: 'Battery Replacement', amount: 150, date: 'Apr 10', category: 'Parts' },
-        { id: 3, item: 'Brake Pads', amount: 85, date: 'Mar 28', category: 'Parts' },
-        { id: 4, item: 'Oil Change', amount: 45, date: 'Mar 15', category: 'Maintenance' }
-    ];
+    const monthlyTotals = new Map();
+    normalized.forEach((item) => {
+        const monthKey = item.rawDate ? `${item.rawDate.getFullYear()}-${item.rawDate.getMonth()}` : 'unknown';
+        monthlyTotals.set(monthKey, (monthlyTotals.get(monthKey) || 0) + item.amount);
+    });
 
-    displayMonthlyChart(monthlyExpenses);
-    displayCategoryChart(categoryExpenses);
-    displayRecentExpenses(recentExpenses);
-    updateStats(monthlyExpenses, categoryExpenses);
+    const monthlyData = Array.from(monthlyTotals.entries())
+        .filter(([month]) => month !== 'unknown')
+        .map(([month, amount]) => {
+            const [year, monthIndex] = month.split('-').map(Number);
+            return {
+                month: new Date(year, monthIndex, 1).toLocaleDateString('en-US', { month: 'short' }),
+                amount
+            };
+        });
+    const categoryTotals = new Map();
+    normalized.forEach((item) => {
+        categoryTotals.set(item.name, (categoryTotals.get(item.name) || 0) + item.amount);
+    });
+    const categoryData = Array.from(categoryTotals.entries()).map(([name, value], index) => ({
+        name,
+        value,
+        color: ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac'][index % 5]
+    }));
+
+    displayMonthlyChart(monthlyData);
+    displayCategoryChart(categoryData);
+    displayRecentExpenses(normalized.slice(0, 4));
+    updateStats(monthlyData, categoryData);
 }
 
 function displayMonthlyChart(data) {
+    if (!data.length) {
+        renderEmptyState();
+        return;
+    }
+
     const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
     new Chart(ctx, {
         type: 'bar',
@@ -96,6 +148,11 @@ function displayMonthlyChart(data) {
 }
 
 function displayCategoryChart(data) {
+    if (!data.length) {
+        renderEmptyState();
+        return;
+    }
+
     const ctx = document.getElementById('categoryPieChart').getContext('2d');
     new Chart(ctx, {
         type: 'doughnut',
@@ -136,6 +193,10 @@ function displayCategoryChart(data) {
 
 function displayRecentExpenses(expenses) {
     const container = document.getElementById('recentExpensesList');
+    if (!expenses.length) {
+        container.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+        return;
+    }
     container.innerHTML = expenses.map(expense => `
         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer hover:scale-105 active:scale-95">
             <div class="flex items-center gap-3">
@@ -158,11 +219,16 @@ function displayRecentExpenses(expenses) {
 }
 
 function updateStats(monthlyData, categoryData) {
+    if (!monthlyData.length || !categoryData.length) {
+        renderEmptyState();
+        return;
+    }
+
     const total = categoryData.reduce((sum, c) => sum + c.value, 0);
-    const thisMonth = monthlyData[monthlyData.length - 1].amount;
-    const lastMonth = monthlyData[monthlyData.length - 2].amount;
+    const thisMonth = monthlyData[monthlyData.length - 1]?.amount || 0;
+    const lastMonth = monthlyData[monthlyData.length - 2]?.amount || thisMonth || 1;
     const avg = Math.round(total / monthlyData.length);
-    const percentChange = ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1);
+    const percentChange = lastMonth === 0 ? '0.0' : ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1);
 
     document.getElementById('totalExpenses').textContent = `$${total}`;
     document.getElementById('thisMonthExpense').textContent = `$${thisMonth}`;

@@ -67,9 +67,30 @@ function formatFileSize(bytes) {
 // Form submission
 document.getElementById('addRecordForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const user = auth.currentUser;
+    if (!user) {
+        showToast('Please sign in to save a record.', 'error');
+        window.location.replace('index.html');
+        return;
+    }
     
     const submitBtn = document.getElementById('submitBtn');
     const cancelBtn = document.getElementById('cancelBtn');
+    const title = document.getElementById('title').value.trim();
+    const date = document.getElementById('date').value;
+    const cost = Number(document.getElementById('cost').value);
+    const category = document.getElementById('category').value.trim();
+
+    if (!submitBtn || !cancelBtn) {
+        showToast('Form buttons are missing. Please refresh.', 'error');
+        return;
+    }
+
+    if (!title || !date || !category || Number.isNaN(cost) || cost <= 0) {
+        showToast('Please complete the required fields with valid values.', 'error');
+        return;
+    }
     
     // Show loading state
     submitBtn.disabled = true;
@@ -80,15 +101,15 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     `;
     
     const formData = {
-        title: document.getElementById('title').value,
-        date: document.getElementById('date').value,
-        cost: parseFloat(document.getElementById('cost').value),
+        title,
+        date,
+        cost,
         mileage: document.getElementById('mileage').value,
         mechanic: document.getElementById('mechanic').value,
-        category: document.getElementById('category').value,
+        category,
         notes: document.getElementById('notes').value,
         hasReceipt: selectedFile !== null,
-        userId: auth.currentUser.uid,
+        uid: user.uid,
         createdAt: new Date().toISOString()
     };
     
@@ -103,9 +124,9 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         }, 500);
     } catch (error) {
         console.error('Error adding record:', error);
-        showToast('Error saving record. Please try again.', 'error');
-        
-        // Reset button state
+        showToast(error?.message || 'Error saving record. Please try again.', 'error');
+    } finally {
+        // Reset button state on failure; on success we'll navigate away
         submitBtn.disabled = false;
         cancelBtn.disabled = false;
         submitBtn.innerHTML = 'Save Record';

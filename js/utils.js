@@ -44,10 +44,13 @@ function formatDate(date) {
 
 // Check Authentication
 function checkAuth() {
-    // Note: For use in pages that import auth from firebase-config.js
-    // This function is kept for backward compatibility
-    // Proper auth checking is done via onAuthStateChanged in each module
-    if (!window.location.pathname.endsWith('index.html') && !window.location.pathname.includes('.html')) {
-        window.location.href = 'index.html';
+    // Backward-compatible helper for non-module pages.
+    // Real protection is done inside each page module with auth.currentUser / onAuthStateChanged.
+    const protectedPage = window.location.pathname.endsWith('.html') && !window.location.pathname.endsWith('index.html');
+    if (protectedPage && !window.location.pathname.includes('index.html')) {
+        const moduleAuth = window.firebaseAuthCurrentUser || null;
+        if (!moduleAuth) {
+            window.location.href = 'index.html';
+        }
     }
 }

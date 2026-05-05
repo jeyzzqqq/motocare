@@ -3,9 +3,11 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { collection, query, where, getDocs, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 let completedTasks = [];
+let currentUserId = null;
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
+        currentUserId = user.uid;
         await loadSchedule(user.uid);
     } else {
         window.location.href = 'index.html';
@@ -16,86 +18,42 @@ async function loadSchedule(userId) {
     try {
         const q = query(
             collection(db, 'maintenance'),
-            where('userId', '==', userId),
+            where('uid', '==', userId),
             orderBy('dueDate')
         );
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
-            loadMockSchedule();
+            renderEmptySchedule();
         } else {
-            displaySchedule(querySnapshot.docs);
+            const items = querySnapshot.docs
+                .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
+                .filter(item => item.uid === userId);
+            displaySchedule(items);
+            updateCounts(items);
         }
     } catch (error) {
         console.error('Error loading schedule:', error);
-        loadMockSchedule();
+        renderEmptySchedule();
     }
 }
 
-function loadMockSchedule() {
-    const scheduleItems = [
-        {
-            id: 1,
-            task: 'Oil Change',
-            dueDate: 'Apr 22, 2026',
-            dueMileage: '13,000 miles',
-            status: 'due',
-            priority: 'high',
-            category: 'Engine'
-        },
-        {
-            id: 2,
-            task: 'Tire Pressure Check',
-            dueDate: 'Apr 25, 2026',
-            dueMileage: '12,500 miles',
-            status: 'upcoming',
-            priority: 'medium',
-            category: 'Tires'
-        },
-        {
-            id: 3,
-            task: 'Brake Fluid Replacement',
-            dueDate: 'May 5, 2026',
-            dueMileage: '14,000 miles',
-            status: 'upcoming',
-            priority: 'medium',
-            category: 'Brakes'
-        },
-        {
-            id: 4,
-            task: 'Chain Lubrication',
-            dueDate: 'Apr 15, 2026',
-            dueMileage: '12,450 miles',
-            status: 'completed',
-            priority: 'low',
-            category: 'Drivetrain'
-        },
-        {
-            id: 5,
-            task: 'Air Filter Cleaning',
-            dueDate: 'Apr 10, 2026',
-            dueMileage: '12,000 miles',
-            status: 'completed',
-            priority: 'low',
-            category: 'Engine'
-        },
-        {
-            id: 6,
-            task: 'Coolant Level Check',
-            dueDate: 'May 15, 2026',
-            dueMileage: '15,000 miles',
-            status: 'upcoming',
-            priority: 'low',
-            category: 'Engine'
-        }
-    ];
-
-    displayScheduleMock(scheduleItems);
-    updateCounts(scheduleItems);
+function renderEmptySchedule() {
+    const container = document.getElementById('scheduleList');
+    if (container) {
+        container.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+    }
+    document.getElementById('dueCount').textContent = '0';
+    document.getElementById('upcomingCount').textContent = '0';
+    document.getElementById('completedCount').textContent = '0';
 }
 
-function displayScheduleMock(items) {
+function displaySchedule(items) {
     const container = document.getElementById('scheduleList');
+    if (!items.length) {
+        renderEmptySchedule();
+        return;
+    }
     
     container.innerHTML = items.map(item => {
         const isCompleted = completedTasks.includes(item.id) || item.status === 'completed';
@@ -115,7 +73,7 @@ function displayScheduleMock(items) {
                         <div class="flex-1">
                             <div class="flex items-center gap-2 mb-1">
                                 <h3 class="text-gray-800 font-medium ${isCompleted ? 'line-through text-gray-400' : ''}">
-                                    ${item.task}
+                                    ${item.task || item.title || 'Maintenance item'}
                                 </h3>
                                 <div class="w-2 h-2 rounded-full ${priorityColor}"></div>
                             </div>
@@ -129,11 +87,11 @@ function displayScheduleMock(items) {
                     <div class="flex items-center gap-4 mt-3">
                         <div class="flex items-center gap-1.5">
                             <i class="lucide lucide-clock text-gray-400"></i>
-                            <span class="text-xs text-gray-600">${item.dueDate}</span>
+                            <span class="text-xs text-gray-600">${item.dueDate || item.date || ''}</span>
                         </div>
                         <div class="flex items-center gap-1.5">
                             <i class="lucide lucide-wrench text-gray-400"></i>
-                            <span class="text-xs text-gray-600">${item.dueMileage}</span>
+                            <span class="text-xs text-gray-600">${item.dueMileage || ''}</span>
                         </div>
                     </div>
                     
@@ -201,8 +159,21 @@ function updateCounts(items) {
     document.getElementById('completedCount').textContent = completed;
 }
 
-window.markComplete = function(id, task) {
-    completedTasks.push(id);
-    showToast(`"${task}" marked as complete!`, 'success');
-    loadMockSchedule(); // Reload to update UI
+window.markComplete = async function(id, task) {
+    if (!currentUserId) {
+        console.error('No user ID available');
+        return;
+    }
+
+    try {
+        await updateDoc(doc(db, 'maintenance', String(id)), {
+            status: 'completed',
+            updatedAt: new Date().toISOString()
+        });
+        alert(`"${task}" marked as complete!`);
+        await loadSchedule(currentUserId);
+    } catch (error) {
+        console.error('Error marking maintenance complete:', error);
+        alert('Could not update task. Please try again.');
+    }
 }

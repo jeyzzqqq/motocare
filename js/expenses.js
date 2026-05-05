@@ -16,40 +16,64 @@ async function loadExpenses(userId) {
     try {
         const q = query(
             collection(db, 'repairs'),
-            where('userId', '==', userId),
+            where('uid', '==', userId),
             orderBy('createdAt', 'desc')
         );
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
-            loadMockExpenses();
+            renderEmptyState();
         } else {
-            expenses = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                date: doc.data().date || doc.data().createdAt
-            }));
+            expenses = querySnapshot.docs
+                .map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    date: doc.data().date || doc.data().createdAt,
+                    amount: doc.data().cost || 0
+                }))
+                .filter(exp => exp.uid === userId);
             displayExpenses();
         }
     } catch (error) {
         console.error('Error loading expenses:', error);
-        loadMockExpenses();
+        renderEmptyState();
     }
 }
 
-function loadMockExpenses() {
-    expenses = [
-        { id: '1', title: 'Chain Lubrication', amount: 25, date: new Date('2026-04-15'), category: 'Maintenance', notes: 'Regular maintenance' },
-        { id: '2', title: 'Battery Replacement', amount: 150, date: new Date('2026-04-10'), category: 'Parts', notes: 'New battery installed' },
-        { id: '3', title: 'Brake Pads', amount: 85, date: new Date('2026-03-28'), category: 'Parts', notes: 'Front brake pads' },
-        { id: '4', title: 'Oil Change', amount: 45, date: new Date('2026-03-15'), category: 'Maintenance', notes: 'Synthetic oil' },
-        { id: '5', title: 'Tire Replacement', amount: 120, date: new Date('2026-02-20'), category: 'Parts', notes: 'Front tire' },
-        { id: '6', title: 'Air Filter', amount: 30, date: new Date('2026-02-10'), category: 'Maintenance', notes: 'Engine air filter' }
-    ];
-    displayExpenses();
+function renderEmptyState() {
+    expenses = [];
+    document.getElementById('totalExpenses').textContent = '$0.00';
+    document.getElementById('thisMonthExpense').textContent = '$0.00';
+    document.getElementById('avgMonthExpense').textContent = '$0.00';
+    document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const recentList = document.getElementById('recentExpensesList');
+    if (recentList) {
+        recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+    }
+
+    const trendChart = document.getElementById('monthlyTrendChart');
+    if (trendChart?.parentElement) {
+        trendChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
+    }
+
+    const pieChart = document.getElementById('categoryPieChart');
+    if (pieChart?.parentElement) {
+        pieChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
+    }
+
+    const legend = document.getElementById('categoryLegend');
+    if (legend) {
+        legend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
+    }
 }
 
 function displayExpenses() {
+    if (!expenses.length) {
+        renderEmptyState();
+        return;
+    }
+
     const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
     const now = new Date();
     const thisMonth = expenses
@@ -89,6 +113,10 @@ function calculateMonthlyAverage(expenses) {
 }
 
 function displayMonthlyTrendChart() {
+    if (!expenses.length) {
+        return;
+    }
+
     const monthlyData = new Map();
     expenses.forEach(exp => {
         const date = new Date(exp.date);
@@ -111,10 +139,10 @@ function displayMonthlyTrendChart() {
         new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels.length ? labels : ['Jan', 'Feb', 'Mar', 'Apr'],
+                labels,
                 datasets: [{
                     label: 'Monthly Expenses',
-                    data: data.length ? data : [120, 335, 130, 175],
+                    data,
                     backgroundColor: '#15803d',
                     borderRadius: 8
                 }]
@@ -135,6 +163,10 @@ function displayMonthlyTrendChart() {
 }
 
 function displayCategoryChart() {
+    if (!expenses.length) {
+        return;
+    }
+
     const categoryData = new Map();
     expenses.forEach(exp => {
         const cat = exp.category || 'Other';
@@ -153,10 +185,10 @@ function displayCategoryChart() {
         new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: chartData.length ? chartData.map(d => d.label) : ['Tires', 'Oil', 'Brakes', 'Battery', 'Misc'],
+                labels: chartData.map(d => d.label),
                 datasets: [{
-                    data: chartData.length ? chartData.map(d => d.value) : [320, 90, 85, 150, 115],
-                    backgroundColor: chartData.length ? chartData.map(d => d.color) : ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac']
+                    data: chartData.map(d => d.value),
+                    backgroundColor: chartData.map(d => d.color)
                 }]
             },
             options: {
@@ -186,6 +218,11 @@ function displayRecentExpenses() {
     const recentList = document.getElementById('recentExpensesList');
     if (!recentList) return;
 
+    if (!expenses.length) {
+        recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+        return;
+    }
+
     recentList.innerHTML = expenses.slice(0, 6).map(exp => {
         const date = new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         return `
@@ -211,7 +248,10 @@ function displayRecentExpenses() {
             if (!confirm('Delete this expense?')) return;
             try {
                 await deleteDoc(doc(db, 'repairs', id));
-                await loadExpenses(auth.currentUser.uid);
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    await loadExpenses(currentUser.uid);
+                }
                 showToast('Expense deleted', 'success');
             } catch (err) {
                 showToast('Error deleting expense', 'error');
