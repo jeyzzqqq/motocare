@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MotoCare - Maintenance Schedule</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <style>
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-dot {
+            animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-20">
+    <div class="max-w-lg mx-auto">
+        <div class="p-4 space-y-6">
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl text-gray-800">Maintenance Schedule</h1>
+                    <p class="text-gray-500 text-sm mt-1">Track your service tasks</p>
+                </div>
+                <button class="p-2.5 bg-white rounded-full shadow-md">
+                    <i class="lucide lucide-filter text-gray-600 text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-red-50 rounded-xl p-4 text-center border border-red-100">
+                    <p class="text-2xl font-bold text-red-600" id="dueCount">1</p>
+                    <p class="text-xs text-red-600 mt-1">Due Now</p>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-4 text-center border border-gray-200">
+                    <p class="text-2xl font-bold text-gray-600" id="upcomingCount">3</p>
+                    <p class="text-xs text-gray-600 mt-1">Upcoming</p>
+                </div>
+                <div class="bg-green-50 rounded-xl p-4 text-center border border-green-100">
+                    <p class="text-2xl font-bold text-green-700" id="completedCount">2</p>
+                    <p class="text-xs text-green-700 mt-1">Completed</p>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div>
+                <h2 class="text-gray-800 mb-4">All Tasks</h2>
+                
+                <div class="relative">
+                    <!-- Timeline Line -->
+                    <div class="absolute left-5 top-8 bottom-8 w-0.5 bg-gray-200"></div>
+                    
+                    <!-- Timeline Items -->
+                    <div id="scheduleList" class="space-y-4">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Priority Legend -->
+            <div class="bg-white rounded-2xl p-4 shadow-md border border-gray-100">
+                <h3 class="text-gray-800 text-sm mb-3">Priority Legend</h3>
+                <div class="flex items-center justify-around">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span class="text-xs text-gray-600">High</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <span class="text-xs text-gray-600">Medium</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span class="text-xs text-gray-600">Low</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+        <div class="max-w-lg mx-auto px-4 py-2">
+            <div class="flex justify-around items-center">
+                <a href="dashboard.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-home text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Home</span>
+                </a>
+                <a href="profile.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-bike text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Profile</span>
+                </a>
+                <a href="schedule.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-green-700">
+                    <i class="lucide lucide-calendar text-2xl scale-110"></i>
+                    <span class="text-xs mt-1 font-medium">Schedule</span>
+                    <div class="absolute -bottom-0.5 w-12 h-1 bg-green-700 rounded-full"></div>
+                </a>
+                <a href="history.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-history text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">History</span>
+                </a>
+                <a href="expenses.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-dollar-sign text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Expenses</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Floating Action Button -->
+    <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
+        <i class="lucide lucide-plus text-3xl"></i>
+    </a>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
+
+    <script type="module" src="./js/firebase-config.js"></script>
+    <script src="./js/utils.js"></script>
+    <script type="module" src="./js/schedule.js"></script>
+</body>
+</html>

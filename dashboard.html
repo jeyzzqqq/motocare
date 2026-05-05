@@ -1,145 +1,134 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MotoCare | Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MotoCare - Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="./css/style.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="sidebar-card">
-          <div class="flex items-center gap-3">
-            <img src="./assets/icons/logo.svg" alt="MotoCare logo" class="h-12 w-12 rounded-2xl bg-white/10 p-1" />
-            <div>
-              <p class="text-white/70 text-sm">MotoCare</p>
-              <h2 data-user-name>Rider</h2>
+    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen pb-20">
+    <div class="max-w-lg mx-auto">
+        <div class="p-4 space-y-6">
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl text-gray-800">Dashboard</h1>
+                    <p class="text-gray-500 text-sm mt-1">Welcome back, <span id="userName">Rider</span>!</p>
+                </div>
+                <button id="logoutBtn" class="p-2.5 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors">
+                    <i class="lucide lucide-log-out text-gray-600 text-xl"></i>
+                </button>
             </div>
-          </div>
-          <p class="mt-4">Monitor maintenance, repairs, and spending in one clean control center.</p>
+
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-2 gap-4">
+                <div onclick="window.location.href='history.html'" class="bg-gradient-to-br from-green-700 to-green-900 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:scale-105 transition-transform active:scale-95">
+                    <i class="lucide lucide-calendar text-3xl mb-2 opacity-80"></i>
+                    <p class="text-2xl font-bold" id="totalServices">11</p>
+                    <p class="text-sm opacity-90">Total Services</p>
+                </div>
+                <div onclick="window.location.href='expenses.html'" class="bg-white rounded-2xl p-5 shadow-md border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow active:scale-95">
+                    <i class="lucide lucide-dollar-sign text-green-700 text-3xl mb-2"></i>
+                    <p class="text-2xl font-bold text-gray-800" id="totalSpent">$770</p>
+                    <p class="text-sm text-gray-500">Total Spent</p>
+                </div>
+            </div>
+
+            <!-- Upcoming Maintenance -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-gray-800">Upcoming Maintenance</h2>
+                    <button onclick="window.location.href='schedule.html'" class="text-xs text-green-700 bg-green-50 px-3 py-1 rounded-full hover:bg-green-100 transition-colors flex items-center gap-1">
+                        View All
+                        <i class="lucide lucide-chevron-right text-xs"></i>
+                    </button>
+                </div>
+                <div id="upcomingMaintenanceList" class="space-y-3">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Recent Repairs -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-gray-800">Recent Repairs</h2>
+                    <button onclick="window.location.href='history.html'" class="text-xs text-green-700 hover:underline flex items-center gap-1">
+                        See All
+                        <i class="lucide lucide-chevron-right text-xs"></i>
+                    </button>
+                </div>
+                <div id="recentRepairsList" class="space-y-3">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Expense Summary Chart -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-gray-800">Expense Summary</h2>
+                    <i class="lucide lucide-trending-up text-green-700"></i>
+                </div>
+                <div class="h-48">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Maintenance Overview Chart -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <h2 class="text-gray-800 mb-4">Maintenance Overview</h2>
+                <div class="flex items-center gap-6">
+                    <div class="w-32 h-32">
+                        <canvas id="maintenancePieChart"></canvas>
+                    </div>
+                    <div class="flex-1 space-y-3" id="maintenanceLegend">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <nav class="sidebar-nav">
-          <a class="sidebar-link active" data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
-          <a class="sidebar-link" data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i> Profile</a>
-          <a class="sidebar-link" data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i> Maintenance</a>
-          <a class="sidebar-link" data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i> Repairs</a>
-          <a class="sidebar-link" data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-chart-line"></i> Expenses</a>
-        </nav>
-
-        <div class="sidebar-footer">
-          <a class="secondary-button text-center" href="./add-record.html"><i class="fa-solid fa-plus mr-2"></i>Add Record</a>
-          <button id="logoutButton" class="secondary-button">Logout</button>
-        </div>
-      </aside>
-
-      <main class="app-main page-shell">
-        <header class="topbar">
-          <div class="page-heading">
-            <h1>Dashboard</h1>
-            <p>Welcome back, <span data-user-name>Rider</span>. Here&apos;s your latest motorcycle maintenance overview.</p>
-          </div>
-          <div class="topbar-actions">
-            <div class="relative">
-              <a class="icon-button" href="./add-record.html" aria-label="Add a new record"><i class="fa-solid fa-plus"></i></a>
-            </div>
-            <div class="relative">
-              <a class="icon-button relative" href="#" aria-label="Notifications"><i class="fa-regular fa-bell"></i><span class="notification-dot"></span></a>
-            </div>
-            <div class="profile-pill">
-              <div class="profile-avatar" data-user-avatar>R</div>
-              <div>
-                <div class="text-sm font-semibold text-slate-900" data-user-name>Rider</div>
-                <div class="text-xs text-slate-500" data-user-email>guest@motocare.app</div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section id="dashboardStats" class="stat-grid"></section>
-
-        <section class="quick-actions-panel section-card">
-          <div class="section-header">
-            <div>
-              <h2>Quick Actions</h2>
-              <div class="section-detail">Fast access to the most common tasks.</div>
-            </div>
-            <span class="section-badge"><i class="fa-solid fa-bolt"></i> Smart shortcuts</span>
-          </div>
-          <div id="dashboardActions" class="quick-actions"></div>
-        </section>
-
-        <section class="grid-two">
-          <article class="section-card">
-            <div class="section-header">
-              <div>
-                <h2>Upcoming Maintenance</h2>
-                <div class="section-detail">Tasks that need attention soon.</div>
-              </div>
-              <span class="section-badge" id="maintenanceCountBadge">0 tasks</span>
-            </div>
-            <div id="upcomingMaintenance" class="list-stack"></div>
-          </article>
-
-          <article class="section-card">
-            <div class="section-header">
-              <div>
-                <h2>Recent Repairs</h2>
-                <div class="section-detail">Latest work completed on the bike.</div>
-              </div>
-              <span class="section-badge" id="repairCountBadge">0 records</span>
-            </div>
-            <div id="recentRepairs" class="list-stack"></div>
-          </article>
-        </section>
-
-        <section class="charts-grid">
-          <article class="section-card chart-card">
-            <div class="section-header">
-              <div>
-                <h2>Monthly Trend</h2>
-                <div class="section-detail">Spending snapshot over recent months.</div>
-              </div>
-              <span class="section-badge"><i class="fa-solid fa-arrow-trend-up"></i> Growth</span>
-            </div>
-            <div class="chart-shell">
-              <canvas id="monthlyTrendChart"></canvas>
-            </div>
-          </article>
-
-          <article class="section-card chart-card">
-            <div class="section-header">
-              <div>
-                <h2>Expense by Category</h2>
-                <div class="section-detail">Where the budget is being spent.</div>
-              </div>
-              <span class="section-badge"><i class="fa-regular fa-chart-pie"></i> Mix</span>
-            </div>
-            <div class="chart-shell">
-              <canvas id="categoryBreakdownChart"></canvas>
-            </div>
-            <div id="categoryLegend" class="donut-legend"></div>
-          </article>
-        </section>
-      </main>
     </div>
 
-    <nav class="mobile-nav" aria-label="Mobile navigation">
-      <a data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i><span>Home</span></a>
-      <a data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i><span>Profile</span></a>
-      <a data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i><span>Schedule</span></a>
-      <a data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i><span>History</span></a>
-      <a data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-dollar-sign"></i><span>Expenses</span></a>
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+        <div class="max-w-lg mx-auto px-4 py-2">
+            <div class="flex justify-around items-center">
+                <a href="dashboard.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-green-700">
+                    <i class="lucide lucide-home text-2xl scale-110"></i>
+                    <span class="text-xs mt-1 font-medium">Home</span>
+                    <div class="absolute -bottom-0.5 w-12 h-1 bg-green-700 rounded-full"></div>
+                </a>
+                <a href="profile.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-bike text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Profile</span>
+                </a>
+                <a href="schedule.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-calendar text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Schedule</span>
+                </a>
+                <a href="history.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-history text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">History</span>
+                </a>
+                <a href="expenses.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-dollar-sign text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Expenses</span>
+                </a>
+            </div>
+        </div>
     </nav>
 
-    <a class="floating-action" href="./add-record.html" aria-label="Add new record"><i class="fa-solid fa-plus fa-lg"></i></a>
-    <a class="floating-help" href="mailto:support@motocare.app" aria-label="Contact support"><i class="fa-regular fa-circle-question"></i></a>
+    <!-- Floating Action Button -->
+    <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
+        <i class="lucide lucide-plus text-3xl"></i>
+    </a>
 
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
+
+    <script type="module" src="./js/firebase-config.js"></script>
+    <script src="./js/utils.js"></script>
     <script type="module" src="./js/dashboard.js"></script>
-  </body>
+</body>
 </html>

@@ -1,174 +1,116 @@
-import { listUserRecords, logoutUser, onAuthChange, saveUserRecord } from "./firebase.js";
-import { formatDate, money, populateUserIdentity } from "./ui.js";
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const form = document.getElementById("recordForm");
-const recordType = document.getElementById("recordType");
-const titleInput = document.getElementById("title");
-const dateInput = document.getElementById("date");
-const amountInput = document.getElementById("amount");
-const mileageInput = document.getElementById("mileage");
-const categoryInput = document.getElementById("category");
-const providerInput = document.getElementById("serviceProvider");
-const notesInput = document.getElementById("notes");
-const receiptInput = document.getElementById("receiptUrl");
-const previewTitle = document.getElementById("previewTitle");
-const previewMeta = document.getElementById("previewMeta");
-const previewReceipt = document.getElementById("receiptPreview");
-const message = document.getElementById("recordMessage");
-const saveButton = document.getElementById("saveRecordButton");
-const amountGroup = document.getElementById("amountGroup");
-const logoutButton = document.getElementById("logoutButton");
+let selectedFile = null;
 
-const params = new URLSearchParams(window.location.search);
-const typeFromQuery = params.get("type");
+onAuthStateChanged(auth, (user) => {
+    if (!user) {
+        window.location.href = 'index.html';
+    }
+});
 
-function showMessage(text, tone = "neutral") {
-  if (!message) {
-    return;
-  }
-  message.textContent = text;
-  message.className = `empty-state ${tone === "error" ? "border-red-200 bg-red-50 text-red-700" : tone === "success" ? "border-green-200 bg-green-50 text-green-700" : ""}`.trim();
-  message.classList.remove("hidden");
+// File upload handling
+document.getElementById('uploadArea')?.addEventListener('click', () => {
+    document.getElementById('receiptInput').click();
+});
+
+document.getElementById('receiptInput')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        selectedFile = file;
+        showReceiptPreview(file);
+    }
+});
+
+document.getElementById('removeReceiptBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectedFile = null;
+    hideReceiptPreview();
+});
+
+function showReceiptPreview(file) {
+    const uploadArea = document.getElementById('uploadArea');
+    const preview = document.getElementById('receiptPreview');
+    const removeBtn = document.getElementById('removeReceiptBtn');
+    
+    uploadArea.classList.add('hidden');
+    preview.classList.remove('hidden');
+    preview.classList.add('flex');
+    removeBtn.classList.remove('hidden');
+    removeBtn.classList.add('flex');
+    
+    document.getElementById('receiptFileName').textContent = file.name;
+    document.getElementById('receiptFileSize').textContent = formatFileSize(file.size);
 }
 
-function clearMessage() {
-  message?.classList.add("hidden");
+function hideReceiptPreview() {
+    const uploadArea = document.getElementById('uploadArea');
+    const preview = document.getElementById('receiptPreview');
+    const removeBtn = document.getElementById('removeReceiptBtn');
+    
+    uploadArea.classList.remove('hidden');
+    preview.classList.add('hidden');
+    preview.classList.remove('flex');
+    removeBtn.classList.add('hidden');
+    removeBtn.classList.remove('flex');
+    
+    document.getElementById('receiptInput').value = '';
 }
 
-function currentCollection() {
-  return recordType.value;
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-function updatePreview() {
-  const type = currentCollection();
-  const title = titleInput.value.trim() || "Untitled record";
-  const date = dateInput.value || new Date().toISOString().slice(0, 10);
-  previewTitle.textContent = title;
-  previewMeta.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} • ${formatDate(date)}`;
-
-  if (receiptInput.value.trim()) {
-    previewReceipt.innerHTML = `
-      <img src="${receiptInput.value.trim()}" alt="Receipt preview" class="w-full rounded-[20px] object-cover shadow-lg" />
+// Form submission
+document.getElementById('addRecordForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+    submitBtn.innerHTML = `
+        <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        Saving...
     `;
-  } else {
-    previewReceipt.textContent = "Receipt preview will appear here if you paste a URL.";
-  }
-}
-
-function updateFieldLabels() {
-  const type = currentCollection();
-  const isExpense = type === "expenses";
-  amountGroup.querySelector("label").textContent = isExpense ? "Amount" : "Cost / Amount";
-  amountInput.placeholder = isExpense ? "115" : "150";
-  providerInput.placeholder = type === "maintenance" ? "Self Service" : type === "repairs" ? "City Moto Shop" : "Vendor";
-  categoryInput.placeholder = type === "maintenance" ? "Engine / Brakes / Tires" : type === "repairs" ? "Repair type" : "Fuel / Parts / Accessories";
-}
-
-function setDefaults() {
-  dateInput.value = new Date().toISOString().slice(0, 10);
-  recordType.value = typeFromQuery && ["maintenance", "repairs", "expenses"].includes(typeFromQuery) ? typeFromQuery : "maintenance";
-  updateFieldLabels();
-  updatePreview();
-}
-
-async function boot(user) {
-  populateUserIdentity(user);
-  if (logoutButton) {
-    logoutButton.addEventListener("click", async () => {
-      await logoutUser();
-      window.location.replace("./login.html");
-    });
-  }
-
-  const motorcycle = await listUserRecords("motorcycles");
-  if (motorcycle?.length) {
-    mileageInput.value = motorcycle[0].mileage || "";
-  }
-
-  setDefaults();
-  titleInput.value = typeFromQuery === "expenses" ? "Motorcycle Expense" : typeFromQuery === "repairs" ? "Service Repair" : "Maintenance Task";
-  updatePreview();
-
-  [recordType, titleInput, dateInput, amountInput, mileageInput, categoryInput, providerInput, notesInput, receiptInput].forEach((input) => {
-    input?.addEventListener("input", () => {
-      updateFieldLabels();
-      updatePreview();
-    });
-    input?.addEventListener("change", () => {
-      updateFieldLabels();
-      updatePreview();
-    });
-  });
-
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearMessage();
-
-    const type = currentCollection();
-    const title = titleInput.value.trim();
-    const date = dateInput.value;
-    const notes = notesInput.value.trim();
-    const mileage = Number(mileageInput.value || 0);
-    const basePayload = {
-      title,
-      date,
-      notes,
-      mileage,
-      serviceProvider: providerInput.value.trim(),
-      receiptUrl: receiptInput.value.trim(),
-      createdAt: new Date().toISOString()
+    
+    const formData = {
+        title: document.getElementById('title').value,
+        date: document.getElementById('date').value,
+        cost: parseFloat(document.getElementById('cost').value),
+        mileage: document.getElementById('mileage').value,
+        mechanic: document.getElementById('mechanic').value,
+        category: document.getElementById('category').value,
+        notes: document.getElementById('notes').value,
+        hasReceipt: selectedFile !== null,
+        userId: auth.currentUser.uid,
+        createdAt: new Date().toISOString()
     };
-
-    if (!title || !date) {
-      showMessage("Title and date are required.", "error");
-      return;
-    }
-
+    
     try {
-      saveButton.disabled = true;
-      saveButton.textContent = "Saving...";
-
-      if (type === "maintenance") {
-        await saveUserRecord("maintenance", {
-          ...basePayload,
-          category: categoryInput.value.trim() || "Maintenance",
-          status: "pending"
-        });
-      } else if (type === "repairs") {
-        await saveUserRecord("repairs", {
-          ...basePayload,
-          type: categoryInput.value.trim() || "Repair",
-          cost: Number(amountInput.value || 0)
-        });
-      } else {
-        await saveUserRecord("expenses", {
-          ...basePayload,
-          category: categoryInput.value.trim() || "Expense",
-          amount: Number(amountInput.value || 0)
-        });
-      }
-
-      showMessage("Record saved successfully. Redirecting...", "success");
-      window.setTimeout(() => {
-        window.location.href = type === "maintenance"
-          ? "./maintenance.html"
-          : type === "repairs"
-            ? "./repairs.html"
-            : "./expenses.html";
-      }, 450);
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Add to Firestore
+        await addDoc(collection(db, 'repairs'), formData);
+        
+        showToast('Service record added successfully!', 'success');
+        
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 500);
     } catch (error) {
-      showMessage(error?.message || "Could not save record.", "error");
-    } finally {
-      saveButton.disabled = false;
-      saveButton.textContent = "Save record";
+        console.error('Error adding record:', error);
+        showToast('Error saving record. Please try again.', 'error');
+        
+        // Reset button state
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
+        submitBtn.innerHTML = 'Save Record';
     }
-  });
-}
-
-onAuthChange((user) => {
-  if (!user) {
-    window.location.replace("./login.html");
-    return;
-  }
-  boot(user).catch((error) => console.error(error));
 });

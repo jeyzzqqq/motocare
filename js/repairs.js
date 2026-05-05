@@ -16,6 +16,20 @@ const editMessage = document.getElementById("editRepairMessage");
 
 let cachedRepairs = [];
 let currentEditingRepair = null;
+let isLoading = false;
+
+function showRepairsSkeleton() {
+  if (listTarget) {
+    listTarget.innerHTML = `
+      <div class="skeleton-card skeleton"></div>
+      <div class="skeleton-card skeleton"></div>
+      <div class="skeleton-card skeleton"></div>
+    `;
+  }
+  if (statsTarget) {
+    statsTarget.innerHTML = '';
+  }
+}
 
 function renderRepair(repair) {
   return `
@@ -126,9 +140,17 @@ function applyFilter() {
 }
 
 async function refreshData() {
-  listTarget.innerHTML = '<div class="empty-state">Loading repairs...</div>';
-  cachedRepairs = await listUserRecords("repairs");
-  updateStats();
+  isLoading = true;
+  showRepairsSkeleton();
+  try {
+    cachedRepairs = await listUserRecords("repairs");
+    updateStats();
+  } catch (err) {
+    if (listTarget) listTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Could not load repairs. Please refresh.</div>';
+    if (statsTarget) statsTarget.innerHTML = '';
+  } finally {
+    isLoading = false;
+  }
 }
 
 // Modal event listeners
@@ -143,37 +165,47 @@ if (editModal) {
     }
   });
 
-  editForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    showEditMessage("");
-
-    if (!currentEditingRepair) {
-      return;
-    }
-
-    const title = editTitle.value.trim();
-    if (!title) {
-      showEditMessage("Title is required.", "error");
-      return;
-    }
-
-    try {
-      await saveUserRecord("repairs", {
-        ...currentEditingRepair,
-        title,
-        type: editType.value.trim() || "Repair",
-        date: editDate.value,
-        cost: Number(editCost.value || 0),
-        notes: editNotes.value.trim()
-      }, currentEditingRepair.id);
-      
-      closeEditModal();
-      await refreshData();
-      applyFilter();
-    } catch (error) {
-      showEditMessage(error?.message || "Could not save repair.", "error");
-    }
-  });
+  if (editForm) {
+    editForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      showEditMessage("");
+      if (isLoading) return;
+      const saveBtn = editForm.querySelector("button[type='submit']");
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
+      }
+      try {
+        if (!currentEditingRepair) {
+          showEditMessage("No repair selected.", "error");
+          return;
+        }
+        const title = editTitle?.value.trim() || "";
+        if (!title) {
+          showEditMessage("Title is required.", "error");
+          return;
+        }
+        await saveUserRecord("repairs", {
+          ...currentEditingRepair,
+          title,
+          type: editType?.value.trim() || "Repair",
+          date: editDate?.value,
+          cost: Number(editCost?.value || 0),
+          notes: editNotes?.value.trim()
+        }, currentEditingRepair.id);
+        closeEditModal();
+        await refreshData();
+        applyFilter();
+      } catch (error) {
+        showEditMessage(error?.message || "Could not save repair.", "error");
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      }
+    });
+  }
 }
 
 async function boot(user) {
@@ -181,13 +213,17 @@ async function boot(user) {
   populateUserIdentity(user);
   if (logoutButton) {
     logoutButton.addEventListener("click", async () => {
-      await logoutUser();
-      window.location.replace("./login.html");
+      try {
+        await logoutUser();
+        window.location.replace("./login.html");
+      } catch (err) {
+        if (listTarget) listTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Logout failed. Please try again.</div>';
+      }
     });
   }
 
   await refreshData();
-  searchInput?.addEventListener("input", applyFilter);
+  if (searchInput) searchInput.addEventListener("input", applyFilter);
   applyFilter();
 }
 

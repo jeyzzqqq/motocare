@@ -9,6 +9,7 @@ const recentTarget = document.getElementById("recentExpenses");
 const logoutButton = document.getElementById("logoutButton");
 
 let cachedExpenses = [];
+let isLoading = false;
 
 function monthLabel(dateValue) {
   return new Date(dateValue).toLocaleDateString("en-US", { month: "short" });
@@ -62,7 +63,36 @@ function renderExpense(expense) {
   `;
 }
 
-function renderDashboard() {
+function showExpensesSkeleton() {
+  if (recentTarget) {
+    recentTarget.innerHTML = `
+      <div class="skeleton-card skeleton"></div>
+      <div class="skeleton-card skeleton"></div>
+      <div class="skeleton-card skeleton"></div>
+    `;
+  }
+  if (heroTarget) heroTarget.innerHTML = '';
+  if (trendCanvas) trendCanvas.getContext("2d").clearRect(0, 0, trendCanvas.width, trendCanvas.height);
+  if (categoryCanvas) categoryCanvas.getContext("2d").clearRect(0, 0, categoryCanvas.width, categoryCanvas.height);
+  if (legendTarget) legendTarget.innerHTML = '';
+}
+
+async function refresh() {
+  isLoading = true;
+  showExpensesSkeleton();
+  try {
+    cachedExpenses = await listUserRecords("expenses");
+    renderDashboard();
+  } catch (err) {
+    if (recentTarget) recentTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Could not load expenses. Please refresh.</div>';
+    if (heroTarget) heroTarget.innerHTML = '';
+    if (legendTarget) legendTarget.innerHTML = '';
+  } finally {
+    isLoading = false;
+  }
+}
+
+async function renderDashboard() {
   const total = cachedExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const now = new Date();
   const thisMonth = cachedExpenses
@@ -145,20 +175,23 @@ function renderDashboard() {
 
   document.querySelectorAll(".delete-expense").forEach((button) => {
     button.addEventListener("click", async () => {
+      if (isLoading) return;
       const recordId = button.dataset.recordId;
       if (!recordId || !window.confirm("Delete this expense record?")) {
         return;
       }
-      await deleteUserRecord("expenses", recordId);
-      await refresh();
+      button.disabled = true;
+      button.textContent = "Deleting...";
+      try {
+        await deleteUserRecord("expenses", recordId);
+        await refresh();
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = "Delete";
+        alert("Failed to delete expense. Please try again.");
+      }
     });
   });
-}
-
-async function refresh() {
-  recentTarget.innerHTML = '<div class="empty-state">Loading expenses...</div>';
-  cachedExpenses = await listUserRecords("expenses");
-  renderDashboard();
 }
 
 async function boot(user) {

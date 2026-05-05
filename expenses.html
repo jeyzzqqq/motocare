@@ -1,116 +1,135 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MotoCare | Expenses</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MotoCare - Expense Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="./css/style.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="sidebar-card">
-          <div class="flex items-center gap-3">
-            <img src="./assets/icons/logo.svg" alt="MotoCare logo" class="h-12 w-12 rounded-2xl bg-white/10 p-1" />
+    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen pb-20">
+    <div class="max-w-lg mx-auto">
+        <div class="p-4 space-y-6">
+            <!-- Header -->
             <div>
-              <p class="text-white/70 text-sm">MotoCare</p>
-              <h2 data-user-name>Rider</h2>
+                <h1 class="text-3xl text-gray-800">Expense Tracker</h1>
+                <p class="text-gray-500 text-sm mt-1">Monitor your spending</p>
             </div>
-          </div>
-          <p class="mt-4">Visualize motorcycle spending and monthly categories at a glance.</p>
+
+            <!-- Total Expense Card -->
+            <div class="bg-gradient-to-br from-green-700 to-green-900 rounded-2xl p-6 text-white shadow-xl">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <p class="text-green-100 text-sm">Total Expenses</p>
+                        <h2 class="text-4xl font-bold mt-2" id="totalExpenses">$760</h2>
+                    </div>
+                    <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                        <i class="lucide lucide-dollar-sign text-2xl"></i>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2" id="trendIndicator">
+                    <i class="lucide lucide-trending-up text-red-300 text-xl"></i>
+                    <span class="text-sm" id="trendText">34.3% from last month</span>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white rounded-xl p-4 shadow-md border border-gray-100">
+                    <p class="text-gray-500 text-sm mb-1">This Month</p>
+                    <p class="text-2xl font-bold text-gray-800" id="thisMonthExpense">$175</p>
+                    <p class="text-xs text-gray-400 mt-1" id="currentMonth">April 2026</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 shadow-md border border-gray-100">
+                    <p class="text-gray-500 text-sm mb-1">Avg/Month</p>
+                    <p class="text-2xl font-bold text-gray-800" id="avgMonthExpense">$190</p>
+                    <p class="text-xs text-gray-400 mt-1">Last 4 months</p>
+                </div>
+            </div>
+
+            <!-- Monthly Trend Chart -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-gray-800">Monthly Trend</h2>
+                    <i class="lucide lucide-trending-up text-green-700"></i>
+                </div>
+                <div class="h-56">
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Category Breakdown -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-gray-800">Expense by Category</h2>
+                    <i class="lucide lucide-pie-chart text-green-700"></i>
+                </div>
+                <div class="h-56 mb-4">
+                    <canvas id="categoryPieChart"></canvas>
+                </div>
+                <div class="space-y-2" id="categoryLegend">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Recent Expenses -->
+            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
+                <h2 class="text-gray-800 mb-4">Recent Expenses</h2>
+                <div id="recentExpensesList" class="space-y-3">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Budget Insight -->
+            <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-5 border border-green-200">
+                <h3 class="text-green-700 font-medium mb-2">Budget Insight</h3>
+                <p class="text-sm text-gray-700">
+                    Your maintenance costs are within the recommended range for your motorcycle model. Keep up the regular maintenance schedule!
+                </p>
+            </div>
         </div>
-
-        <nav class="sidebar-nav">
-          <a class="sidebar-link" data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
-          <a class="sidebar-link" data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i> Profile</a>
-          <a class="sidebar-link" data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i> Maintenance</a>
-          <a class="sidebar-link" data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i> Repairs</a>
-          <a class="sidebar-link active" data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-chart-line"></i> Expenses</a>
-        </nav>
-
-        <div class="sidebar-footer">
-          <a class="secondary-button text-center" href="./add-record.html"><i class="fa-solid fa-plus mr-2"></i>Add Record</a>
-          <button id="logoutButton" class="secondary-button">Logout</button>
-        </div>
-      </aside>
-
-      <main class="app-main page-shell">
-        <header class="topbar">
-          <div class="page-heading">
-            <h1>Expense Tracker</h1>
-            <p>Keep a clean monthly view of spend, categories, and trends.</p>
-          </div>
-          <div class="topbar-actions">
-            <div class="profile-pill">
-              <div class="profile-avatar" data-user-avatar>R</div>
-              <div>
-                <div class="text-sm font-semibold text-slate-900" data-user-name>Rider</div>
-                <div class="text-xs text-slate-500" data-user-email>guest@motocare.app</div>
-              </div>
-            </div>
-            <a class="icon-button" href="./dashboard.html" aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left"></i></a>
-          </div>
-        </header>
-
-        <section id="expenseHero" class="summary-card"></section>
-
-        <section class="charts-grid mt-5">
-          <article class="section-card chart-card">
-            <div class="section-header">
-              <div>
-                <h2>Monthly Trend</h2>
-                <div class="section-detail">Recent spending by month.</div>
-              </div>
-              <span class="section-badge"><i class="fa-solid fa-arrow-trend-up"></i> Trend</span>
-            </div>
-            <div class="chart-shell">
-              <canvas id="expenseTrendChart"></canvas>
-            </div>
-          </article>
-
-          <article class="section-card chart-card">
-            <div class="section-header">
-              <div>
-                <h2>Expense by Category</h2>
-                <div class="section-detail">Category split across the current budget.</div>
-              </div>
-              <span class="section-badge"><i class="fa-regular fa-chart-pie"></i> Breakdown</span>
-            </div>
-            <div class="chart-shell">
-              <canvas id="expenseCategoryChart"></canvas>
-            </div>
-            <div id="expenseCategoryLegend" class="donut-legend"></div>
-          </article>
-        </section>
-
-        <section class="section-card mt-5">
-          <div class="section-header">
-            <div>
-              <h2>Recent Expenses</h2>
-              <div class="section-detail">Latest spending entries with dates and categories.</div>
-            </div>
-            <span class="section-badge"><i class="fa-solid fa-receipt"></i> Updated live</span>
-          </div>
-          <div id="recentExpenses" class="list-stack"></div>
-        </section>
-      </main>
     </div>
 
-    <nav class="mobile-nav" aria-label="Mobile navigation">
-      <a data-nav="dashboard" href="./dashboard.html"><i class="fa-solid fa-gauge-high"></i><span>Home</span></a>
-      <a data-nav="profile" href="./profile.html"><i class="fa-solid fa-motorcycle"></i><span>Profile</span></a>
-      <a data-nav="maintenance" href="./maintenance.html"><i class="fa-solid fa-screwdriver-wrench"></i><span>Schedule</span></a>
-      <a data-nav="repairs" href="./repairs.html"><i class="fa-solid fa-toolbox"></i><span>History</span></a>
-      <a data-nav="expenses" href="./expenses.html"><i class="fa-solid fa-dollar-sign"></i><span>Expenses</span></a>
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+        <div class="max-w-lg mx-auto px-4 py-2">
+            <div class="flex justify-around items-center">
+                <a href="dashboard.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-home text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Home</span>
+                </a>
+                <a href="profile.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-bike text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Profile</span>
+                </a>
+                <a href="schedule.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-calendar text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">Schedule</span>
+                </a>
+                <a href="history.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                    <i class="lucide lucide-history text-2xl"></i>
+                    <span class="text-xs mt-1 font-medium">History</span>
+                </a>
+                <a href="expenses.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-green-700">
+                    <i class="lucide lucide-dollar-sign text-2xl scale-110"></i>
+                    <span class="text-xs mt-1 font-medium">Expenses</span>
+                    <div class="absolute -bottom-0.5 w-12 h-1 bg-green-700 rounded-full"></div>
+                </a>
+            </div>
+        </div>
     </nav>
 
-    <a class="floating-action" href="./add-record.html" aria-label="Add new record"><i class="fa-solid fa-plus fa-lg"></i></a>
-    <a class="floating-help" href="mailto:support@motocare.app" aria-label="Contact support"><i class="fa-regular fa-circle-question"></i></a>
+    <!-- Floating Action Button -->
+    <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
+        <i class="lucide lucide-plus text-3xl"></i>
+    </a>
 
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
+
+    <script type="module" src="./js/firebase-config.js"></script>
+    <script src="./js/utils.js"></script>
     <script type="module" src="./js/expenses.js"></script>
-  </body>
+</body>
 </html>
