@@ -3,7 +3,6 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
 
-let selectedFile = null;
 let motorcycles = [];
 let currentUser = null;
 
@@ -75,61 +74,39 @@ async function loadMotorcyclesFromFirestore(user = currentUser) {
             dropdown.disabled = true;
         }
     }
+
+    syncMileageField(dropdown.value);
 }
 
-// File upload handling
-document.getElementById('uploadArea')?.addEventListener('click', () => {
-    document.getElementById('receiptInput').click();
-});
+function getMotorcycleMileage(motorcycle) {
+    const raw = motorcycle.mileage ?? motorcycle.odo ?? motorcycle.currentOdo ?? motorcycle.odometer ?? 0;
+    const numeric = Number(raw);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+}
 
-document.getElementById('receiptInput')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        selectedFile = file;
-        showReceiptPreview(file);
+function syncMileageField(motorcycleId) {
+    const mileageInput = document.getElementById('mileage');
+    const mileageHint = document.getElementById('mileageHint');
+    if (!mileageInput || !mileageHint) return;
+
+    const selectedMotorcycle = motorcycles.find((m) => m.id === motorcycleId);
+    if (!selectedMotorcycle) {
+        mileageInput.min = '0';
+        mileageHint.textContent = 'Select a motorcycle first to lock the minimum mileage.';
+        return;
     }
+
+    const currentMileage = getMotorcycleMileage(selectedMotorcycle);
+    mileageInput.min = String(currentMileage);
+    if (!mileageInput.value || Number(mileageInput.value) < currentMileage) {
+        mileageInput.value = String(currentMileage);
+    }
+    mileageHint.textContent = `Current motorcycle ODO: ${currentMileage.toLocaleString()} km. Enter the new reading, not lower than this.`;
+}
+
+document.getElementById('motorcycle')?.addEventListener('change', (e) => {
+    syncMileageField(e.target.value);
 });
-
-document.getElementById('removeReceiptBtn')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    selectedFile = null;
-    hideReceiptPreview();
-});
-
-function showReceiptPreview(file) {
-    const uploadArea = document.getElementById('uploadArea');
-    const preview = document.getElementById('receiptPreview');
-    const removeBtn = document.getElementById('removeReceiptBtn');
-    
-    uploadArea.classList.add('hidden');
-    preview.classList.remove('hidden');
-    preview.classList.add('flex');
-    removeBtn.classList.remove('hidden');
-    removeBtn.classList.add('flex');
-    
-    document.getElementById('receiptFileName').textContent = file.name;
-    document.getElementById('receiptFileSize').textContent = formatFileSize(file.size);
-}
-
-function hideReceiptPreview() {
-    const uploadArea = document.getElementById('uploadArea');
-    const preview = document.getElementById('receiptPreview');
-    const removeBtn = document.getElementById('removeReceiptBtn');
-    
-    uploadArea.classList.remove('hidden');
-    preview.classList.add('hidden');
-    preview.classList.remove('flex');
-    removeBtn.classList.add('hidden');
-    removeBtn.classList.remove('flex');
-    
-    document.getElementById('receiptInput').value = '';
-}
-
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
 
 // Form submission
 // Toast notification system
@@ -162,13 +139,15 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const cost = Number(document.getElementById('cost').value);
     const category = document.getElementById('category').value.trim();
     const motorcycleId = document.getElementById('motorcycle').value;
+    const mileageValue = Number(document.getElementById('mileage').value);
+    const mechanicValue = document.getElementById('mechanic').value;
 
     if (!submitBtn || !cancelBtn) {
         showToast('Form buttons are missing. Please refresh.', 'error');
         return;
     }
 
-    if (!title || !date || !category || !motorcycleId || Number.isNaN(cost) || cost <= 0) {
+    if (!title || !date || !category || !motorcycleId || Number.isNaN(cost) || cost <= 0 || Number.isNaN(mileageValue) || !mechanicValue) {
         showToast('Please complete all required fields with valid values.', 'error');
         return;
     }
@@ -177,6 +156,12 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const selectedMotorcycle = motorcycles.find(m => m.id === motorcycleId);
     if (!selectedMotorcycle) {
         showToast('Invalid motorcycle selection.', 'error');
+        return;
+    }
+
+    const currentMileage = getMotorcycleMileage(selectedMotorcycle);
+    if (mileageValue < currentMileage) {
+        showToast(`Mileage cannot go below the motorcycle's current ODO (${currentMileage.toLocaleString()} km).`, 'error');
         return;
     }
     
@@ -192,11 +177,10 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         title,
         date,
         cost,
-        mileage: document.getElementById('mileage').value,
-        mechanic: document.getElementById('mechanic').value,
+        mileage: mileageValue,
+        mechanic: mechanicValue,
         category,
         notes: document.getElementById('notes').value,
-        hasReceipt: selectedFile !== null,
         motorcycleId: selectedMotorcycle.id,
         motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`
     };
@@ -207,7 +191,7 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
 
         // Keep the motorcycle profile ODO in sync with the latest logged mileage
         await updateFirestoreDoc('motorcycles', selectedMotorcycle.id, {
-            mileage
+            mileage: mileageValue
         });
         
         showToast('Service record added successfully!', 'success');
