@@ -76,8 +76,7 @@ function getNextMileageDelta(currentMileage, interval) {
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
     if (!mileage || mileage < 0) return step;
 
-    const remainder = mileage % step;
-    return remainder === 0 ? 0 : step - remainder;
+    return step;
 }
 
 function getNextMileageTarget(currentMileage, interval) {
@@ -87,8 +86,7 @@ function getNextMileageTarget(currentMileage, interval) {
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
     if (!mileage || mileage < 0) return step;
 
-    const remainder = mileage % step;
-    return remainder === 0 ? mileage : mileage + (step - remainder);
+    return mileage + step;
 }
 
 function formatRelativeMileageText(currentMileage, interval) {
@@ -136,7 +134,7 @@ export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMilea
                 dueMileage
             };
         })
-        .sort((a, b) => a.sortDelta - b.sortDelta || a.sortInterval - b.sortInterval || a.title.localeCompare(b.title));
+        .sort((a, b) => a.sortInterval - b.sortInterval || a.title.localeCompare(b.title));
 }
 
 export function getTopMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0, limit = 3) {
