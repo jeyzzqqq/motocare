@@ -4,7 +4,7 @@ const NAV_ITEMS = [
     { label: 'Profile', href: 'profile.html', icon: 'fa-user', activePaths: ['/profile.html'] },
     { label: 'Schedule', href: 'schedule.html', icon: 'fa-calendar', activePaths: ['/schedule.html', '/maintenance.html'] },
     { label: 'History', href: 'history.html', icon: 'fa-clock', activePaths: ['/history.html', '/repairs.html'] },
-    { label: 'Expenses', href: 'expenses.html', icon: 'fa-dollar-sign', activePaths: ['/expenses.html'] }
+    { label: 'Expenses', href: 'expenses.html', icon: 'fa-money-bill', activePaths: ['/expenses.html'] }
 ];
 
 function getActivePath() {
