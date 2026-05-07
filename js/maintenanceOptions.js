@@ -126,6 +126,14 @@ export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMilea
         .sort((a, b) => a.sortDelta - b.sortDelta || a.sortInterval - b.sortInterval || a.title.localeCompare(b.title));
 }
 
+export function getTopMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0, limit = 3) {
+    return getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage).slice(0, Math.max(0, limit));
+}
+
+export function getRemainingMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0, limit = 3) {
+    return getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage).slice(Math.max(0, limit));
+}
+
 export function getUpgradeOptions() {
     return UPGRADE_OPTIONS.map((option) => ({
         value: `upgrade:${option.key}`,
@@ -139,8 +147,12 @@ export function getUpgradeOptions() {
 export function getServiceTitleGroups(motorcycle = {}, currentMileage = 0) {
     return [
         {
-            label: 'Scheduled Maintenance',
-            options: getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage)
+            label: 'Top 3 Most Relevant',
+            options: getTopMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, 3)
+        },
+        {
+            label: 'Show all maintenance options',
+            options: getRemainingMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, 3)
         },
         {
             label: 'Upgrades / Accessories',
