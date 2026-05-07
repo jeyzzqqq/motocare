@@ -1,3 +1,7 @@
+import { auth } from './firebase-config.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, deleteFirestoreDoc } from './firebaseUtils.js';
+
 const motorcycleBrands = {
     "Honda": ["CBR 600RR", "CBR 1000RR", "CB650R", "CB500X", "CRF450L", "Africa Twin", "Gold Wing", "Rebel 500", "Grom"],
     "Yamaha": ["YZF-R1", "YZF-R6", "MT-07", "MT-09", "MT-10", "Tenere 700", "FZ-07", "R15", "XSR900"],
@@ -13,22 +17,44 @@ const motorcycleBrands = {
 
 let motorcycles = [];
 let editingId = null;
+let isLoading = false;
+let authReady = false;
+
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        console.log('Auth ready for motorcycles:', user.uid);
+        authReady = true;
+        loadMotorcyclesFromFirestore();
+    } else {
+        window.location.href = 'index.html';
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadMotorcycles();
+    console.log('DOM loaded, initializing motorcycles page');
     populateBrands();
     populateYears();
     setupEventListeners();
-    renderMotorcycles();
+    
+    // If auth is already ready, load motorcycles
+    if (authReady) {
+        loadMotorcyclesFromFirestore();
+    }
 });
 
-function loadMotorcycles() {
-    const saved = localStorage.getItem('motorcycles');
-    if (saved) motorcycles = JSON.parse(saved);
-}
-
-function saveMotorcycles() {
-    localStorage.setItem('motorcycles', JSON.stringify(motorcycles));
+// Load motorcycles from Firestore
+async function loadMotorcyclesFromFirestore() {
+    isLoading = true;
+    try {
+        motorcycles = await getFirestoreDocs('motorcycles', 'createdAt');
+        renderMotorcycles();
+    } catch (error) {
+        console.error('Error loading motorcycles:', error);
+        showToast('Error loading motorcycles', 'error');
+        renderEmptyState();
+    } finally {
+        isLoading = false;
+    }
 }
 
 function populateBrands() {
@@ -82,6 +108,7 @@ function setupEventListeners() {
     if (form) {
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            console.log('Form submitted - calling saveMotorcycle');
             saveMotorcycle();
         });
     }
@@ -135,7 +162,7 @@ function renderMotorcycles() {
                                 <i class="fa-solid fa-hashtag text-gray-400"></i>
                                 <p class="text-xs text-gray-500">Plate Number</p>
                             </div>
-                            <p class="text-gray-800 font-medium">${escapeHtml(moto.plateNumber)}</p>
+                            <p class="text-gray-800 font-medium">${escapeHtml(moto.plate || moto.plateNumber)}</p>
                         </div>
 
                         <div class="bg-gray-50 rounded-xl p-3">
@@ -159,7 +186,7 @@ function renderMotorcycles() {
                                 <i class="fa-solid fa-calendar-day text-gray-400"></i>
                                 <p class="text-xs text-gray-500">Added</p>
                             </div>
-                            <p class="text-gray-800 font-medium text-sm">${new Date(moto.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                            <p class="text-gray-800 font-medium text-sm">${new Date(moto.createdAt?.toDate?.() || moto.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                         </div>
                     </div>
                 </div>
@@ -169,16 +196,38 @@ function renderMotorcycles() {
 }
 
 function openAddModal() {
+    console.log('openAddModal called, authReady:', authReady);
     editingId = null;
     const modal = document.getElementById('motorcycleModal');
     const backdrop = document.querySelector('.modal-backdrop');
     const form = document.getElementById('motorcycleForm');
-    if (!modal || !backdrop || !form) return;
+    if (!modal || !backdrop || !form) {
+        console.error('Modal elements not found', { modal, backdrop, form });
+        return;
+    }
+    
+    // Reset form
     form.reset();
-    document.getElementById('modelSelect').disabled = true;
-    document.getElementById('submitBtnText').textContent = 'Add Motorcycle';
+    console.log('Form reset');
+    
+    // Reset selects
+    const modelSelect = document.getElementById('modelSelect');
+    if (modelSelect) {
+        modelSelect.disabled = true;
+        modelSelect.innerHTML = '<option value="">Select Brand First</option>';
+    }
+    
+    // Reset button text
+    const submitBtnText = document.getElementById('submitBtnText');
+    if (submitBtnText) {
+        submitBtnText.textContent = 'Add Motorcycle';
+    }
+    
+    // Show modal
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
+    
+    console.log('✓ Add motorcycle modal opened');
 }
 
 function closeModal() {
@@ -206,7 +255,7 @@ function editMotorcycle(id) {
     }, 0);
 
     document.getElementById('yearSelect').value = moto.year;
-    document.getElementById('plateInput').value = moto.plateNumber;
+    document.getElementById('plateInput').value = moto.plate || moto.plateNumber;
     document.getElementById('colorInput').value = moto.color;
     document.getElementById('mileageInput').value = moto.mileage;
     document.getElementById('submitBtnText').textContent = 'Save Changes';
@@ -215,15 +264,21 @@ function editMotorcycle(id) {
     backdrop.classList.remove('hidden');
 }
 
-function deleteMotorcycle(id) {
+async function deleteMotorcycle(id) {
     if (!confirm('Delete this motorcycle?')) return;
-    motorcycles = motorcycles.filter(m => m.id !== id);
-    saveMotorcycles();
-    renderMotorcycles();
-    showToast('Motorcycle deleted', 'success');
+    
+    try {
+        await deleteFirestoreDoc('motorcycles', id);
+        motorcycles = motorcycles.filter(m => m.id !== id);
+        renderMotorcycles();
+        showToast('Motorcycle deleted', 'success');
+    } catch (error) {
+        console.error('Error deleting motorcycle:', error);
+        showToast('Error deleting motorcycle', 'error');
+    }
 }
 
-function saveMotorcycle() {
+async function saveMotorcycle() {
     const brand = document.getElementById('brandSelect').value;
     const model = document.getElementById('modelSelect').value;
     const year = document.getElementById('yearSelect').value;
@@ -231,39 +286,86 @@ function saveMotorcycle() {
     const color = document.getElementById('colorInput').value.trim();
     const mileage = document.getElementById('mileageInput').value.trim();
 
+    console.log('Saving motorcycle:', { brand, model, year, plate, color, mileage });
+
     if (!brand || !model || !year || !plate || !color || !mileage) {
         showToast('Please fill all fields', 'error');
         return;
     }
 
-    if (editingId) {
-        const idx = motorcycles.findIndex(m => m.id === editingId);
-        if (idx > -1) {
-            motorcycles[idx] = { ...motorcycles[idx], brand, model, year, plateNumber: plate, color, mileage };
-            saveMotorcycles();
-            renderMotorcycles();
-            closeModal();
-            showToast('Motorcycle updated', 'success');
-            return;
-        }
+    // Validate plate format
+    if (!/^[A-Z0-9\-]{4,}$/.test(plate)) {
+        showToast('Plate number format invalid (format: ABC-1234)', 'error');
+        return;
     }
 
-    const newMoto = {
-        id: 'm_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
-        brand,
-        model,
-        year,
-        plateNumber: plate,
-        color,
-        mileage,
-        createdAt: Date.now()
-    };
+    // Validate mileage is a number
+    if (isNaN(mileage) || Number(mileage) < 0) {
+        showToast('Mileage must be a valid number', 'error');
+        return;
+    }
 
-    motorcycles.unshift(newMoto);
-    saveMotorcycles();
-    renderMotorcycles();
-    closeModal();
-    showToast('Motorcycle added', 'success');
+    // Check if user is authenticated
+    if (!authReady) {
+        showToast('User not authenticated. Please refresh the page.', 'error');
+        console.error('Auth not ready when trying to save motorcycle');
+        return;
+    }
+
+    try {
+        if (editingId) {
+            // Update existing motorcycle
+            console.log('Updating motorcycle:', editingId);
+            await updateFirestoreDoc('motorcycles', editingId, {
+                brand,
+                model,
+                year,
+                plate,
+                color,
+                mileage
+            });
+            
+            // Update local array
+            const idx = motorcycles.findIndex(m => m.id === editingId);
+            if (idx > -1) {
+                motorcycles[idx] = { ...motorcycles[idx], brand, model, year, plate, color, mileage };
+            }
+            
+            showToast('Motorcycle updated', 'success');
+        } else {
+            // Add new motorcycle
+            console.log('Adding new motorcycle');
+            const newMoto = await addFirestoreDoc('motorcycles', {
+                brand,
+                model,
+                year,
+                plate,
+                color,
+                mileage
+            });
+            
+            console.log('Motorcycle added with ID:', newMoto.id);
+            motorcycles.unshift(newMoto);
+            showToast('Motorcycle added successfully', 'success');
+        }
+        
+        renderMotorcycles();
+        closeModal();
+    } catch (error) {
+        console.error('Error saving motorcycle:', error);
+        showToast('Error saving motorcycle: ' + error.message, 'error');
+    }
+}
+
+function renderEmptyState() {
+    const list = document.getElementById('motorcyclesList');
+    const emptyState = document.getElementById('emptyState');
+    const addAnother = document.getElementById('addAnotherBtn');
+    if (!list || !emptyState || !addAnother) return;
+    
+    list.innerHTML = '';
+    emptyState.classList.remove('hidden');
+    addAnother.classList.add('hidden');
 }
 
 function showToast(message, type = 'info') {

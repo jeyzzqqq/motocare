@@ -71,10 +71,11 @@ function displaySchedule(items) {
                 <div class="ml-12 bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
                     <div class="flex items-start justify-between mb-2">
                         <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1">
+                            <div class="flex items-center gap-2 mb-1 flex-wrap">
                                 <h3 class="text-gray-800 font-medium ${isCompleted ? 'line-through text-gray-400' : ''}">
                                     ${item.task || item.title || 'Maintenance item'}
                                 </h3>
+                                ${item.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${item.motorcycleName}</span>` : ''}
                                 <div class="w-2 h-2 rounded-full ${priorityColor}"></div>
                             </div>
                             <p class="text-xs text-gray-500">${item.category}</p>

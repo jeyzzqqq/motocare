@@ -1,239 +1,260 @@
-import { deleteUserRecord, listUserRecords, logoutUser, onAuthChange, saveUserRecord } from "./firebase.js";
-import { formatDate, integer, money, populateUserIdentity, renderSummaryCards, setActiveNav } from "./ui.js";
-
-const statsTarget = document.getElementById("repairStats");
-const listTarget = document.getElementById("repairList");
-const searchInput = document.getElementById("repairSearch");
-const logoutButton = document.getElementById("logoutButton");
-const editModal = document.getElementById("editRepairModal");
-const editForm = document.getElementById("editRepairForm");
-const editTitle = document.getElementById("editRepairTitle");
-const editType = document.getElementById("editRepairType");
-const editDate = document.getElementById("editRepairDate");
-const editCost = document.getElementById("editRepairCost");
-const editNotes = document.getElementById("editRepairNotes");
-const editMessage = document.getElementById("editRepairMessage");
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { collection, query, where, getDocs, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestoreDocs, deleteFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
 
 let cachedRepairs = [];
 let currentEditingRepair = null;
 let isLoading = false;
 
+const listTarget = document.getElementById("repairList");
+const statsTarget = document.getElementById("repairStats");
+const searchInput = document.getElementById("repairSearch");
+const logoutButton = document.getElementById("logoutButton");
+
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        document.getElementById('userName')?.textContent = user.email?.split('@')[0];
+        showRepairsSkeleton();
+        await loadRepairs(user.uid);
+        setupEventListeners();
+    } else {
+        window.location.href = 'index.html';
+    }
+});
+
+// LOGOUT HANDLER
+logoutButton?.addEventListener('click', async () => {
+    try {
+        await signOut(auth);
+        showToast('Logged out successfully', 'success');
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 500);
+    } catch (error) {
+        console.error('Logout error:', error);
+        showToast('Error logging out', 'error');
+    }
+});
+
 function showRepairsSkeleton() {
-  if (listTarget) {
-    listTarget.innerHTML = `
-      <div class="skeleton-card skeleton"></div>
-      <div class="skeleton-card skeleton"></div>
-      <div class="skeleton-card skeleton"></div>
-    `;
-  }
-  if (statsTarget) {
-    statsTarget.innerHTML = '';
-  }
+    if (listTarget) {
+        listTarget.innerHTML = `
+            <div class="animate-pulse bg-gray-200 h-24 rounded-xl mb-3"></div>
+            <div class="animate-pulse bg-gray-200 h-24 rounded-xl mb-3"></div>
+            <div class="animate-pulse bg-gray-200 h-24 rounded-xl"></div>
+        `;
+    }
+    if (statsTarget) {
+        statsTarget.innerHTML = '';
+    }
+}
+
+async function loadRepairs(userId) {
+    try {
+        isLoading = true;
+        const q = query(
+            collection(db, 'repairs'),
+            where('uid', '==', userId),
+            orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        
+        cachedRepairs = querySnapshot.docs
+            .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
+            .filter(record => record.uid === userId);
+        
+        if (cachedRepairs.length === 0) {
+            renderEmptyState();
+        } else {
+            renderRepairs();
+            updateStats();
+        }
+    } catch (error) {
+        console.error('Error loading repairs:', error);
+        showToast('Error loading repairs', 'error');
+        renderEmptyState();
+    } finally {
+        isLoading = false;
+    }
+}
+
+function renderEmptyState() {
+    if (listTarget) {
+        listTarget.innerHTML = '<div class="text-gray-500 text-sm py-6 text-center">No repairs yet. Add your first repair from the Dashboard.</div>';
+    }
+    if (statsTarget) {
+        statsTarget.innerHTML = '';
+    }
+}
+
+function renderRepairs() {
+    if (!listTarget) return;
+    
+    if (cachedRepairs.length === 0) {
+        renderEmptyState();
+        return;
+    }
+    
+    listTarget.innerHTML = cachedRepairs.map(repair => renderRepair(repair)).join('');
+    
+    // Add event listeners to delete buttons
+    listTarget.querySelectorAll('.delete-repair-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleDeleteRepair(e));
+    });
 }
 
 function renderRepair(repair) {
-  return `
-    <article class="record-card">
-      <div class="flex items-start justify-between gap-4">
-        <div class="record-main">
-          <span class="card-icon"><i class="fa-solid fa-wrench"></i></span>
-          <div>
-            <div class="flex flex-wrap items-center gap-3">
-              <h3 class="text-lg font-extrabold tracking-tight text-slate-900">${repair.title}</h3>
-              <span class="badge-soft">${repair.type || "Repair"}</span>
+    return `
+        <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-3 hover:shadow-lg transition-all">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 flex-wrap mb-2">
+                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <i class="lucide lucide-wrench text-green-700"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">${repair.title || 'Repair'}</h3>
+                            <p class="text-xs text-gray-500">${repair.category || 'General'}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 flex-wrap mb-2">
+                        ${repair.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${repair.motorcycleName}</span>` : ''}
+                        <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">${repair.date || 'N/A'}</span>
+                    </div>
+                    
+                    ${repair.notes ? `<p class="text-sm text-gray-600 mb-3">${repair.notes}</p>` : ''}
+                    
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="bg-gray-50 p-2 rounded-lg">
+                            <p class="text-xs text-gray-500">Cost</p>
+                            <p class="text-sm font-semibold text-green-700">₱${Number(repair.cost || 0).toFixed(2)}</p>
+                        </div>
+                        <div class="bg-gray-50 p-2 rounded-lg">
+                            <p class="text-xs text-gray-500">Mechanic</p>
+                            <p class="text-sm font-semibold text-gray-800">${repair.mechanic || 'Self'}</p>
+                        </div>
+                        ${repair.mileage ? `
+                        <div class="bg-gray-50 p-2 rounded-lg">
+                            <p class="text-xs text-gray-500">Mileage</p>
+                            <p class="text-sm font-semibold text-gray-800">${repair.mileage} mi</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button class="delete-repair-btn flex-1 px-3 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium" data-repair-id="${repair.id}">
+                            <i class="fa-solid fa-trash mr-1"></i> Delete
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="record-meta">
-              <span><i class="fa-regular fa-calendar"></i> ${formatDate(repair.date)}</span>
-              <span><i class="fa-solid fa-peso-sign"></i> ${money(repair.cost)}</span>
-            </div>
-            <p class="mt-3">${repair.notes || "No notes available."}</p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button class="secondary-button edit-repair" data-record-id="${repair.id}">Edit</button>
-              <button class="secondary-button delete-repair" data-record-id="${repair.id}">Delete</button>
-            </div>
-          </div>
         </div>
-        <div class="text-right min-w-[90px]">
-          <div class="status-chip pending justify-center"><i class="fa-regular fa-file-lines"></i> Receipt</div>
-          <div class="mt-4">
-            ${repair.receiptUrl
-              ? `<a class="secondary-button inline-flex items-center justify-center" href="${repair.receiptUrl}" target="_blank" rel="noreferrer">Open receipt</a>`
-              : `<div class="empty-state text-center">No receipt uploaded</div>`}
-          </div>
-        </div>
-      </div>
-    </article>
-  `;
+    `;
 }
 
 function updateStats() {
-  const totalSpent = cachedRepairs.reduce((sum, repair) => sum + Number(repair.cost || 0), 0);
-  const receipts = cachedRepairs.filter((repair) => repair.receiptUrl).length;
-  const average = cachedRepairs.length ? totalSpent / cachedRepairs.length : 0;
-
-  renderSummaryCards(statsTarget, [
-    { label: "Total repairs", value: integer(cachedRepairs.length), detail: "Logged repair entries", icon: "fa-toolbox", primary: true },
-    { label: "Total spent", value: money(totalSpent), detail: "All repair costs", icon: "fa-dollar-sign" },
-    { label: "Average repair", value: money(average), detail: "Per repair average", icon: "fa-chart-simple" },
-    { label: "Receipts", value: integer(receipts), detail: "Attachment previews", icon: "fa-file-image" }
-  ]);
+    if (!statsTarget) return;
+    
+    const totalSpent = cachedRepairs.reduce((sum, repair) => sum + Number(repair.cost || 0), 0);
+    const totalRepairs = cachedRepairs.length;
+    const average = totalRepairs ? totalSpent / totalRepairs : 0;
+    
+    statsTarget.innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white rounded-xl p-4 border border-gray-100">
+                <p class="text-xs text-gray-500 mb-1">Total Repairs</p>
+                <p class="text-2xl font-bold text-gray-800">${totalRepairs}</p>
+                <p class="text-xs text-gray-400 mt-1">Logged entries</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-gray-100">
+                <p class="text-xs text-gray-500 mb-1">Total Spent</p>
+                <p class="text-2xl font-bold text-green-700">₱${totalSpent.toFixed(2)}</p>
+                <p class="text-xs text-gray-400 mt-1">All repairs</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-gray-100">
+                <p class="text-xs text-gray-500 mb-1">Average Cost</p>
+                <p class="text-2xl font-bold text-gray-800">₱${average.toFixed(2)}</p>
+                <p class="text-xs text-gray-400 mt-1">Per repair</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-gray-100">
+                <p class="text-xs text-gray-500 mb-1">This Month</p>
+                <p class="text-2xl font-bold text-gray-800">₱${getThisMonthTotal().toFixed(2)}</p>
+                <p class="text-xs text-gray-400 mt-1">Month total</p>
+            </div>
+        </div>
+    `;
 }
 
-function openEditModal(repair) {
-  currentEditingRepair = repair;
-  editTitle.value = repair.title || "";
-  editType.value = repair.type || "";
-  editDate.value = repair.date || "";
-  editCost.value = repair.cost || "";
-  editNotes.value = repair.notes || "";
-  editMessage.classList.add("hidden");
-  editModal.showModal();
+function getThisMonthTotal() {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    return cachedRepairs
+        .filter(repair => {
+            const repairDate = new Date(repair.date);
+            return repairDate.getMonth() === currentMonth && repairDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, repair) => sum + Number(repair.cost || 0), 0);
 }
 
-function closeEditModal() {
-  editModal.close();
-  currentEditingRepair = null;
-}
-
-function showEditMessage(text, tone = "neutral") {
-  editMessage.textContent = text;
-  editMessage.className = `empty-state ${tone === "error" ? "border-red-200 bg-red-50 text-red-700" : tone === "success" ? "border-green-200 bg-green-50 text-green-700" : ""}`.trim();
-  editMessage.classList.remove("hidden");
-}
-
-function wireActions() {
-  document.querySelectorAll(".edit-repair").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const current = cachedRepairs.find((repair) => repair.id === button.dataset.recordId);
-      if (!current) {
-        return;
-      }
-      openEditModal(current);
-    });
-  });
-
-  document.querySelectorAll(".delete-repair").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const recordId = button.dataset.recordId;
-      if (!recordId || !window.confirm("Delete this repair record?")) {
-        return;
-      }
-      await deleteUserRecord("repairs", recordId);
-      await refreshData();
-      applyFilter();
-    });
-  });
-}
-
-function applyFilter() {
-  const query = searchInput?.value.trim().toLowerCase() || "";
-  const filtered = cachedRepairs.filter((repair) => {
-    const haystack = `${repair.title} ${repair.type} ${repair.notes}`.toLowerCase();
-    return haystack.includes(query);
-  });
-
-  listTarget.innerHTML = filtered.length
-    ? filtered.map((repair) => renderRepair(repair)).join("")
-    : '<div class="empty-state">No repairs matched your search.</div>';
-
-  wireActions();
-}
-
-async function refreshData() {
-  isLoading = true;
-  showRepairsSkeleton();
-  try {
-    cachedRepairs = await listUserRecords("repairs");
-    updateStats();
-  } catch (err) {
-    if (listTarget) listTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Could not load repairs. Please refresh.</div>';
-    if (statsTarget) statsTarget.innerHTML = '';
-  } finally {
-    isLoading = false;
-  }
-}
-
-// Modal event listeners
-if (editModal) {
-  document.querySelectorAll("[data-modal-close]").forEach((button) => {
-    button.addEventListener("click", closeEditModal);
-  });
-
-  editModal.addEventListener("click", (event) => {
-    if (event.target === editModal) {
-      closeEditModal();
+async function handleDeleteRepair(e) {
+    const repairId = e.currentTarget.getAttribute('data-repair-id');
+    if (!repairId) return;
+    
+    if (!confirm('Delete this repair record?')) return;
+    
+    try {
+        await deleteFirestoreDoc('repairs', repairId);
+        cachedRepairs = cachedRepairs.filter(r => r.id !== repairId);
+        
+        if (cachedRepairs.length === 0) {
+            renderEmptyState();
+        } else {
+            renderRepairs();
+            updateStats();
+        }
+        
+        showToast('Repair deleted successfully', 'success');
+    } catch (error) {
+        console.error('Error deleting repair:', error);
+        showToast('Error deleting repair', 'error');
     }
-  });
-
-  if (editForm) {
-    editForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      showEditMessage("");
-      if (isLoading) return;
-      const saveBtn = editForm.querySelector("button[type='submit']");
-      if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.textContent = "Saving...";
-      }
-      try {
-        if (!currentEditingRepair) {
-          showEditMessage("No repair selected.", "error");
-          return;
-        }
-        const title = editTitle?.value.trim() || "";
-        if (!title) {
-          showEditMessage("Title is required.", "error");
-          return;
-        }
-        await saveUserRecord("repairs", {
-          ...currentEditingRepair,
-          title,
-          type: editType?.value.trim() || "Repair",
-          date: editDate?.value,
-          cost: Number(editCost?.value || 0),
-          notes: editNotes?.value.trim()
-        }, currentEditingRepair.id);
-        closeEditModal();
-        await refreshData();
-        applyFilter();
-      } catch (error) {
-        showEditMessage(error?.message || "Could not save repair.", "error");
-      } finally {
-        if (saveBtn) {
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
-      }
-    });
-  }
 }
 
-async function boot(user) {
-  setActiveNav("repairs");
-  populateUserIdentity(user);
-  if (logoutButton) {
-    logoutButton.addEventListener("click", async () => {
-      try {
-        await logoutUser();
-        window.location.replace("./login.html");
-      } catch (err) {
-        if (listTarget) listTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Logout failed. Please try again.</div>';
-      }
+function setupEventListeners() {
+    searchInput?.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        const filtered = cachedRepairs.filter(r => 
+            r.title?.toLowerCase().includes(query) || 
+            r.category?.toLowerCase().includes(query) ||
+            r.motorcycleName?.toLowerCase().includes(query)
+        );
+        
+        if (listTarget) {
+            if (filtered.length === 0) {
+                listTarget.innerHTML = '<div class="text-gray-500 text-sm py-3">No repairs match your search</div>';
+            } else {
+                listTarget.innerHTML = filtered.map(repair => renderRepair(repair)).join('');
+                listTarget.querySelectorAll('.delete-repair-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => handleDeleteRepair(e));
+                });
+            }
+        }
     });
-  }
-
-  await refreshData();
-  if (searchInput) searchInput.addEventListener("input", applyFilter);
-  applyFilter();
 }
 
-onAuthChange((user) => {
-  if (!user) {
-    window.location.replace("./login.html");
-    return;
-  }
-  boot(user).catch((error) => {
-    console.error(error);
-    listTarget.innerHTML = '<div class="empty-state border-red-200 bg-red-50 text-red-700">Could not load repairs. Please refresh.</div>';
-  });
-});
+function showToast(message, type = 'info') {
+    const el = document.createElement('div');
+    el.className = 'fixed bottom-4 right-4 rounded-xl px-4 py-3 shadow-xl flex items-center gap-3 bg-white z-50';
+    const icon = type === 'success' ? 'fa-circle-check text-green-600' : 'fa-circle-exclamation text-red-600';
+    el.innerHTML = `<i class="fa-solid ${icon}"></i><p class="flex-1 text-sm font-medium">${message}</p><button class="hover:bg-gray-100 rounded-full p-1"><i class="fa-solid fa-xmark"></i></button>`;
+    
+    const btn = el.querySelector('button');
+    btn.addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+    
+    setTimeout(() => el.remove(), 3000);
+}

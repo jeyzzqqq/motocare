@@ -1,14 +1,47 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestoreDocs } from './firebaseUtils.js';
 
 let selectedFile = null;
+let motorcycles = [];
 
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = 'index.html';
+    } else {
+        // Add small delay to ensure everything is loaded
+        setTimeout(() => loadMotorcyclesFromFirestore(), 100);
     }
 });
+
+// Load motorcycles from Firestore
+async function loadMotorcyclesFromFirestore() {
+    const dropdown = document.getElementById('motorcycle');
+    if (!dropdown) {
+        console.error('Motorcycle dropdown not found');
+        return;
+    }
+
+    try {
+        motorcycles = await getFirestoreDocs('motorcycles', 'createdAt');
+        
+        if (motorcycles.length === 0) {
+            dropdown.innerHTML = '<option value="">No motorcycles found. Add one in Profile.</option>';
+            dropdown.disabled = true;
+            console.log('No motorcycles found in Firestore');
+        } else {
+            dropdown.innerHTML = '<option value="">Select a motorcycle</option>' +
+                motorcycles.map((m, idx) => `<option value="${m.id}">${m.brand || 'Unknown'} ${m.model || 'Unknown'} (${m.year || ''})</option>`).join('');
+            dropdown.disabled = false;
+            console.log('Loaded motorcycles from Firestore:', motorcycles);
+        }
+    } catch (error) {
+        console.error('Error loading motorcycles from Firestore:', error);
+        dropdown.innerHTML = '<option value="">Error loading motorcycles</option>';
+        dropdown.disabled = true;
+    }
+}
 
 // File upload handling
 document.getElementById('uploadArea')?.addEventListener('click', () => {
@@ -81,14 +114,22 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const date = document.getElementById('date').value;
     const cost = Number(document.getElementById('cost').value);
     const category = document.getElementById('category').value.trim();
+    const motorcycleId = document.getElementById('motorcycle').value;
 
     if (!submitBtn || !cancelBtn) {
         showToast('Form buttons are missing. Please refresh.', 'error');
         return;
     }
 
-    if (!title || !date || !category || Number.isNaN(cost) || cost <= 0) {
-        showToast('Please complete the required fields with valid values.', 'error');
+    if (!title || !date || !category || !motorcycleId || Number.isNaN(cost) || cost <= 0) {
+        showToast('Please complete all required fields with valid values.', 'error');
+        return;
+    }
+
+    // Get selected motorcycle details by ID
+    const selectedMotorcycle = motorcycles.find(m => m.id === motorcycleId);
+    if (!selectedMotorcycle) {
+        showToast('Invalid motorcycle selection.', 'error');
         return;
     }
     
@@ -109,6 +150,8 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         category,
         notes: document.getElementById('notes').value,
         hasReceipt: selectedFile !== null,
+        motorcycleId: selectedMotorcycle.id,
+        motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`,
         uid: user.uid,
         createdAt: new Date().toISOString()
     };

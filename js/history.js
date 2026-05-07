@@ -71,7 +71,8 @@ function displayExpenses(records) {
             color: '#15803d',
             item: record.title || record.task || 'Repair',
             category: record.category || 'Maintenance',
-            date: parsedDate ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+            date: parsedDate ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+            motorcycleName: record.motorcycleName || ''
         };
     });
 
@@ -199,12 +200,15 @@ function displayRecentExpenses(expenses) {
     }
     container.innerHTML = expenses.map(expense => `
         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer hover:scale-105 active:scale-95">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-1">
                 <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                     <i class="lucide lucide-dollar-sign text-green-700 text-xl"></i>
                 </div>
-                <div>
-                    <p class="text-gray-800 font-medium">${expense.item}</p>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <p class="text-gray-800 font-medium">${expense.item}</p>
+                        ${expense.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${expense.motorcycleName}</span>` : ''}
+                    </div>
                     <div class="flex items-center gap-2 mt-0.5">
                         <i class="lucide lucide-calendar text-gray-400 text-xs"></i>
                         <span class="text-xs text-gray-500">${expense.date}</span>
@@ -213,7 +217,7 @@ function displayRecentExpenses(expenses) {
                     </div>
                 </div>
             </div>
-            <span class="text-green-700 font-bold">$${expense.amount}</span>
+            <span class="text-green-700 font-bold">₱${expense.amount}</span>
         </div>
     `).join('');
 }

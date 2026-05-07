@@ -16,9 +16,6 @@
                     <h1 class="text-3xl text-gray-800">My Motorcycles</h1>
                     <p class="text-gray-500 text-sm mt-1">Manage your bike collection</p>
                 </div>
-                <button id="editToggleBtn" onclick="toggleEdit()" class="p-2 bg-white rounded-full text-gray-500 hover:bg-gray-100 transition-all border border-gray-200">
-                    <i id="editIcon" class="fa-solid fa-pen text-lg"></i>
-                </button>
             </div>
         </div>
 
@@ -111,18 +108,13 @@
 
             <!-- Stats removed per user request -->
 
-            <!-- Action Buttons -->
-            <div class="space-y-3" id="actionButtons">
-                <button id="saveBtn" onclick="saveProfile()" class="hidden w-full py-3 bg-green-700 text-white rounded-xl hover:bg-green-800 transition-all font-medium">
-                    Save Changes
-                </button>
-                <button id="cancelBtn" onclick="cancelEdit()" class="hidden w-full py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition-all font-medium">
-                    Cancel
-                </button>
-
-            </div>
         </div>
     </div>
+
+    <!-- Floating Add Record Button -->
+    <a href="add-record.html" title="Add record" aria-label="Add record" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
+        <i class="fa-solid fa-plus text-xl"></i>
+    </a>
 
     <!-- Mobile Navigation -->
     <div id="mobileNav"></div>
@@ -134,7 +126,7 @@
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
     <script src="./js/mobile-nav.js"></script>
-    <script src="./js/motorcycles.js?v=2"></script>
+    <script type="module" src="./js/motorcycles.js?v=2"></script>
     <script type="module" src="./js/profile.js"></script>
 </body>
 </html>

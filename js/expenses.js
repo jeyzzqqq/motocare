@@ -228,7 +228,10 @@ function displayRecentExpenses() {
         return `
             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
                 <div class="flex-1">
-                    <p class="text-gray-800 font-medium">${exp.title}</p>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <p class="text-gray-800 font-medium">${exp.title}</p>
+                        ${exp.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${exp.motorcycleName}</span>` : ''}
+                    </div>
                     <p class="text-xs text-gray-500">${date} • ${exp.category}</p>
                 </div>
                 <div class="flex items-center gap-3">

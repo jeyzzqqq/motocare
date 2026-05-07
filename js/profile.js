@@ -1,17 +1,21 @@
 import { auth, onAuthStateChanged, db } from "./firebase-config.js";
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, query, where, getDocs, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestoreDocs } from './firebaseUtils.js';
 
 let currentUser = null;
-let isEditMode = false;
 
-// Auth State Listener
+// Auth State Listener - redirect ONLY if explicitly checked and no user
 onAuthStateChanged(auth, async (user) => {
+    console.log('Auth state changed:', user ? user.uid : 'no user');
     if (user) {
         currentUser = user;
-        document.getElementById('emailValue').textContent = user.email;
+        console.log('User authenticated:', user.uid);
         await loadUserStats();
     } else {
-        window.location.href = "./index.html";
+        console.log('No user, redirecting to login');
+        setTimeout(() => {
+            window.location.href = "./index.html";
+        }, 1000);
     }
 });
 
@@ -22,76 +26,39 @@ async function loadUserStats() {
     try {
         // Get motorcycles count
         const bikesSnap = await getDocs(query(collection(db, 'motorcycles'), where('uid', '==', currentUser.uid)));
-        document.getElementById('bikesCount').textContent = bikesSnap.size;
+        const bikeCount = bikesSnap.size;
+        console.log('Motorcycles count:', bikeCount);
 
         // Get repairs/services count
         const repairsSnap = await getDocs(query(collection(db, 'repairs'), where('uid', '==', currentUser.uid)));
-        document.getElementById('servicesCount').textContent = repairsSnap.size;
+        const serviceCount = repairsSnap.size;
+        console.log('Services count:', serviceCount);
 
-        // Calculate total spent
-        const expensesSnap = await getDocs(query(collection(db, 'expenses'), where('uid', '==', currentUser.uid)));
+        // Calculate total spent from repairs collection (use 'cost' field)
         let totalSpent = 0;
-        expensesSnap.forEach(doc => {
-            totalSpent += parseFloat(doc.data().amount || 0);
+        repairsSnap.forEach(doc => {
+            totalSpent += parseFloat(doc.data().cost || 0);
         });
-        document.getElementById('totalSpent').textContent = '₱' + totalSpent.toFixed(2);
+        
+        console.log('Total spent:', totalSpent);
     } catch (error) {
         console.error("Error loading stats:", error);
     }
 }
 
-// Toggle edit mode
+// Edit toggle - simple for now (no email editing)
 window.toggleEdit = function() {
-    isEditMode = !isEditMode;
-    const editIcon = document.getElementById('editIcon');
-    const emailInput = document.getElementById('emailInput');
-    const emailValue = document.getElementById('emailValue');
-    const saveBtn = document.getElementById('saveBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-
-    if (isEditMode) {
-        // Enter edit mode
-        editIcon.className = 'fa-solid fa-check text-xl text-green-700';
-        emailValue.classList.add('hidden');
-        emailInput.classList.remove('hidden');
-        emailInput.value = currentUser.email;
-        saveBtn.classList.remove('hidden');
-        cancelBtn.classList.remove('hidden');
-    } else {
-        // Exit edit mode
-        editIcon.className = 'fa-solid fa-pen text-xl';
-        emailValue.classList.remove('hidden');
-        emailInput.classList.add('hidden');
-        saveBtn.classList.add('hidden');
-        cancelBtn.classList.add('hidden');
-    }
+    console.log('Edit toggle clicked');
 };
 
-// Save profile changes
+// Save profile - no-op for now
 window.saveProfile = async function() {
-    // Email update via Firebase Auth if needed
-    const newEmail = document.getElementById('emailInput').value;
-    
-    if (newEmail && newEmail !== currentUser.email) {
-        try {
-            await auth.currentUser.updateEmail(newEmail);
-            document.getElementById('emailValue').textContent = newEmail;
-            showToast('Email updated successfully', 'success');
-        } catch (error) {
-            console.error("Error updating email:", error);
-            showToast('Error updating email: ' + error.message, 'error');
-            return;
-        }
-    }
-
-    isEditMode = false;
-    window.toggleEdit();
+    console.log('Save clicked');
 };
 
-// Cancel edit
+// Cancel edit - no-op for now
 window.cancelEdit = function() {
-    isEditMode = true;
-    window.toggleEdit();
+    console.log('Cancel clicked');
 };
 
 // Logout

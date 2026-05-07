@@ -156,12 +156,15 @@ function displayRecentRepairs(docs) {
 
     container.innerHTML = sortedItems.slice(0, 2).map(item => `
         <div onclick="window.location.href='history.html'" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-1">
                 <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                     <i class="lucide lucide-check-circle-2 text-green-700 text-xl"></i>
                 </div>
-                <div>
-                    <p class="text-gray-800 font-medium">${item.title || item.task || 'Repair'}</p>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <p class="text-gray-800 font-medium">${item.title || item.task || 'Repair'}</p>
+                        ${item.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${item.motorcycleName}</span>` : ''}
+                    </div>
                     <p class="text-xs text-gray-500">${item.date || item.createdAt || ''}</p>
                 </div>
             </div>
