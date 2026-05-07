@@ -34,9 +34,9 @@ async function loadExpenses(userId) {
 }
 
 function renderEmptyState() {
-    document.getElementById('totalExpenses').textContent = '$0';
-    document.getElementById('thisMonthExpense').textContent = '$0';
-    document.getElementById('avgMonthExpense').textContent = '$0';
+    document.getElementById('totalExpenses').textContent = '₱0';
+    document.getElementById('thisMonthExpense').textContent = '₱0';
+    document.getElementById('avgMonthExpense').textContent = '₱0';
     document.getElementById('trendText').textContent = 'No records yet';
     const indicator = document.getElementById('trendIndicator');
     if (indicator) {
@@ -131,7 +131,7 @@ function displayMonthlyChart(data) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (context) => `$${context.parsed.y}`
+                        label: (context) => `₱${context.parsed.y}`
                     }
                 }
             },
@@ -139,7 +139,7 @@ function displayMonthlyChart(data) {
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        callback: (value) => '$' + value
+                        callback: (value) => '₱' + value
                     }
                 }
             }
@@ -171,7 +171,7 @@ function displayCategoryChart(data) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (context) => `$${context.parsed}`
+                        label: (context) => `₱${context.parsed}`
                     }
                 }
             }
@@ -186,7 +186,7 @@ function displayCategoryChart(data) {
                 <div class="w-3 h-3 rounded-full" style="background-color: ${item.color}"></div>
                 <span class="text-sm text-gray-600">${item.name}</span>
             </div>
-            <span class="text-sm font-semibold text-gray-800">$${item.value}</span>
+            <span class="text-sm font-semibold text-gray-800">₱${item.value}</span>
         </div>
     `).join('');
 }

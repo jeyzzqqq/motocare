@@ -80,7 +80,7 @@ function renderDashboardEmptyState() {
         maintenanceLegend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
     }
     document.getElementById('totalServices').textContent = '0';
-    document.getElementById('totalSpent').textContent = '$0';
+    document.getElementById('totalSpent').textContent = '₱0';
 }
 
 function renderEmptyList(containerId, message = 'No records yet') {
@@ -146,13 +146,13 @@ function displayRecentRepairs(docs) {
 
     if (!items.length) {
         renderEmptyList('recentRepairsList');
-        document.getElementById('totalSpent').textContent = '$0';
+        document.getElementById('totalSpent').textContent = '₱0';
         return;
     }
 
     const sortedItems = items.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
     const totalSpent = sortedItems.reduce((sum, item) => sum + Number(item.cost || 0), 0);
-    document.getElementById('totalSpent').textContent = `$${totalSpent.toFixed(2)}`;
+    document.getElementById('totalSpent').textContent = `₱${totalSpent.toFixed(2)}`;
 
     container.innerHTML = sortedItems.slice(0, 2).map(item => `
         <div onclick="window.location.href='history.html'" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer">
@@ -166,7 +166,7 @@ function displayRecentRepairs(docs) {
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <span class="text-green-700 font-semibold">$${Number(item.cost || 0).toFixed(2)}</span>
+                <span class="text-green-700 font-semibold">₱${Number(item.cost || 0).toFixed(2)}</span>
                 <i class="lucide lucide-chevron-right text-gray-400"></i>
             </div>
         </div>
@@ -228,7 +228,7 @@ function displayExpenseChart(docs) {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '$' + value;
+                            return '₱' + value;
                         }
                     }
                 }

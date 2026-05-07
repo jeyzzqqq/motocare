@@ -42,9 +42,9 @@ async function loadExpenses(userId) {
 
 function renderEmptyState() {
     expenses = [];
-    document.getElementById('totalExpenses').textContent = '$0.00';
-    document.getElementById('thisMonthExpense').textContent = '$0.00';
-    document.getElementById('avgMonthExpense').textContent = '$0.00';
+    document.getElementById('totalExpenses').textContent = '₱0.00';
+    document.getElementById('thisMonthExpense').textContent = '₱0.00';
+    document.getElementById('avgMonthExpense').textContent = '₱0.00';
     document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     const recentList = document.getElementById('recentExpensesList');
@@ -86,9 +86,9 @@ function displayExpenses() {
     const monthlyAverage = calculateMonthlyAverage(expenses);
 
     // Update header stats
-    document.getElementById('totalExpenses').textContent = `$${total.toFixed(2)}`;
-    document.getElementById('thisMonthExpense').textContent = `$${thisMonth.toFixed(2)}`;
-    document.getElementById('avgMonthExpense').textContent = `$${monthlyAverage.toFixed(2)}`;
+    document.getElementById('totalExpenses').textContent = `₱${total.toFixed(2)}`;
+    document.getElementById('thisMonthExpense').textContent = `₱${thisMonth.toFixed(2)}`;
+    document.getElementById('avgMonthExpense').textContent = `₱${monthlyAverage.toFixed(2)}`;
     document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     // Display trend (monthly)
@@ -154,7 +154,7 @@ function displayMonthlyTrendChart() {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: { callback: (value) => '$' + value }
+                        ticks: { callback: (value) => '₱' + value }
                     }
                 }
             }
@@ -208,7 +208,7 @@ function displayCategoryChart() {
                     <div class="w-3 h-3 rounded-full" style="background-color: ${item.color}"></div>
                     <span class="text-gray-700 text-sm">${item.label}</span>
                 </div>
-                <span class="font-medium text-gray-800">$${item.value.toFixed(2)}</span>
+                <span class="font-medium text-gray-800">₱${item.value.toFixed(2)}</span>
             </div>
         `).join('');
     }
@@ -232,7 +232,7 @@ function displayRecentExpenses() {
                     <p class="text-xs text-gray-500">${date} • ${exp.category}</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <p class="font-bold text-green-700">$${exp.amount?.toFixed(2)}</p>
+                    <p class="font-bold text-green-700">₱${exp.amount?.toFixed(2)}</p>
                     <button class="delete-expense-btn" data-expense-id="${exp.id}" title="Delete">
                         <i class="lucide lucide-trash-2 text-red-500 text-lg"></i>
                     </button>

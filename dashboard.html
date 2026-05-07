@@ -6,6 +6,7 @@
     <title>MotoCare - Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* Logout button enhanced styling */
@@ -68,7 +69,7 @@
             transform: scale(0.98);
         }
     </style>
-<body class="bg-gray-50 min-h-screen pb-20">
+<body class="bg-gray-50 min-h-screen pb-32">
     <div class="max-w-lg mx-auto">
         <div class="p-4 space-y-6">
             <!-- Header -->
@@ -102,7 +103,7 @@
                 </div>
                 <div onclick="window.location.href='expenses.html'" class="bg-white rounded-2xl p-5 shadow-md border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow active:scale-95">
                     <i class="lucide lucide-dollar-sign text-green-700 text-3xl mb-2"></i>
-                    <p class="text-2xl font-bold text-gray-800" id="totalSpent">$0</p>
+                    <p class="text-2xl font-bold text-gray-800" id="totalSpent">₱0</p>
                     <p class="text-sm text-gray-500">Total Spent</p>
                 </div>
             </div>
@@ -161,38 +162,11 @@
         </div>
     </div>
 
-    <!-- Bottom Navigation -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-        <div class="max-w-lg mx-auto px-4 py-2">
-            <div class="flex justify-around items-center">
-                <a href="dashboard.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-green-700">
-                    <i class="lucide lucide-home text-2xl scale-110"></i>
-                    <span class="text-xs mt-1 font-medium">Home</span>
-                    <div class="absolute -bottom-0.5 w-12 h-1 bg-green-700 rounded-full"></div>
-                </a>
-                <a href="profile.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-bike text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">Profile</span>
-                </a>
-                <a href="schedule.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-calendar text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">Schedule</span>
-                </a>
-                <a href="history.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-history text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">History</span>
-                </a>
-                <a href="expenses.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-dollar-sign text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">Expenses</span>
-                </a>
-            </div>
-        </div>
-    </nav>
+    <div id="mobileNav"></div>
 
     <!-- Floating Action Button -->
-    <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
-        <i class="lucide lucide-plus text-3xl"></i>
+    <a href="add-record.html" title="Add record" aria-label="Add record" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
+        <i class="fa-solid fa-circle-plus text-2xl" aria-hidden="true"></i>
     </a>
 
     <!-- Toast Container -->
@@ -200,6 +174,7 @@
 
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
+    <script type="module" src="./js/mobile-nav.js"></script>
     <script type="module" src="./js/dashboard.js"></script>
 </body>
 </html>

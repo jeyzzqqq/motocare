@@ -6,9 +6,10 @@
     <title>MotoCare - Expense Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen pb-20">
+<body class="bg-gray-50 min-h-screen pb-32">
     <div class="max-w-lg mx-auto">
         <div class="p-4 space-y-6">
             <!-- Header -->
@@ -22,7 +23,7 @@
                 <div class="flex items-start justify-between mb-4">
                     <div>
                         <p class="text-green-100 text-sm">Total Expenses</p>
-                        <h2 class="text-4xl font-bold mt-2" id="totalExpenses">$760</h2>
+                        <h2 class="text-4xl font-bold mt-2" id="totalExpenses">₱760</h2>
                     </div>
                     <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                         <i class="lucide lucide-dollar-sign text-2xl"></i>
@@ -38,12 +39,12 @@
             <div class="grid grid-cols-2 gap-4">
                 <div class="bg-white rounded-xl p-4 shadow-md border border-gray-100">
                     <p class="text-gray-500 text-sm mb-1">This Month</p>
-                    <p class="text-2xl font-bold text-gray-800" id="thisMonthExpense">$175</p>
+                    <p class="text-2xl font-bold text-gray-800" id="thisMonthExpense">₱175</p>
                     <p class="text-xs text-gray-400 mt-1" id="currentMonth">April 2026</p>
                 </div>
                 <div class="bg-white rounded-xl p-4 shadow-md border border-gray-100">
                     <p class="text-gray-500 text-sm mb-1">Avg/Month</p>
-                    <p class="text-2xl font-bold text-gray-800" id="avgMonthExpense">$190</p>
+                    <p class="text-2xl font-bold text-gray-800" id="avgMonthExpense">₱190</p>
                     <p class="text-xs text-gray-400 mt-1">Last 4 months</p>
                 </div>
             </div>
@@ -91,34 +92,7 @@
         </div>
     </div>
 
-    <!-- Bottom Navigation -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-        <div class="max-w-lg mx-auto px-4 py-2">
-            <div class="flex justify-around items-center">
-                <a href="dashboard.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-home text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">Home</span>
-                </a>
-                <a href="profile.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-bike text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">Profile</span>
-                </a>
-                <a href="schedule.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-calendar text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">Schedule</span>
-                </a>
-                <a href="history.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-gray-400 hover:text-gray-600">
-                    <i class="lucide lucide-history text-2xl"></i>
-                    <span class="text-xs mt-1 font-medium">History</span>
-                </a>
-                <a href="expenses.html" class="flex flex-col items-center py-2 px-3 rounded-lg transition-all text-green-700">
-                    <i class="lucide lucide-dollar-sign text-2xl scale-110"></i>
-                    <span class="text-xs mt-1 font-medium">Expenses</span>
-                    <div class="absolute -bottom-0.5 w-12 h-1 bg-green-700 rounded-full"></div>
-                </a>
-            </div>
-        </div>
-    </nav>
+    <div id="mobileNav"></div>
 
     <!-- Floating Action Button -->
     <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
@@ -130,6 +104,7 @@
 
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
+    <script type="module" src="./js/mobile-nav.js"></script>
     <script type="module" src="./js/expenses.js"></script>
 </body>
 </html>

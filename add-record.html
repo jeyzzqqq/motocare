@@ -6,8 +6,9 @@
     <title>MotoCare - Add Record</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body class="bg-gray-50 min-h-screen pb-24">
+<body class="bg-gray-50 min-h-screen pb-32">
     <div class="max-w-lg mx-auto">
         <div class="p-4 space-y-6">
             <!-- Header -->
@@ -169,11 +170,14 @@
         </div>
     </div>
 
+    <div id="mobileNav"></div>
+
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
 
     <script type="module" src="./js/firebase-config.js"></script>
     <script type="module" src="./js/utils.js"></script>
+    <script type="module" src="./js/mobile-nav.js"></script>
     <script type="module" src="./js/addRecord.js"></script>
 </body>
 </html>

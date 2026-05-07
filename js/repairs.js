@@ -44,7 +44,7 @@ function renderRepair(repair) {
             </div>
             <div class="record-meta">
               <span><i class="fa-regular fa-calendar"></i> ${formatDate(repair.date)}</span>
-              <span><i class="fa-solid fa-dollar-sign"></i> ${money(repair.cost)}</span>
+              <span><i class="fa-solid fa-peso-sign"></i> ${money(repair.cost)}</span>
             </div>
             <p class="mt-3">${repair.notes || "No notes available."}</p>
             <div class="mt-3 flex flex-wrap gap-2">

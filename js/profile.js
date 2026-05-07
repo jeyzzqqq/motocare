@@ -1,152 +1,134 @@
-import { auth, db } from './firebase-config.js';
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { auth, onAuthStateChanged, db } from "./firebase-config.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-let isEditing = false;
-let userId = null;
+let currentUser = null;
+let isEditMode = false;
 
+// Auth State Listener
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        userId = user.uid;
-        await loadProfile(user.uid);
+        currentUser = user;
+        document.getElementById('emailValue').textContent = user.email;
+        await loadUserStats();
     } else {
-        window.location.href = 'index.html';
+        window.location.href = "./index.html";
     }
 });
 
-async function loadProfile(uid) {
+// Load user statistics
+async function loadUserStats() {
+    if (!currentUser) return;
+    
     try {
-        const docRef = doc(db, 'profiles', uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.uid && data.uid !== uid) {
-                loadEmptyProfile();
-                return;
-            }
-            populateProfile(data);
-        } else {
-            loadEmptyProfile();
-        }
+        // Get motorcycles count
+        const bikesSnap = await getDocs(query(collection(db, 'motorcycles'), where('uid', '==', currentUser.uid)));
+        document.getElementById('bikesCount').textContent = bikesSnap.size;
+
+        // Get repairs/services count
+        const repairsSnap = await getDocs(query(collection(db, 'repairs'), where('uid', '==', currentUser.uid)));
+        document.getElementById('servicesCount').textContent = repairsSnap.size;
+
+        // Calculate total spent
+        const expensesSnap = await getDocs(query(collection(db, 'expenses'), where('uid', '==', currentUser.uid)));
+        let totalSpent = 0;
+        expensesSnap.forEach(doc => {
+            totalSpent += parseFloat(doc.data().amount || 0);
+        });
+        document.getElementById('totalSpent').textContent = '₱' + totalSpent.toFixed(2);
     } catch (error) {
-        console.error('Error loading profile:', error);
-        loadEmptyProfile();
+        console.error("Error loading stats:", error);
     }
 }
 
-function loadEmptyProfile() {
-    populateProfile({
-        make: '',
-        model: '',
-        year: '',
-        vin: '',
-        plateNumber: '',
-        mileage: '',
-        fuelType: '',
-        purchaseDate: '',
-        color: ''
-    });
-}
-
-function populateProfile(data) {
-    document.getElementById('makeModel').value = `${data.make} ${data.model}`;
-    document.getElementById('year').value = data.year;
-    document.getElementById('mileage').value = data.mileage;
-    document.getElementById('fuelType').value = data.fuelType;
-    document.getElementById('vin').value = data.vin;
-    document.getElementById('plateNumber').value = data.plateNumber;
-    document.getElementById('purchaseDate').value = data.purchaseDate;
-    document.getElementById('color').value = data.color;
-
-    // Update display
-    document.getElementById('displayMakeModel').textContent = `${data.make} ${data.model}`;
-    document.getElementById('displayYear').textContent = data.year;
-    document.getElementById('displayMileage').textContent = data.mileage;
-    document.getElementById('displayColor').textContent = data.color;
-}
-
+// Toggle edit mode
 window.toggleEdit = function() {
-    isEditing = !isEditing;
-    const inputs = document.querySelectorAll('input[type="text"]');
-    const editBtn = document.getElementById('editToggleBtn');
+    isEditMode = !isEditMode;
     const editIcon = document.getElementById('editIcon');
-    const actionButtons = document.getElementById('actionButtons');
+    const emailInput = document.getElementById('emailInput');
+    const emailValue = document.getElementById('emailValue');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
 
-    if (isEditing) {
-        inputs.forEach(input => input.disabled = false);
-        editBtn.className = 'p-2.5 rounded-full shadow-md transition-all hover:scale-110 active:scale-95 bg-green-700 text-white hover:bg-green-800';
-        editIcon.className = 'lucide lucide-save text-xl';
-        actionButtons.classList.remove('hidden');
+    if (isEditMode) {
+        // Enter edit mode
+        editIcon.className = 'fa-solid fa-check text-xl text-green-700';
+        emailValue.classList.add('hidden');
+        emailInput.classList.remove('hidden');
+        emailInput.value = currentUser.email;
+        saveBtn.classList.remove('hidden');
+        cancelBtn.classList.remove('hidden');
     } else {
-        saveProfile();
+        // Exit edit mode
+        editIcon.className = 'fa-solid fa-pen text-xl';
+        emailValue.classList.remove('hidden');
+        emailInput.classList.add('hidden');
+        saveBtn.classList.add('hidden');
+        cancelBtn.classList.add('hidden');
     }
-}
+};
 
-window.cancelEdit = function() {
-    isEditing = false;
-    const inputs = document.querySelectorAll('input[type="text"]');
-    const editBtn = document.getElementById('editToggleBtn');
-    const editIcon = document.getElementById('editIcon');
-    const actionButtons = document.getElementById('actionButtons');
-
-    inputs.forEach(input => input.disabled = true);
-    editBtn.className = 'p-2.5 rounded-full shadow-md transition-all hover:scale-110 active:scale-95 bg-white text-gray-600 hover:bg-gray-50';
-    editIcon.className = 'lucide lucide-edit-2 text-xl';
-    actionButtons.classList.add('hidden');
-
-    // Reload profile data
-    loadProfile(userId);
-}
-
+// Save profile changes
 window.saveProfile = async function() {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-        showToast('Please sign in again to save your profile.', 'error');
-        window.location.href = 'index.html';
-        return;
+    // Email update via Firebase Auth if needed
+    const newEmail = document.getElementById('emailInput').value;
+    
+    if (newEmail && newEmail !== currentUser.email) {
+        try {
+            await auth.currentUser.updateEmail(newEmail);
+            document.getElementById('emailValue').textContent = newEmail;
+            showToast('Email updated successfully', 'success');
+        } catch (error) {
+            console.error("Error updating email:", error);
+            showToast('Error updating email: ' + error.message, 'error');
+            return;
+        }
     }
 
-    if (!userId) return;
+    isEditMode = false;
+    window.toggleEdit();
+};
 
-    const makeModel = document.getElementById('makeModel').value.split(' ');
-    const make = makeModel[0];
-    const model = makeModel.slice(1).join(' ');
+// Cancel edit
+window.cancelEdit = function() {
+    isEditMode = true;
+    window.toggleEdit();
+};
 
-    const profileData = {
-        uid: currentUser.uid,
-        make: make,
-        model: model,
-        year: document.getElementById('year').value,
-        mileage: document.getElementById('mileage').value,
-        fuelType: document.getElementById('fuelType').value,
-        vin: document.getElementById('vin').value,
-        plateNumber: document.getElementById('plateNumber').value,
-        purchaseDate: document.getElementById('purchaseDate').value,
-        color: document.getElementById('color').value,
-        updatedAt: new Date().toISOString()
+// Logout
+window.logoutUser = async function() {
+    try {
+        await auth.signOut();
+        window.location.href = "./index.html";
+    } catch (error) {
+        console.error("Logout error:", error);
+        showToast('Error logging out', 'error');
+    }
+};
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) return;
+    
+    const toast = document.createElement('div');
+    const colors = {
+        success: 'bg-green-700 text-white',
+        error: 'bg-red-500 text-white',
+        info: 'bg-blue-500 text-white'
+    };
+    
+    const icons = {
+        success: 'check-circle',
+        error: 'alert-circle',
+        info: 'info'
     };
 
-    try {
-        await setDoc(doc(db, 'profiles', userId), profileData);
-        showToast('Profile saved successfully!', 'success');
-        
-        // Update display
-        populateProfile(profileData);
-
-        // Exit edit mode
-        isEditing = false;
-        const inputs = document.querySelectorAll('input[type="text"]');
-        const editBtn = document.getElementById('editToggleBtn');
-        const editIcon = document.getElementById('editIcon');
-        const actionButtons = document.getElementById('actionButtons');
-
-        inputs.forEach(input => input.disabled = true);
-        editBtn.className = 'p-2.5 rounded-full shadow-md transition-all hover:scale-110 active:scale-95 bg-white text-gray-600 hover:bg-gray-50';
-        editIcon.className = 'lucide lucide-edit-2 text-xl';
-        actionButtons.classList.add('hidden');
-    } catch (error) {
-        console.error('Error saving profile:', error);
-        showToast('Error saving profile', 'error');
-    }
+    toast.className = `${colors[type]} rounded-lg px-4 py-3 shadow-lg flex items-center gap-2`;
+    toast.innerHTML = `
+        <i class="fa-solid fa-${icons[type]}"></i>
+        <span class="text-sm font-medium">${message}</span>
+    `;
+    
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
