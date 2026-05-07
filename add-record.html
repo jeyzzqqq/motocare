@@ -42,8 +42,16 @@
                         <i class="lucide lucide-wrench text-green-700 text-xl"></i>
                         Service/Repair Title
                     </label>
-                    <input type="text" id="title" placeholder="e.g., Oil Change, Brake Replacement" required
-                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent">
+                    <select id="titleSelect" required
+                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent appearance-none cursor-pointer">
+                        <option value="">Select a motorcycle first</option>
+                    </select>
+                    <div id="customTitleGroup" class="mt-3 hidden">
+                        <label class="block text-sm text-gray-600 mb-2" id="customTitleLabel">Custom Item</label>
+                        <input type="text" id="customTitle" placeholder="e.g., Top box, seat cover, brake pads"
+                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent">
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Pick from the same schedule rules used in the Maintenance page, or choose an upgrade/accessory item.</p>
                 </div>
 
                 <!-- Date & Cost -->
@@ -148,7 +156,7 @@
                     </li>
                     <li class="flex items-start gap-2">
                         <span class="text-green-700 mt-0.5">•</span>
-                        <span>Choose whether the service was self-service or done by a mechanic/shop</span>
+                        <span>Pick a scheduled service title or a parts/accessories upgrade to keep history readable</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <span class="text-green-700 mt-0.5">•</span>
