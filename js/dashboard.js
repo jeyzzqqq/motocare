@@ -2,6 +2,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -55,11 +56,22 @@ async function loadDashboardData(user) {
             ))
         ]);
 
+        const motorcycles = motorcyclesSnapshot.docs
+            .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
+            .filter((item) => item.uid === uid && item.deleted !== true);
+
+        const maintenanceItems = maintenanceSnapshot.docs
+            .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
+            .filter((item) => item.uid === uid && item.deleted !== true);
+
+        const scheduleStatusItems = buildScheduleStatusItems(motorcycles, maintenanceItems);
+        document.getElementById('totalServices').textContent = String(scheduleStatusItems.length);
+
         const activeMotorcycleTokens = buildActiveMotorcycleTokens(motorcyclesSnapshot.docs);
-        displayUpcomingMaintenance(maintenanceSnapshot.docs, activeMotorcycleTokens);
+        displayUpcomingMaintenance(scheduleStatusItems);
         displayRecentRepairs(repairsSnapshot.docs, activeMotorcycleTokens);
         displayExpenseChart(repairsSnapshot.docs, activeMotorcycleTokens);
-        displayMaintenancePieChart(maintenanceSnapshot.docs, activeMotorcycleTokens);
+        displayMaintenancePieChart(scheduleStatusItems);
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         renderDashboardEmptyState();
@@ -112,6 +124,101 @@ function getRecordDate(docData) {
     return raw ? new Date(raw) : null;
 }
 
+function normalizeText(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function getMotorcycleMileage(motorcycle) {
+    const raw = motorcycle.mileage ?? motorcycle.odo ?? motorcycle.currentOdo ?? motorcycle.odometer ?? 0;
+    const numeric = Number(raw);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+}
+
+function getMotorcycleLabel(motorcycle) {
+    return motorcycle.motorcycleName || [motorcycle.brand, motorcycle.model].filter(Boolean).join(' ') || 'Motorcycle';
+}
+
+function getNextMileageTarget(anchorMileage, interval) {
+    const anchor = Number(anchorMileage || 0);
+    const step = Number(interval || 0);
+
+    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
+    if (!Number.isFinite(anchor) || anchor < 0) return step;
+
+    return anchor + step;
+}
+
+function getTaskStatus(odo, dueMileage, hasCompletion) {
+    if (hasCompletion && odo < dueMileage) {
+        return 'completed';
+    }
+
+    if (odo >= dueMileage) {
+        return 'due';
+    }
+
+    if ((dueMileage - odo) <= 500) {
+        return 'upcoming';
+    }
+
+    return 'scheduled';
+}
+
+function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
+    const ruleName = normalizeText(rule.task);
+
+    const matches = maintenanceItems.filter((item) => {
+        if (String(item.motorcycleId || '') !== String(motorcycleId)) {
+            return false;
+        }
+
+        const itemName = normalizeText(item.task || item.title || item.name || '');
+        const matchesTaskKey = String(item.taskKey || '') === rule.key;
+        const matchesTaskName = itemName && (itemName === ruleName || itemName.includes(ruleName) || ruleName.includes(itemName));
+
+        return item.deleted !== true && item.status === 'completed' && (matchesTaskKey || matchesTaskName);
+    });
+
+    if (!matches.length) {
+        return null;
+    }
+
+    return matches.sort((a, b) => {
+        const aMileage = Number(a.completedMileage ?? a.dueMileage ?? a.mileage ?? 0);
+        const bMileage = Number(b.completedMileage ?? b.dueMileage ?? b.mileage ?? 0);
+        return bMileage - aMileage;
+    })[0] || null;
+}
+
+function buildScheduleStatusItems(motorcycles, maintenanceItems) {
+    return motorcycles.flatMap((motorcycle) => {
+        const category = classifyMotorcycleCategory(motorcycle);
+        const rules = MAINTENANCE_RULES[category.key] || MAINTENANCE_RULES.underbone;
+        const odo = getMotorcycleMileage(motorcycle);
+        const motorcycleName = getMotorcycleLabel(motorcycle);
+
+        return rules.map((rule) => {
+            const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
+            const hasCompletion = !!completedRecord;
+            const anchorMileage = hasCompletion
+                ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0)
+                : 0;
+            const dueMileage = getNextMileageTarget(anchorMileage, rule.interval);
+            const status = getTaskStatus(odo, dueMileage, hasCompletion);
+
+            return {
+                id: `${motorcycle.id}-${rule.key}`,
+                motorcycleName,
+                task: rule.task,
+                icon: rule.icon || 'wrench',
+                currentOdo: odo,
+                dueMileage,
+                status
+            };
+        });
+    });
+}
+
 function buildActiveMotorcycleTokens(docs) {
     return new Set(
         docs.flatMap((entry) => {
@@ -153,42 +260,35 @@ function isLinkedToActiveMotorcycle(record, activeMotorcycleTokens) {
     );
 }
 
-function displayUpcomingMaintenance(docs, activeMotorcycleTokens) {
+function displayUpcomingMaintenance(scheduleItems) {
     const container = document.getElementById('upcomingMaintenanceList');
-    
-    // Count ALL maintenance items (including completed) for accurate total
-    const allItems = docs
-        .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
-        .filter((item) => item.uid && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
 
-    // But display only incomplete items
-    const items = allItems
+    const items = (scheduleItems || [])
         .filter((item) => item.status !== 'completed');
 
     if (!items.length) {
         renderEmptyList('upcomingMaintenanceList');
-        document.getElementById('totalServices').textContent = String(allItems.length);
         return;
     }
 
     const sortedItems = items.sort((a, b) => {
-        const dateA = new Date(a.dueDate || a.date || 0).getTime();
-        const dateB = new Date(b.dueDate || b.date || 0).getTime();
-        return dateA - dateB;
+        const priority = { due: 0, upcoming: 1, scheduled: 2 };
+        const statusDiff = (priority[a.status] ?? 3) - (priority[b.status] ?? 3);
+        if (statusDiff !== 0) return statusDiff;
+        return a.dueMileage - b.dueMileage;
     });
 
-    document.getElementById('totalServices').textContent = String(allItems.length);
-    container.innerHTML = items.slice(0, 3).map(item => `
+    container.innerHTML = sortedItems.slice(0, 3).map(item => `
         <div onclick="window.location.href='schedule.html'" class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer active:shadow-inner">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center ${item.status === 'due' ? 'bg-red-100' : 'bg-green-100'}">
-                <i class="lucide lucide-${item.icon || 'wrench'} ${item.status === 'due' ? 'text-red-600' : 'text-green-700'} text-xl"></i>
+            <div class="w-10 h-10 rounded-full flex items-center justify-center ${item.status === 'due' ? 'bg-red-100' : item.status === 'upcoming' ? 'bg-yellow-100' : 'bg-green-100'}">
+                <i class="lucide lucide-${item.icon || 'wrench'} ${item.status === 'due' ? 'text-red-600' : item.status === 'upcoming' ? 'text-yellow-700' : 'text-green-700'} text-xl"></i>
             </div>
             <div class="flex-1">
-                <p class="text-gray-800 font-medium">${item.task || item.title || 'Maintenance item'}</p>
-                <p class="text-xs text-gray-500">${item.dueDate || item.date || ''}</p>
+                <p class="text-gray-800 font-medium">${item.task || 'Maintenance item'}</p>
+                <p class="text-xs text-gray-500">${item.motorcycleName} • Next at ${Number(item.dueMileage || 0).toLocaleString()} km</p>
             </div>
             <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full ${item.status === 'due' ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}"></div>
+                <div class="w-2 h-2 rounded-full ${item.status === 'due' ? 'bg-red-500 animate-pulse' : item.status === 'upcoming' ? 'bg-yellow-500' : 'bg-gray-400'}"></div>
                 <i class="lucide lucide-chevron-right text-gray-400"></i>
             </div>
         </div>
@@ -200,9 +300,6 @@ function displayRecentRepairs(docs, activeMotorcycleTokens) {
     const items = docs
         .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
         .filter((item) => item.uid && item.deleted !== true && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
-
-    // Update totalServices to show the TOTAL REPAIR count (matching history page)
-    document.getElementById('totalServices').textContent = String(items.length);
 
     if (!items.length) {
         renderEmptyList('recentRepairsList');
@@ -310,13 +407,12 @@ function displayExpenseChart(docs, activeMotorcycleTokens) {
     });
 }
 
-function displayMaintenancePieChart(docs, activeMotorcycleTokens) {
-    const items = docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((item) => item.uid && item.deleted !== true && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
+function displayMaintenancePieChart(scheduleItems) {
+    const items = scheduleItems || [];
 
     const completed = items.filter((item) => item.status === 'completed').length;
-    const pending = items.filter((item) => item.status !== 'completed').length;
+    const dueNow = items.filter((item) => item.status === 'due').length;
+    const upcomingDue = items.filter((item) => item.status === 'upcoming' || item.status === 'scheduled').length;
 
     if (!items.length) {
         renderEmptyChart('maintenancePieChart');
@@ -337,7 +433,8 @@ function displayMaintenancePieChart(docs, activeMotorcycleTokens) {
     const ctx = chartElement.getContext('2d');
     const data = [
         { name: 'Completed', value: completed, color: '#15803d' },
-        { name: 'Pending', value: pending, color: '#9E9E9E' }
+        { name: 'Upcoming Due', value: upcomingDue, color: '#F59E0B' },
+        { name: 'Due Now', value: dueNow, color: '#DC2626' }
     ].filter((item) => item.value > 0);
 
     if (!data.length) {

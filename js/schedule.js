@@ -59,6 +59,26 @@ const CATEGORY_META = {
 
 let currentUserId = null;
 let scheduleItems = [];
+let motorcycles = [];
+let selectedMotorcycleId = '';
+
+const SELECTED_MOTORCYCLE_STORAGE_KEY = 'motocare.selectedMotorcycleId';
+
+function bindScheduleControls() {
+    const drawerButton = document.getElementById('motorcycleDrawerButton');
+    const drawerBackdrop = document.getElementById('motorcycleDrawerBackdrop');
+    const closeButton = document.getElementById('motorcycleDrawerCloseButton');
+
+    drawerButton?.addEventListener('click', openMotorcycleDrawer);
+    drawerBackdrop?.addEventListener('click', closeMotorcycleDrawer);
+    closeButton?.addEventListener('click', closeMotorcycleDrawer);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindScheduleControls);
+} else {
+    bindScheduleControls();
+}
 
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -141,8 +161,8 @@ function getCategoryIndicator(categoryKey, odo) {
     return list.find((entry) => odo >= entry.min) || { label: 'OK', icon: 'check-circle-2', className: 'bg-green-100 text-green-700' };
 }
 
-function getTaskStatus(odo, dueMileage, completed) {
-    if (completed) {
+function getTaskStatus(odo, dueMileage, hasCompletion) {
+    if (hasCompletion && odo < dueMileage) {
         return { key: 'completed', label: 'Completed', className: 'bg-green-100 text-green-700', dotClass: 'bg-green-700' };
     }
 
@@ -162,7 +182,7 @@ function getNextMileageTarget(currentMileage, interval) {
     const step = Number(interval || 0);
 
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!mileage || mileage < 0) return step;
+    if (!Number.isFinite(mileage) || mileage < 0) return step;
 
     return mileage + step;
 }
@@ -201,19 +221,18 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
 
     return MAINTENANCE_RULES[category.key].map((rule) => {
         const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
+        const hasCompletion = !!completedRecord;
         const anchorMileage = completedRecord
-            ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? odo)
-            : odo;
+            ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0)
+            : 0;
         const dueMileage = getNextMileageTarget(anchorMileage, rule.interval);
-        const status = getTaskStatus(odo, dueMileage, false);
+        const status = getTaskStatus(odo, dueMileage, hasCompletion);
         const remaining = Math.max(0, dueMileage - odo);
         const reminder = status.key === 'completed'
             ? 'Completed and logged'
             : status.key === 'due'
                 ? `Due now at ${dueMileage.toLocaleString()} km`
-                : status.key === 'upcoming'
-                    ? `${remaining.toLocaleString()} km left until ${dueMileage.toLocaleString()} km`
-                    : `Next reminder at ${dueMileage.toLocaleString()} km`;
+                : `${remaining.toLocaleString()} km left until ${dueMileage.toLocaleString()} km`;
 
         return {
             id: completedRecord?.id || `${motorcycle.id}-${rule.key}`,
@@ -233,11 +252,135 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
             status,
             reminder,
             maintenanceId: completedRecord?.id || '',
-            completed: false,
+            completed: status.key === 'completed',
             lastCompletedMileage: completedRecord ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0) : 0
         };
     });
 }
+
+function groupScheduleByMotorcycle(items) {
+    const groups = new Map();
+
+    items.forEach((item) => {
+        const key = String(item.motorcycleId || 'unknown');
+        if (!groups.has(key)) {
+            groups.set(key, {
+                motorcycleId: item.motorcycleId,
+                motorcycleName: item.motorcycleName,
+                categoryLabel: item.categoryLabel,
+                categoryBadge: item.categoryBadge,
+                currentOdo: item.currentOdo,
+                items: []
+            });
+        }
+
+        groups.get(key).items.push(item);
+    });
+
+    return Array.from(groups.values()).sort((a, b) => {
+        const aName = String(a.motorcycleName || '');
+        const bName = String(b.motorcycleName || '');
+        return aName.localeCompare(bName);
+    });
+}
+
+function getSelectedMotorcycle() {
+    return motorcycles.find((motorcycle) => motorcycle.id === selectedMotorcycleId) || motorcycles[0] || null;
+}
+
+function getSelectedScheduleItems() {
+    if (!selectedMotorcycleId) {
+        return [];
+    }
+
+    return scheduleItems.filter((item) => String(item.motorcycleId || '') === String(selectedMotorcycleId));
+}
+
+function persistSelectedMotorcycleId(motorcycleId) {
+    try {
+        localStorage.setItem(SELECTED_MOTORCYCLE_STORAGE_KEY, motorcycleId || '');
+    } catch (error) {
+        console.warn('Could not persist selected motorcycle:', error);
+    }
+}
+
+function readSelectedMotorcycleId() {
+    try {
+        return localStorage.getItem(SELECTED_MOTORCYCLE_STORAGE_KEY) || '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function openMotorcycleDrawer() {
+    const drawer = document.getElementById('motorcycleDrawer');
+    const backdrop = document.getElementById('motorcycleDrawerBackdrop');
+    if (!drawer || !backdrop) return;
+
+    drawer.classList.remove('hidden');
+    backdrop.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        drawer.classList.remove('-translate-x-full');
+    });
+}
+
+function closeMotorcycleDrawer() {
+    const drawer = document.getElementById('motorcycleDrawer');
+    const backdrop = document.getElementById('motorcycleDrawerBackdrop');
+    if (!drawer || !backdrop) return;
+
+    drawer.classList.add('-translate-x-full');
+    backdrop.classList.add('hidden');
+    setTimeout(() => {
+        drawer.classList.add('hidden');
+    }, 180);
+}
+
+function renderMotorcycleDrawer() {
+    const list = document.getElementById('motorcycleDrawerList');
+    const selectedLabel = document.getElementById('selectedMotorcycleLabel');
+    if (!list) return;
+
+    const selectedMotorcycle = getSelectedMotorcycle();
+    if (selectedLabel) {
+        selectedLabel.textContent = selectedMotorcycle ? selectedMotorcycle.motorcycleName : 'Select a motorcycle';
+    }
+
+    if (!motorcycles.length) {
+        list.innerHTML = '<div class="text-sm text-gray-500">No motorcycles found in your profile.</div>';
+        return;
+    }
+
+    list.innerHTML = motorcycles.map((motorcycle) => {
+        const isActive = motorcycle.id === selectedMotorcycleId;
+        return `
+            <button type="button" onclick="selectMotorcycleUnit('${motorcycle.id}')" class="w-full text-left rounded-xl border px-4 py-3 transition-colors ${isActive ? 'border-green-700 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'}">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-semibold text-gray-800">${escapeHtml(getMotorcycleLabel(motorcycle))}</p>
+                        <p class="text-xs text-gray-500 mt-1">ODO ${getMileageValue(motorcycle).toLocaleString()} km</p>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded-full font-medium ${isActive ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600'}">
+                        ${isActive ? 'Selected' : 'View'}
+                    </span>
+                </div>
+            </button>
+        `;
+    }).join('');
+}
+
+function selectMotorcycleUnit(motorcycleId) {
+    selectedMotorcycleId = motorcycleId;
+    persistSelectedMotorcycleId(motorcycleId);
+    renderMotorcycleDrawer();
+    displaySchedule(getSelectedScheduleItems());
+    updateCounts(getSelectedScheduleItems());
+    closeMotorcycleDrawer();
+}
+
+window.openMotorcycleDrawer = openMotorcycleDrawer;
+window.closeMotorcycleDrawer = closeMotorcycleDrawer;
+window.selectMotorcycleUnit = selectMotorcycleUnit;
 
 async function loadSchedule(userId) {
     try {
@@ -246,7 +389,7 @@ async function loadSchedule(userId) {
             getFirestoreDocs('maintenance', 'createdAt')
         ]);
 
-        const motorcycles = motorcyclesRaw
+        motorcycles = motorcyclesRaw
             .map((item) => normalizeRecord(item))
             .filter((item) => item.uid === userId && item.deleted !== true);
 
@@ -256,9 +399,16 @@ async function loadSchedule(userId) {
 
         if (!motorcycles.length) {
             scheduleItems = [];
+            selectedMotorcycleId = '';
+            renderMotorcycleDrawer();
             renderEmptySchedule('No motorcycles yet. Add one first to generate maintenance reminders.');
             return;
         }
+
+        const storedSelection = readSelectedMotorcycleId();
+        const hasStoredSelection = storedSelection && motorcycles.some((motorcycle) => motorcycle.id === storedSelection);
+        selectedMotorcycleId = hasStoredSelection ? storedSelection : motorcycles[0].id;
+        persistSelectedMotorcycleId(selectedMotorcycleId);
 
         scheduleItems = motorcycles
             .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceItems))
@@ -270,8 +420,9 @@ async function loadSchedule(userId) {
                 return a.currentOdo - b.currentOdo;
             });
 
-        displaySchedule(scheduleItems);
-        updateCounts(scheduleItems);
+        renderMotorcycleDrawer();
+        displaySchedule(getSelectedScheduleItems());
+        updateCounts(getSelectedScheduleItems());
     } catch (error) {
         console.error('Error loading schedule:', error);
         scheduleItems = [];
@@ -298,53 +449,77 @@ function displaySchedule(items) {
     if (!container) return;
 
     if (!items.length) {
-        renderEmptySchedule();
+        const selectedMotorcycle = getSelectedMotorcycle();
+        if (selectedMotorcycle) {
+            renderEmptySchedule(`No reminders available for ${selectedMotorcycle.motorcycleName}.`);
+        } else {
+            renderEmptySchedule('Select a motorcycle from the menu to view reminders.');
+        }
         return;
     }
 
-    container.innerHTML = items.map((item) => `
-        <div class="relative">
-            <div class="absolute left-3.5 top-6 w-3 h-3 rounded-full ${item.status.dotClass} border-4 border-gray-50 z-10"></div>
+    const selectedMotorcycle = getSelectedMotorcycle();
+    const motorcycleName = selectedMotorcycle ? getMotorcycleLabel(selectedMotorcycle) : 'Selected motorcycle';
+    const motorcycleCategory = selectedMotorcycle ? classifyMotorcycle(selectedMotorcycle) : null;
 
-            <div class="ml-12 bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-                <div class="flex items-start justify-between gap-3 mb-3">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 flex-wrap mb-1">
-                            <h3 class="text-gray-800 font-medium ${item.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(item.task)}</h3>
-                            <span class="text-xs px-2 py-1 rounded-full font-medium ${item.categoryBadge}">${escapeHtml(item.categoryLabel)}</span>
-                        </div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-xs ${item.categoryChip} px-2 py-1 rounded-full font-medium">${escapeHtml(item.motorcycleName)}</span>
-                            <span class="text-xs text-gray-500">ODO ${item.currentOdo.toLocaleString()} km</span>
-                        </div>
+    container.innerHTML = `
+        <section class="bg-white rounded-2xl border border-gray-100 shadow-md p-4">
+            <div class="flex items-start justify-between gap-3 mb-4">
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 class="text-gray-800 font-semibold text-lg">${escapeHtml(motorcycleName)}</h3>
+                        ${motorcycleCategory ? `<span class="text-xs px-2 py-1 rounded-full font-medium ${motorcycleCategory.badge}">${escapeHtml(motorcycleCategory.label)}</span>` : ''}
                     </div>
-                    <div class="p-2 rounded-lg ${item.overall.className}">
-                        <i class="lucide lucide-${item.overall.icon} text-lg"></i>
-                    </div>
+                    <p class="text-xs text-gray-500">Current ODO ${selectedMotorcycle ? getMileageValue(selectedMotorcycle).toLocaleString() : '0'} km</p>
                 </div>
-
-                <div class="flex items-center gap-2 mb-3 flex-wrap">
-                    <span class="text-xs px-2 py-1 rounded-full ${item.status.className}">${escapeHtml(item.status.label)}</span>
-                    <span class="text-xs text-gray-500">Next at ${item.dueMileage.toLocaleString()} km</span>
+                <div class="text-xs text-gray-500 text-right">
+                    <p>${items.length} reminder${items.length === 1 ? '' : 's'}</p>
                 </div>
-
-                <div class="flex items-center gap-2 text-xs text-gray-600 mb-3">
-                    <i class="lucide lucide-${item.icon} text-gray-400"></i>
-                    <span>${escapeHtml(item.reminder)}</span>
-                </div>
-
-                ${item.lastCompletedMileage ? `
-                    <div class="mb-3 text-xs text-gray-500">
-                        Last completed at ${item.lastCompletedMileage.toLocaleString()} km
-                    </div>
-                ` : ''}
-
-                <button onclick="markComplete('${item.id}')" class="w-full py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 transition-colors active:scale-95">
-                    Mark as Complete
-                </button>
             </div>
-        </div>
-    `).join('');
+
+            <div class="relative pl-1 space-y-4">
+                <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                ${items.map((item) => `
+                    <div class="relative pl-10">
+                        <div class="absolute left-2.5 top-5 w-3 h-3 rounded-full ${item.status.dotClass} border-4 border-gray-50 z-10"></div>
+
+                        <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:shadow-sm transition-shadow">
+                            <div class="flex items-start justify-between gap-3 mb-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                                        <h4 class="text-gray-800 font-medium ${item.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(item.task)}</h4>
+                                    </div>
+                                </div>
+                                <div class="p-2 rounded-lg ${item.overall.className}">
+                                    <i class="lucide lucide-${item.overall.icon} text-lg"></i>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2 mb-3 flex-wrap">
+                                <span class="text-xs px-2 py-1 rounded-full ${item.status.className}">${escapeHtml(item.status.label)}</span>
+                                <span class="text-xs text-gray-500">Next at ${item.dueMileage.toLocaleString()} km</span>
+                            </div>
+
+                            <div class="flex items-center gap-2 text-xs text-gray-600 mb-3">
+                                <i class="lucide lucide-${item.icon} text-gray-400"></i>
+                                <span>${escapeHtml(item.reminder)}</span>
+                            </div>
+
+                            ${item.lastCompletedMileage ? `
+                                <div class="mb-3 text-xs text-gray-500">
+                                    Last completed at ${item.lastCompletedMileage.toLocaleString()} km
+                                </div>
+                            ` : ''}
+
+                            <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 transition-colors active:scale-95">
+                                Mark as Complete
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </section>
+    `;
 }
 
 function updateCounts(items) {

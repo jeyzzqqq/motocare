@@ -1,7 +1,8 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
+import { normalizeRecord } from './utils-module.js';
 
 let expenses = [];
 
@@ -22,30 +23,19 @@ async function loadExpenses(userId) {
 
         await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
 
-        let querySnapshot;
+        const querySnapshot = await getDocs(query(
+            collection(db, 'repairs'),
+            where('uid', '==', userId)
+        ));
 
-        try {
-            const orderedQuery = query(
-                collection(db, 'repairs'),
-                where('uid', '==', userId),
-                orderBy('createdAt', 'desc')
-            );
-            querySnapshot = await getDocs(orderedQuery);
-        } catch (orderedError) {
-            console.warn('Ordered expenses query failed, trying fallback:', orderedError?.message || orderedError);
-            const fallbackQuery = query(
-                collection(db, 'repairs'),
-                where('uid', '==', userId)
-            );
-            querySnapshot = await getDocs(fallbackQuery);
-        }
-        
-        if (querySnapshot.empty) {
+        expenses = querySnapshot.docs
+            .map(doc => normalizeRecord(Object.assign({ id: doc.id }, doc.data())))
+            .filter(exp => exp.uid === userId && exp.deleted !== true)
+            .sort((a, b) => getRecordTime(b) - getRecordTime(a));
+
+        if (!expenses.length) {
             renderEmptyState();
         } else {
-            expenses = querySnapshot.docs
-                .map(doc => normalizeRecord(Object.assign({ id: doc.id }, doc.data())))
-                .filter(exp => exp.uid === userId && exp.deleted !== true);
             displayExpenses();
         }
     } catch (error) {
@@ -124,6 +114,12 @@ function calculateMonthlyAverage(expenses) {
     });
     const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
     return total / Math.max(1, daySet.size);
+}
+
+function getRecordTime(record) {
+    const raw = record.date || record.createdAt || record.updatedAt || '';
+    const parsed = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
 function displayMonthlyTrendChart() {

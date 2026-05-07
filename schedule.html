@@ -24,10 +24,11 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl text-gray-800">Maintenance Schedule</h1>
-                    <p class="text-gray-500 text-sm mt-1">Category-based reminders from your current ODO</p>
+                    <p class="text-gray-500 text-sm mt-1">Reminders grouped by motorcycle from your profile</p>
+                    <p id="selectedMotorcycleLabel" class="text-xs text-green-700 font-medium mt-2">Select a motorcycle</p>
                 </div>
-                <button class="p-2.5 bg-white rounded-full shadow-md">
-                    <i class="lucide lucide-filter text-gray-600 text-xl"></i>
+                <button id="motorcycleDrawerButton" type="button" class="p-2.5 bg-white rounded-full shadow-md" aria-label="Select motorcycle">
+                    <i class="lucide lucide-menu text-gray-600 text-xl"></i>
                 </button>
             </div>
 
@@ -82,6 +83,23 @@
             </div>
         </div>
     </div>
+
+    <!-- Motorcycle Drawer -->
+    <div id="motorcycleDrawerBackdrop" class="fixed inset-0 bg-black/40 hidden z-40"></div>
+    <aside id="motorcycleDrawer" class="fixed top-0 left-0 h-full w-[86%] max-w-sm bg-white shadow-2xl z-50 hidden -translate-x-full transition-transform duration-200 ease-out">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-800">Select Unit</h2>
+                <p class="text-xs text-gray-500 mt-1">Choose one motorcycle to view its reminders</p>
+            </div>
+            <button id="motorcycleDrawerCloseButton" type="button" class="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center" aria-label="Close motorcycle selector">
+                <i class="lucide lucide-x text-lg"></i>
+            </button>
+        </div>
+        <div class="p-4 space-y-3 overflow-y-auto h-[calc(100%-73px)]" id="motorcycleDrawerList">
+            <div class="text-sm text-gray-500">Loading motorcycles...</div>
+        </div>
+    </aside>
 
     <div id="mobileNav"></div>
 

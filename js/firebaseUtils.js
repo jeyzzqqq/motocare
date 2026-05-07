@@ -5,7 +5,6 @@ import {
     getDocs, 
     query, 
     where, 
-    orderBy,
     updateDoc,
     writeBatch,
     doc,
@@ -59,40 +58,14 @@ export async function getFirestoreDocs(collectionName, orderByField = null) {
     try {
         const user = auth.currentUser;
         if (!user) throw new Error('User not authenticated');
-        
-        // Always try the base query first (no ordering)
+
         const baseQuery = query(
             collection(db, collectionName),
             where('uid', '==', user.uid)
         );
-        
-        let querySnapshot;
-        
-        if (orderByField) {
-            try {
-                // Try with ordering first
-                const orderedQuery = query(
-                    collection(db, collectionName),
-                    where('uid', '==', user.uid),
-                    orderBy(orderByField, 'desc')
-                );
-                querySnapshot = await getDocs(orderedQuery);
-                console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName} with ordering`);
-            } catch (orderError) {
-                console.warn(`⚠ Ordered query failed for ${collectionName} (missing index?), trying without ordering:`, orderError.message);
-                try {
-                    // Fallback to base query without ordering
-                    querySnapshot = await getDocs(baseQuery);
-                    console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName} using fallback (no ordering)`);
-                } catch (fallbackError) {
-                    console.error(`✗ Even base query failed for ${collectionName}:`, fallbackError.message);
-                    throw fallbackError;
-                }
-            }
-        } else {
-            querySnapshot = await getDocs(baseQuery);
-            console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName}`);
-        }
+
+        const querySnapshot = await getDocs(baseQuery);
+        console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName}`);
         
         const docs = [];
         querySnapshot.forEach((doc) => {
@@ -101,6 +74,10 @@ export async function getFirestoreDocs(collectionName, orderByField = null) {
                 docs.push(data);
             }
         });
+
+        if (orderByField) {
+            docs.sort((left, right) => compareFirestoreValues(right[orderByField], left[orderByField]));
+        }
         
         return docs;
     } catch (error) {
@@ -121,23 +98,7 @@ export async function getFirestoreDocsByFilter(collectionName, filterField, filt
             where(filterField, '==', filterValue)
         );
         
-        let querySnapshot;
-        if (orderByField) {
-            try {
-                const orderedQuery = query(
-                    collection(db, collectionName),
-                    where('uid', '==', user.uid),
-                    where(filterField, '==', filterValue),
-                    orderBy(orderByField, 'desc')
-                );
-                querySnapshot = await getDocs(orderedQuery);
-            } catch (orderError) {
-                console.warn(`⚠ Ordered filtered query failed for ${collectionName}, falling back:`, orderError.message);
-                querySnapshot = await getDocs(baseQuery);
-            }
-        } else {
-            querySnapshot = await getDocs(baseQuery);
-        }
+        const querySnapshot = await getDocs(baseQuery);
         
         const docs = [];
         querySnapshot.forEach((doc) => {
@@ -146,6 +107,10 @@ export async function getFirestoreDocsByFilter(collectionName, filterField, filt
                 docs.push(data);
             }
         });
+
+        if (orderByField) {
+            docs.sort((left, right) => compareFirestoreValues(right[orderByField], left[orderByField]));
+        }
         
         return docs;
     } catch (error) {
@@ -324,4 +289,31 @@ export async function sumFirestoreField(collectionName, fieldName) {
         console.error(`Error summing ${fieldName} in ${collectionName}:`, error);
         throw error;
     }
+}
+
+function compareFirestoreValues(left, right) {
+    const leftTime = toComparableTime(left);
+    const rightTime = toComparableTime(right);
+
+    if (leftTime !== null && rightTime !== null) {
+        return leftTime - rightTime;
+    }
+
+    const leftNumber = Number(left);
+    const rightNumber = Number(right);
+    if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+        return leftNumber - rightNumber;
+    }
+
+    return String(left || '').localeCompare(String(right || ''));
+}
+
+function toComparableTime(value) {
+    if (value && typeof value.toDate === 'function') {
+        const date = value.toDate();
+        return Number.isNaN(date.getTime()) ? null : date.getTime();
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.getTime();
 }

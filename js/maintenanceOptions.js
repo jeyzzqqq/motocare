@@ -74,9 +74,10 @@ function getNextMileageDelta(currentMileage, interval) {
     const step = Number(interval || 0);
 
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!mileage || mileage < 0) return step;
+    if (!Number.isFinite(mileage) || mileage < 0) return step;
 
-    return step;
+    const nextMileage = getNextMileageTarget(mileage, step);
+    return Math.max(0, nextMileage - mileage);
 }
 
 function getNextMileageTarget(currentMileage, interval) {
@@ -84,9 +85,9 @@ function getNextMileageTarget(currentMileage, interval) {
     const step = Number(interval || 0);
 
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!mileage || mileage < 0) return step;
+    if (!Number.isFinite(mileage) || mileage < 0) return step;
 
-    return mileage + step;
+    return Math.ceil(mileage / step) * step || step;
 }
 
 function formatRelativeMileageText(currentMileage, interval) {
