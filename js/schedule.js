@@ -1,6 +1,6 @@
 import { auth } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc } from './firebaseUtils.js';
+import { addFirestoreDoc, getFirestoreDocs } from './firebaseUtils.js';
 import { normalizeRecord } from './utils-module.js';
 
 const SCOOTER_PATTERNS = ['nmax', 'aerox', 'mio', 'fazzio', 'sight', 'click', 'beat', 'pcx', 'adv', 'airblade', 'giorno', 'burgman', 'skydrive'];
@@ -170,7 +170,7 @@ function getNextMileageTarget(currentMileage, interval) {
 function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
     const ruleName = normalizeText(rule.task);
 
-    return maintenanceItems.find((item) => {
+    const matches = maintenanceItems.filter((item) => {
         if (String(item.motorcycleId || '') !== String(motorcycleId)) {
             return false;
         }
@@ -181,6 +181,16 @@ function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
 
         return item.deleted !== true && item.status === 'completed' && (matchesTaskKey || matchesTaskName);
     });
+
+    if (!matches.length) {
+        return null;
+    }
+
+    return matches.sort((a, b) => {
+        const aMileage = Number(a.completedMileage ?? a.dueMileage ?? a.mileage ?? 0);
+        const bMileage = Number(b.completedMileage ?? b.dueMileage ?? b.mileage ?? 0);
+        return bMileage - aMileage;
+    })[0] || null;
 }
 
 function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
@@ -191,8 +201,11 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
 
     return MAINTENANCE_RULES[category.key].map((rule) => {
         const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
-        const dueMileage = getNextMileageTarget(odo, rule.interval);
-        const status = getTaskStatus(odo, dueMileage, Boolean(completedRecord));
+        const anchorMileage = completedRecord
+            ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? odo)
+            : odo;
+        const dueMileage = getNextMileageTarget(anchorMileage, rule.interval);
+        const status = getTaskStatus(odo, dueMileage, false);
         const remaining = Math.max(0, dueMileage - odo);
         const reminder = status.key === 'completed'
             ? 'Completed and logged'
@@ -220,7 +233,8 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
             status,
             reminder,
             maintenanceId: completedRecord?.id || '',
-            completed: Boolean(completedRecord)
+            completed: false,
+            lastCompletedMileage: completedRecord ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0) : 0
         };
     });
 }
@@ -319,16 +333,15 @@ function displaySchedule(items) {
                     <span>${escapeHtml(item.reminder)}</span>
                 </div>
 
-                ${!item.completed ? `
-                    <button onclick="markComplete('${item.id}')" class="w-full py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 transition-colors active:scale-95">
-                        Mark as Complete
-                    </button>
-                ` : `
-                    <div class="w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm text-center flex items-center justify-center gap-2">
-                        <i class="lucide lucide-check-circle-2"></i>
-                        Completed
+                ${item.lastCompletedMileage ? `
+                    <div class="mb-3 text-xs text-gray-500">
+                        Last completed at ${item.lastCompletedMileage.toLocaleString()} km
                     </div>
-                `}
+                ` : ''}
+
+                <button onclick="markComplete('${item.id}')" class="w-full py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 transition-colors active:scale-95">
+                    Mark as Complete
+                </button>
             </div>
         </div>
     `).join('');
@@ -337,7 +350,7 @@ function displaySchedule(items) {
 function updateCounts(items) {
     const due = items.filter((item) => item.status.key === 'due').length;
     const upcoming = items.filter((item) => item.status.key === 'upcoming').length;
-    const completed = items.filter((item) => item.status.key === 'completed').length;
+    const completed = items.filter((item) => item.lastCompletedMileage > 0).length;
 
     const dueEl = document.getElementById('dueCount');
     const upcomingEl = document.getElementById('upcomingCount');
@@ -367,17 +380,14 @@ window.markComplete = async function(id) {
             category: item.categoryLabel,
             taskKey: item.ruleKey,
             task: item.task,
-            dueMileage: item.threshold,
+            dueMileage: item.dueMileage,
             completedMileage: item.currentOdo,
             status: 'completed',
-            completedAt: new Date().toISOString()
+            completedAt: new Date().toISOString(),
+            source: 'schedule-mark-complete'
         };
 
-        if (item.maintenanceId) {
-            await updateFirestoreDoc('maintenance', String(item.maintenanceId), payload);
-        } else {
-            await addFirestoreDoc('maintenance', payload);
-        }
+        await addFirestoreDoc('maintenance', payload);
 
         alert(`"${item.task}" marked as complete!`);
         await loadSchedule(currentUserId);
