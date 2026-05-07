@@ -1,19 +1,7 @@
 import { auth } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, deleteFirestoreDoc } from './firebaseUtils.js';
-
-const motorcycleBrands = {
-    "Honda": ["CBR 600RR", "CBR 1000RR", "CB650R", "CB500X", "CRF450L", "Africa Twin", "Gold Wing", "Rebel 500", "Grom"],
-    "Yamaha": ["YZF-R1", "YZF-R6", "MT-07", "MT-09", "MT-10", "Tenere 700", "FZ-07", "R15", "XSR900"],
-    "Kawasaki": ["Ninja 650", "Ninja ZX-10R", "Z900", "Z650", "Versys 650", "W800", "KLR650", "Ninja 400"],
-    "Suzuki": ["GSX-R1000", "GSX-R750", "GSX-S1000", "SV650", "V-Strom 650", "Hayabusa", "Boulevard M109R"],
-    "Ducati": ["Panigale V4", "Monster 821", "Scrambler", "Multistrada", "Diavel", "SuperSport 950"],
-    "BMW": ["S1000RR", "R1250GS", "F850GS", "R nineT", "K1600GT", "G310R"],
-    "KTM": ["Duke 390", "Duke 790", "RC 390", "Adventure 890", "Super Duke 1290", "Enduro 690"],
-    "Harley-Davidson": ["Sportster Iron 883", "Street 750", "Fat Boy", "Road King", "Street Glide", "Pan America"],
-    "Triumph": ["Street Triple", "Speed Triple", "Tiger 900", "Bonneville", "Rocket 3", "Scrambler 1200"],
-    "Royal Enfield": ["Classic 350", "Himalayan", "Interceptor 650", "Continental GT 650", "Meteor 350"]
-};
+import { getOfficialBrands, getModelsForBrand, findBrandMatch, findModelMatch, isOfficialMotorcycleSelection } from './motorcycleCatalog.js';
 
 let motorcycles = [];
 let editingId = null;
@@ -63,7 +51,7 @@ function populateBrands() {
     const brandSelect = document.getElementById('brandSelect');
     if (!brandSelect) return;
     brandSelect.innerHTML = '<option value="">Select Brand</option>';
-    Object.keys(motorcycleBrands).forEach(brand => {
+    getOfficialBrands().forEach(brand => {
         const opt = document.createElement('option');
         opt.value = brand;
         opt.textContent = brand;
@@ -91,18 +79,17 @@ function setupEventListeners() {
 
     if (brand && model) {
         brand.addEventListener('change', () => {
-            const selected = brand.value;
+            const selected = findBrandMatch(brand.value);
             model.innerHTML = '<option value="">Select Brand First</option>';
-            if (selected && motorcycleBrands[selected]) {
+            model.disabled = true;
+            if (selected) {
                 model.disabled = false;
-                motorcycleBrands[selected].forEach(m => {
+                getModelsForBrand(selected).forEach(m => {
                     const o = document.createElement('option');
                     o.value = m;
                     o.textContent = m;
                     model.appendChild(o);
                 });
-            } else {
-                model.disabled = true;
             }
         });
     }
@@ -211,6 +198,11 @@ function openAddModal() {
     // Reset form
     form.reset();
     console.log('Form reset');
+
+    const brandSelect = document.getElementById('brandSelect');
+    if (brandSelect) {
+        brandSelect.value = '';
+    }
     
     // Reset selects
     const modelSelect = document.getElementById('modelSelect');
@@ -290,12 +282,21 @@ function editMotorcycle(id) {
     const backdrop = document.querySelector('.modal-backdrop');
     if (!modal || !backdrop) return;
 
-    document.getElementById('brandSelect').value = moto.brand;
+    const brandSelect = document.getElementById('brandSelect');
+    const modelSelect = document.getElementById('modelSelect');
+    const officialBrand = findBrandMatch(moto.brand);
+    const officialModel = findModelMatch(officialBrand || moto.brand, moto.model);
+
+    if (brandSelect) {
+        brandSelect.value = officialBrand || moto.brand || '';
+    }
     const evt = new Event('change');
-    document.getElementById('brandSelect').dispatchEvent(evt);
+    brandSelect?.dispatchEvent(evt);
 
     setTimeout(() => {
-        document.getElementById('modelSelect').value = moto.model;
+        if (modelSelect) {
+            modelSelect.value = officialModel || moto.model || '';
+        }
     }, 0);
 
     document.getElementById('yearSelect').value = moto.year;
@@ -321,17 +322,25 @@ async function deleteMotorcycle(id) {
 }
 
 async function saveMotorcycle() {
-    const brand = document.getElementById('brandSelect').value;
-    const model = document.getElementById('modelSelect').value;
+    const brandInput = document.getElementById('brandSelect').value;
+    const modelInput = document.getElementById('modelSelect').value;
     const year = document.getElementById('yearSelect').value;
     const plate = document.getElementById('plateInput').value.trim().toUpperCase();
     const color = document.getElementById('colorInput').value.trim();
     const mileage = document.getElementById('mileageInput').value.trim();
 
+    const brand = findBrandMatch(brandInput);
+    const model = findModelMatch(brand, modelInput);
+
     console.log('Saving motorcycle:', { brand, model, year, plate, color, mileage });
 
     if (!brand || !model || !year || !plate || !color || !mileage) {
         showToast('Please fill all fields', 'error');
+        return;
+    }
+
+    if (!isOfficialMotorcycleSelection(brand, model)) {
+        showToast('Invalid motorcycle model. Please choose from the official list.', 'error');
         return;
     }
 
@@ -364,13 +373,14 @@ async function saveMotorcycle() {
                 year,
                 plate,
                 color,
-                mileage
+                mileage,
+                motorcycleName: `${brand} ${model}`
             });
             
             // Update local array
             const idx = motorcycles.findIndex(m => m.id === editingId);
             if (idx > -1) {
-                motorcycles[idx] = { ...motorcycles[idx], brand, model, year, plate, color, mileage };
+                motorcycles[idx] = { ...motorcycles[idx], brand, model, year, plate, color, mileage, motorcycleName: `${brand} ${model}` };
             }
             
             showToast('Motorcycle updated', 'success');
@@ -383,7 +393,8 @@ async function saveMotorcycle() {
                 year,
                 plate,
                 color,
-                mileage
+                mileage,
+                motorcycleName: `${brand} ${model}`
             });
             
             console.log('Motorcycle added with ID:', newMoto.id);

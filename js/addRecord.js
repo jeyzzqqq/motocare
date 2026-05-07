@@ -40,7 +40,7 @@ async function loadMotorcyclesFromFirestore(user = currentUser) {
             console.log('No motorcycles found in Firestore');
         } else {
             dropdown.innerHTML = '<option value="">Select a motorcycle</option>' +
-                motorcycles.map((m, idx) => `<option value="${m.id}">${m.brand || 'Unknown'} ${m.model || 'Unknown'} (${m.year || ''})</option>`).join('');
+                motorcycles.map((m) => `<option value="${m.id}">${m.motorcycleName || `${m.brand || 'Unknown'} ${m.model || 'Unknown'}`} (${m.year || ''})</option>`).join('');
             dropdown.disabled = false;
             console.log('Loaded motorcycles from Firestore:', motorcycles);
         }
@@ -65,7 +65,7 @@ async function loadMotorcyclesFromFirestore(user = currentUser) {
                 console.log('No motorcycles found in Firestore (fallback)');
             } else {
                 dropdown.innerHTML = '<option value="">Select a motorcycle</option>' +
-                    motorcycles.map((m) => `<option value="${m.id}">${m.brand || 'Unknown'} ${m.model || 'Unknown'} (${m.year || ''})</option>`).join('');
+                    motorcycles.map((m) => `<option value="${m.id}">${m.motorcycleName || `${m.brand || 'Unknown'} ${m.model || 'Unknown'}`} (${m.year || ''})</option>`).join('');
                 dropdown.disabled = false;
                 console.log('Loaded motorcycles from Firestore using fallback query:', motorcycles);
             }
