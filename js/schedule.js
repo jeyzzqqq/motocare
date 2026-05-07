@@ -9,30 +9,30 @@ const SPORT_PATTERNS = ['r15', 'mt ', 'mt-', 'cbr150r', 'cb150x', 'ninja 400', '
 
 const MAINTENANCE_RULES = {
     scooter: [
-        { key: 'oil-1000', threshold: 1000, task: 'Oil Change', icon: 'droplets' },
-        { key: 'basic-3000', threshold: 3000, task: 'Basic Service', icon: 'wrench' },
-        { key: 'cvt-5000', threshold: 5000, task: 'CVT + Air Filter + Spark Plug', icon: 'settings-2' },
-        { key: 'brake-8000', threshold: 8000, task: 'Brake + Belt Inspection', icon: 'shield-check' },
-        { key: 'major-10000', threshold: 10000, task: 'Major Service', icon: 'alert-triangle' },
-        { key: 'injector-15000', threshold: 15000, task: 'Injector + Throttle Body Cleaning', icon: 'sparkles' },
-        { key: 'inspection-20000', threshold: 20000, task: 'Full Inspection', icon: 'clipboard-check' }
+        { key: 'oil-1000', interval: 1000, task: 'Oil Change', icon: 'droplets' },
+        { key: 'basic-3000', interval: 3000, task: 'Basic Service', icon: 'wrench' },
+        { key: 'cvt-5000', interval: 5000, task: 'CVT + Air Filter + Spark Plug', icon: 'settings-2' },
+        { key: 'brake-8000', interval: 8000, task: 'Brake + Belt Inspection', icon: 'shield-check' },
+        { key: 'major-10000', interval: 10000, task: 'Major Service', icon: 'alert-triangle' },
+        { key: 'injector-15000', interval: 15000, task: 'Injector + Throttle Body Cleaning', icon: 'sparkles' },
+        { key: 'inspection-20000', interval: 20000, task: 'Full Inspection', icon: 'clipboard-check' }
     ],
     underbone: [
-        { key: 'oil-chain-1000', threshold: 1000, task: 'Oil Change + Chain Check', icon: 'droplets' },
-        { key: 'chain-lube-3000', threshold: 3000, task: 'Chain Cleaning + Lube', icon: 'link' },
-        { key: 'air-spark-5000', threshold: 5000, task: 'Air Filter + Spark Plug', icon: 'sparkles' },
-        { key: 'brake-sprocket-8000', threshold: 8000, task: 'Brake + Sprocket Check', icon: 'shield-check' },
-        { key: 'valve-10000', threshold: 10000, task: 'Valve Clearance Check', icon: 'settings-2' },
-        { key: 'tuneup-15000', threshold: 15000, task: 'Full Tune-up', icon: 'wrench' }
+        { key: 'oil-chain-1000', interval: 1000, task: 'Oil Change + Chain Check', icon: 'droplets' },
+        { key: 'chain-lube-3000', interval: 3000, task: 'Chain Cleaning + Lube', icon: 'link' },
+        { key: 'air-spark-5000', interval: 5000, task: 'Air Filter + Spark Plug', icon: 'sparkles' },
+        { key: 'brake-sprocket-8000', interval: 8000, task: 'Brake + Sprocket Check', icon: 'shield-check' },
+        { key: 'valve-10000', interval: 10000, task: 'Valve Clearance Check', icon: 'settings-2' },
+        { key: 'tuneup-15000', interval: 15000, task: 'Full Tune-up', icon: 'wrench' }
     ],
     sport: [
-        { key: 'oil-1000', threshold: 1000, task: 'Oil Change (Break-in Critical)', icon: 'droplets' },
-        { key: 'oil-chain-brake-3000', threshold: 3000, task: 'Oil + Chain + Brake Check', icon: 'shield-check' },
-        { key: 'air-spark-5000', threshold: 5000, task: 'Air Filter + Spark Plug', icon: 'sparkles' },
-        { key: 'brakefluid-chain-8000', threshold: 8000, task: 'Brake Fluid + Chain Service', icon: 'droplets' },
-        { key: 'coolant-valve-10000', threshold: 10000, task: 'Coolant + Valve Clearance', icon: 'thermometer' },
-        { key: 'injector-15000', threshold: 15000, task: 'Injector + Throttle Body Cleaning', icon: 'sparkles' },
-        { key: 'overhaul-20000', threshold: 20000, task: 'Full System Overhaul Check', icon: 'alert-circle' }
+        { key: 'oil-1000', interval: 1000, task: 'Oil Change (Break-in Critical)', icon: 'droplets' },
+        { key: 'oil-chain-brake-3000', interval: 3000, task: 'Oil + Chain + Brake Check', icon: 'shield-check' },
+        { key: 'air-spark-5000', interval: 5000, task: 'Air Filter + Spark Plug', icon: 'sparkles' },
+        { key: 'brakefluid-chain-8000', interval: 8000, task: 'Brake Fluid + Chain Service', icon: 'droplets' },
+        { key: 'coolant-valve-10000', interval: 10000, task: 'Coolant + Valve Clearance', icon: 'thermometer' },
+        { key: 'injector-15000', interval: 15000, task: 'Injector + Throttle Body Cleaning', icon: 'sparkles' },
+        { key: 'overhaul-20000', interval: 20000, task: 'Full System Overhaul Check', icon: 'alert-circle' }
     ]
 };
 
@@ -141,16 +141,16 @@ function getCategoryIndicator(categoryKey, odo) {
     return list.find((entry) => odo >= entry.min) || { label: 'OK', icon: 'check-circle-2', className: 'bg-green-100 text-green-700' };
 }
 
-function getTaskStatus(odo, threshold, completed) {
+function getTaskStatus(odo, dueMileage, completed) {
     if (completed) {
         return { key: 'completed', label: 'Completed', className: 'bg-green-100 text-green-700', dotClass: 'bg-green-700' };
     }
 
-    if (odo >= threshold) {
+    if (odo >= dueMileage) {
         return { key: 'due', label: 'Due Now', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
     }
 
-    if ((threshold - odo) <= 500) {
+    if ((dueMileage - odo) <= 500) {
         return { key: 'upcoming', label: 'Due Soon', className: 'bg-yellow-100 text-yellow-700', dotClass: 'bg-yellow-500' };
     }
 
@@ -181,15 +181,16 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
 
     return MAINTENANCE_RULES[category.key].map((rule) => {
         const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
-        const status = getTaskStatus(odo, rule.threshold, Boolean(completedRecord));
-        const remaining = Math.max(0, rule.threshold - odo);
+        const dueMileage = odo + rule.interval;
+        const status = getTaskStatus(odo, dueMileage, Boolean(completedRecord));
+        const remaining = Math.max(0, dueMileage - odo);
         const reminder = status.key === 'completed'
             ? 'Completed and logged'
             : status.key === 'due'
-                ? `Due now at ${rule.threshold.toLocaleString()} km`
+                ? `Due now at ${dueMileage.toLocaleString()} km`
                 : status.key === 'upcoming'
-                    ? `${remaining.toLocaleString()} km left until ${rule.threshold.toLocaleString()} km`
-                    : `Next reminder at ${rule.threshold.toLocaleString()} km`;
+                    ? `${remaining.toLocaleString()} km left until ${dueMileage.toLocaleString()} km`
+                    : `Next reminder at ${dueMileage.toLocaleString()} km`;
 
         return {
             id: completedRecord?.id || `${motorcycle.id}-${rule.key}`,
@@ -203,7 +204,8 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
             overall,
             ruleKey: rule.key,
             task: rule.task,
-            threshold: rule.threshold,
+            threshold: rule.interval,
+            dueMileage,
             icon: rule.icon,
             status,
             reminder,
@@ -240,8 +242,8 @@ async function loadSchedule(userId) {
                 const priority = { due: 0, upcoming: 1, scheduled: 2, completed: 3 };
                 const statusDiff = priority[a.status.key] - priority[b.status.key];
                 if (statusDiff !== 0) return statusDiff;
-                if (a.currentOdo !== b.currentOdo) return a.currentOdo - b.currentOdo;
-                return a.threshold - b.threshold;
+                if (a.dueMileage !== b.dueMileage) return a.dueMileage - b.dueMileage;
+                return a.currentOdo - b.currentOdo;
             });
 
         displaySchedule(scheduleItems);
@@ -299,7 +301,7 @@ function displaySchedule(items) {
 
                 <div class="flex items-center gap-2 mb-3 flex-wrap">
                     <span class="text-xs px-2 py-1 rounded-full ${item.status.className}">${escapeHtml(item.status.label)}</span>
-                    <span class="text-xs text-gray-500">Target: ${item.threshold.toLocaleString()} km</span>
+                    <span class="text-xs text-gray-500">Next at ${item.dueMileage.toLocaleString()} km</span>
                 </div>
 
                 <div class="flex items-center gap-2 text-xs text-gray-600 mb-3">

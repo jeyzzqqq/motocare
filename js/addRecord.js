@@ -1,7 +1,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getFirestoreDocs, addFirestoreDoc } from './firebaseUtils.js';
+import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
 
 let selectedFile = null;
 let motorcycles = [];
@@ -204,6 +204,11 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     try {
         // Add to Firestore (uses addFirestoreDoc to attach uid and serverTimestamp)
         await addFirestoreDoc('repairs', formData);
+
+        // Keep the motorcycle profile ODO in sync with the latest logged mileage
+        await updateFirestoreDoc('motorcycles', selectedMotorcycle.id, {
+            mileage
+        });
         
         showToast('Service record added successfully!', 'success');
         
