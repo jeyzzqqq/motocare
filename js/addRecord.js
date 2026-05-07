@@ -31,7 +31,8 @@ function populateTitleSelect(motorcycleId) {
     if (!select) return;
 
     const selectedMotorcycle = motorcycles.find((m) => m.id === motorcycleId);
-    const groups = selectedMotorcycle ? getServiceTitleGroups(selectedMotorcycle) : [];
+    const currentMileage = selectedMotorcycle ? getMotorcycleMileage(selectedMotorcycle) : 0;
+    const groups = selectedMotorcycle ? getServiceTitleGroups(selectedMotorcycle, currentMileage) : [];
 
     select.innerHTML = '<option value="">Select a title</option>';
 

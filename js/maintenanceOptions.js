@@ -69,6 +69,27 @@ function includesAny(text, patterns) {
     return patterns.some((pattern) => text.includes(normalizeText(pattern)));
 }
 
+function getNextMileageDelta(currentMileage, interval) {
+    const mileage = Number(currentMileage || 0);
+    const step = Number(interval || 0);
+
+    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
+    if (!mileage || mileage < 0) return step;
+
+    const remainder = mileage % step;
+    return remainder === 0 ? 0 : step - remainder;
+}
+
+function formatRelativeMileageText(currentMileage, interval) {
+    const delta = getNextMileageDelta(currentMileage, interval);
+
+    if (delta === 0) {
+        return 'due now';
+    }
+
+    return `next in ${delta.toLocaleString()} km`;
+}
+
 export function classifyMotorcycleCategory(motorcycle = {}) {
     const text = normalizeText([motorcycle.brand, motorcycle.model, motorcycle.motorcycleName].filter(Boolean).join(' '));
 
@@ -83,18 +104,26 @@ export function classifyMotorcycleCategory(motorcycle = {}) {
     return { key: 'underbone', ...CATEGORY_META.underbone };
 }
 
-export function getMaintenanceOptionsForMotorcycle(motorcycle = {}) {
+export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0) {
     const category = classifyMotorcycleCategory(motorcycle);
     const rules = MAINTENANCE_RULES[category.key] || MAINTENANCE_RULES.underbone;
 
-    return rules.map((rule) => ({
-        value: `scheduled:${rule.key}`,
-        label: `${rule.task} • every ${rule.interval.toLocaleString()} km`,
-        taskKey: rule.key,
-        title: rule.task,
-        kind: 'scheduled',
-        categoryKey: category.key
-    }));
+    return rules
+        .map((rule) => {
+            const delta = getNextMileageDelta(currentMileage, rule.interval);
+
+            return {
+                value: `scheduled:${rule.key}`,
+                label: `${rule.task} • every ${rule.interval.toLocaleString()} km • ${formatRelativeMileageText(currentMileage, rule.interval)}`,
+                taskKey: rule.key,
+                title: rule.task,
+                kind: 'scheduled',
+                categoryKey: category.key,
+                sortDelta: delta,
+                sortInterval: rule.interval
+            };
+        })
+        .sort((a, b) => a.sortDelta - b.sortDelta || a.sortInterval - b.sortInterval || a.title.localeCompare(b.title));
 }
 
 export function getUpgradeOptions() {
@@ -107,11 +136,11 @@ export function getUpgradeOptions() {
     }));
 }
 
-export function getServiceTitleGroups(motorcycle = {}) {
+export function getServiceTitleGroups(motorcycle = {}, currentMileage = 0) {
     return [
         {
             label: 'Scheduled Maintenance',
-            options: getMaintenanceOptionsForMotorcycle(motorcycle)
+            options: getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage)
         },
         {
             label: 'Upgrades / Accessories',
