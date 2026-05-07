@@ -155,13 +155,19 @@ function isLinkedToActiveMotorcycle(record, activeMotorcycleTokens) {
 
 function displayUpcomingMaintenance(docs, activeMotorcycleTokens) {
     const container = document.getElementById('upcomingMaintenanceList');
-    const items = docs
+    
+    // Count ALL maintenance items (including completed) for accurate total
+    const allItems = docs
         .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
-        .filter((item) => item.uid && item.status !== 'completed' && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
+        .filter((item) => item.uid && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
+
+    // But display only incomplete items
+    const items = allItems
+        .filter((item) => item.status !== 'completed');
 
     if (!items.length) {
         renderEmptyList('upcomingMaintenanceList');
-        document.getElementById('totalServices').textContent = '0';
+        document.getElementById('totalServices').textContent = String(allItems.length);
         return;
     }
 
@@ -171,7 +177,7 @@ function displayUpcomingMaintenance(docs, activeMotorcycleTokens) {
         return dateA - dateB;
     });
 
-    document.getElementById('totalServices').textContent = String(sortedItems.length);
+    document.getElementById('totalServices').textContent = String(allItems.length);
     container.innerHTML = items.slice(0, 3).map(item => `
         <div onclick="window.location.href='schedule.html'" class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer active:shadow-inner">
             <div class="w-10 h-10 rounded-full flex items-center justify-center ${item.status === 'due' ? 'bg-red-100' : 'bg-green-100'}">
@@ -194,6 +200,9 @@ function displayRecentRepairs(docs, activeMotorcycleTokens) {
     const items = docs
         .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
         .filter((item) => item.uid && item.deleted !== true && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
+
+    // Update totalServices to show the TOTAL REPAIR count (matching history page)
+    document.getElementById('totalServices').textContent = String(items.length);
 
     if (!items.length) {
         renderEmptyList('recentRepairsList');
@@ -245,18 +254,21 @@ function displayExpenseChart(docs, activeMotorcycleTokens) {
         return;
     }
 
-    const monthlyTotals = new Map();
+    const dailyTotals = new Map();
     items.forEach((item) => {
         const date = getRecordDate(item);
         if (!date) return;
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-        monthlyTotals.set(key, (monthlyTotals.get(key) || 0) + Number(item.cost || 0));
+        const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+        dailyTotals.set(key, (dailyTotals.get(key) || 0) + Number(item.cost || 0));
     });
 
-    const sortedEntries = Array.from(monthlyTotals.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedEntries = Array.from(dailyTotals.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-14);
+    
     const labels = sortedEntries.map(([key]) => {
-        const [year, month] = key.split('-').map(Number);
-        return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short' });
+        const [year, month, day] = key.split('-').map(Number);
+        return new Date(year, month, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
     const data = sortedEntries.map(([, value]) => value);
 
@@ -270,7 +282,7 @@ function displayExpenseChart(docs, activeMotorcycleTokens) {
         data: {
             labels,
             datasets: [{
-                label: 'Expenses',
+                label: 'Daily Expenses',
                 data,
                 backgroundColor: '#15803d',
                 borderRadius: 8

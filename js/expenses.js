@@ -117,13 +117,13 @@ function displayExpenses() {
 
 function calculateMonthlyAverage(expenses) {
     if (expenses.length === 0) return 0;
-    const monthSet = new Set();
+    const daySet = new Set();
     expenses.forEach(exp => {
         const date = new Date(exp.date);
-        monthSet.add(`${date.getFullYear()}-${date.getMonth()}`);
+        daySet.add(`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`);
     });
     const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-    return total / Math.max(1, monthSet.size);
+    return total / Math.max(1, daySet.size);
 }
 
 function displayMonthlyTrendChart() {
@@ -131,20 +131,20 @@ function displayMonthlyTrendChart() {
         return;
     }
 
-    const monthlyData = new Map();
+    const dailyData = new Map();
     expenses.forEach(exp => {
         const date = new Date(exp.date);
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-        monthlyData.set(key, (monthlyData.get(key) || 0) + (exp.amount || 0));
+        const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+        dailyData.set(key, (dailyData.get(key) || 0) + (exp.amount || 0));
     });
 
-    const sortedEntries = Array.from(monthlyData.entries())
+    const sortedEntries = Array.from(dailyData.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .slice(-4);
+        .slice(-14);
 
     const labels = sortedEntries.map(([key, _]) => {
-        const [year, month] = key.split('-').map(Number);
-        return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short' });
+        const [year, month, day] = key.split('-').map(Number);
+        return new Date(year, month, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
     const data = sortedEntries.map(([_, value]) => value);
 
@@ -155,7 +155,7 @@ function displayMonthlyTrendChart() {
             data: {
                 labels,
                 datasets: [{
-                    label: 'Monthly Expenses',
+                    label: 'Daily Expenses',
                     data,
                     backgroundColor: '#15803d',
                     borderRadius: 8

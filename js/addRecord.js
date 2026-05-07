@@ -208,7 +208,7 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         showToast('Service record added successfully!', 'success');
         
         setTimeout(() => {
-            window.location.href = 'dashboard.html';
+            window.location.href = 'history.html';
         }, 500);
     } catch (error) {
         console.error('Error adding record:', error);
