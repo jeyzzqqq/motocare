@@ -1,6 +1,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
 
 let expenses = [];
 
@@ -14,24 +15,37 @@ onAuthStateChanged(auth, async (user) => {
 
 async function loadExpenses(userId) {
     try {
-        const q = query(
-            collection(db, 'repairs'),
-            where('uid', '==', userId),
-            orderBy('createdAt', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
+        const motorcyclesSnapshot = await getDocs(query(
+            collection(db, 'motorcycles'),
+            where('uid', '==', userId)
+        ));
+
+        await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
+
+        let querySnapshot;
+
+        try {
+            const orderedQuery = query(
+                collection(db, 'repairs'),
+                where('uid', '==', userId),
+                orderBy('createdAt', 'desc')
+            );
+            querySnapshot = await getDocs(orderedQuery);
+        } catch (orderedError) {
+            console.warn('Ordered expenses query failed, trying fallback:', orderedError?.message || orderedError);
+            const fallbackQuery = query(
+                collection(db, 'repairs'),
+                where('uid', '==', userId)
+            );
+            querySnapshot = await getDocs(fallbackQuery);
+        }
         
         if (querySnapshot.empty) {
             renderEmptyState();
         } else {
             expenses = querySnapshot.docs
-                .map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    date: doc.data().date || doc.data().createdAt,
-                    amount: doc.data().cost || 0
-                }))
-                .filter(exp => exp.uid === userId);
+                .map(doc => normalizeRecord(Object.assign({ id: doc.id }, doc.data())))
+                .filter(exp => exp.uid === userId && exp.deleted !== true);
             displayExpenses();
         }
     } catch (error) {
@@ -250,7 +264,7 @@ function displayRecentExpenses() {
             const id = btn.dataset.expenseId;
             if (!confirm('Delete this expense?')) return;
             try {
-                await deleteDoc(doc(db, 'repairs', id));
+                await deleteFirestoreDoc('repairs', id);
                 const currentUser = auth.currentUser;
                 if (currentUser) {
                     await loadExpenses(currentUser.uid);

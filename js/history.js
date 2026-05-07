@@ -1,6 +1,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -12,15 +13,22 @@ onAuthStateChanged(auth, async (user) => {
 
 async function loadExpenses(userId) {
     try {
-        const q = query(
+        const motorcyclesSnapshot = await getDocs(query(
+            collection(db, 'motorcycles'),
+            where('uid', '==', userId)
+        ));
+
+        await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
+
+        const fallbackQuery = query(
             collection(db, 'repairs'),
-            where('uid', '==', userId),
-            orderBy('date', 'desc')
+            where('uid', '==', userId)
         );
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = await getDocs(fallbackQuery);
+
         const records = querySnapshot.docs
-            .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
-            .filter(record => record.uid === userId);
+            .map(docSnap => normalizeRecord(Object.assign({ id: docSnap.id }, docSnap.data())))
+            .filter(record => record.uid === userId && record.deleted !== true);
         
         if (records.length === 0) {
             renderEmptyState();
@@ -34,20 +42,26 @@ async function loadExpenses(userId) {
 }
 
 function renderEmptyState() {
-    document.getElementById('totalExpenses').textContent = '₱0';
-    document.getElementById('thisMonthExpense').textContent = '₱0';
-    document.getElementById('avgMonthExpense').textContent = '₱0';
-    document.getElementById('trendText').textContent = 'No records yet';
+    const totalExpenses = document.getElementById('totalExpenses');
+    const thisMonthExpense = document.getElementById('thisMonthExpense');
+    const avgMonthExpense = document.getElementById('avgMonthExpense');
+    const trendText = document.getElementById('trendText');
+    if (totalExpenses) totalExpenses.textContent = '₱0';
+    if (thisMonthExpense) thisMonthExpense.textContent = '₱0';
+    if (avgMonthExpense) avgMonthExpense.textContent = '₱0';
+    if (trendText) trendText.textContent = 'No records yet';
     const indicator = document.getElementById('trendIndicator');
     if (indicator) {
         indicator.innerHTML = '<i class="lucide lucide-minus text-gray-300 text-xl"></i><span class="text-sm">No records yet</span>';
     }
     const monthlyChart = document.getElementById('monthlyTrendChart');
     if (monthlyChart?.parentElement) {
+        monthlyChart.style.opacity = '1';
         monthlyChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
     }
     const pieChart = document.getElementById('categoryPieChart');
     if (pieChart?.parentElement) {
+        pieChart.style.opacity = '1';
         pieChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
     }
     const legend = document.getElementById('categoryLegend');
@@ -61,7 +75,8 @@ function renderEmptyState() {
 }
 
 function displayExpenses(records) {
-    const normalized = records.map((record) => {
+    const normalized = records
+        .map((record) => {
         const date = record.date || record.createdAt || '';
         const parsedDate = date ? new Date(date) : null;
         return {
@@ -74,7 +89,12 @@ function displayExpenses(records) {
             date: parsedDate ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
             motorcycleName: record.motorcycleName || ''
         };
-    });
+    })
+        .sort((a, b) => {
+            const dateA = a.rawDate?.getTime() || 0;
+            const dateB = b.rawDate?.getTime() || 0;
+            return dateB - dateA;
+        });
 
     const monthlyTotals = new Map();
     normalized.forEach((item) => {
@@ -113,7 +133,13 @@ function displayMonthlyChart(data) {
         return;
     }
 
-    const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+    const chartElement = document.getElementById('monthlyTrendChart');
+    if (!chartElement) {
+        return;
+    }
+
+    chartElement.style.opacity = '1';
+    const ctx = chartElement.getContext('2d');
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -154,7 +180,13 @@ function displayCategoryChart(data) {
         return;
     }
 
-    const ctx = document.getElementById('categoryPieChart').getContext('2d');
+    const chartElement = document.getElementById('categoryPieChart');
+    if (!chartElement) {
+        return;
+    }
+
+    chartElement.style.opacity = '1';
+    const ctx = chartElement.getContext('2d');
     new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -181,6 +213,10 @@ function displayCategoryChart(data) {
 
     // Display legend
     const legend = document.getElementById('categoryLegend');
+    if (!legend) {
+        return;
+    }
+
     legend.innerHTML = data.map(item => `
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -194,6 +230,10 @@ function displayCategoryChart(data) {
 
 function displayRecentExpenses(expenses) {
     const container = document.getElementById('recentExpensesList');
+    if (!container) {
+        return;
+    }
+
     if (!expenses.length) {
         container.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
         return;
@@ -234,19 +274,23 @@ function updateStats(monthlyData, categoryData) {
     const avg = Math.round(total / monthlyData.length);
     const percentChange = lastMonth === 0 ? '0.0' : ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1);
 
-    document.getElementById('totalExpenses').textContent = `$${total}`;
-    document.getElementById('thisMonthExpense').textContent = `$${thisMonth}`;
-    document.getElementById('avgMonthExpense').textContent = `$${avg}`;
-    document.getElementById('trendText').textContent = `${Math.abs(percentChange)}% from last month`;
+    const totalExpenses = document.getElementById('totalExpenses');
+    const thisMonthExpense = document.getElementById('thisMonthExpense');
+    const avgMonthExpense = document.getElementById('avgMonthExpense');
+    const trendText = document.getElementById('trendText');
+    if (totalExpenses) totalExpenses.textContent = `₱${total}`;
+    if (thisMonthExpense) thisMonthExpense.textContent = `₱${thisMonth}`;
+    if (avgMonthExpense) avgMonthExpense.textContent = `₱${avg}`;
+    if (trendText) trendText.textContent = `${Math.abs(percentChange)}% from last month`;
 
     // Update trend indicator
     const indicator = document.getElementById('trendIndicator');
-    if (percentChange >= 0) {
+    if (indicator && percentChange >= 0) {
         indicator.innerHTML = `
             <i class="lucide lucide-trending-up text-red-300 text-xl"></i>
             <span class="text-sm">${percentChange}% from last month</span>
         `;
-    } else {
+    } else if (indicator) {
         indicator.innerHTML = `
             <i class="lucide lucide-trending-down text-green-300 text-xl"></i>
             <span class="text-sm">${Math.abs(percentChange)}% from last month</span>
@@ -257,6 +301,8 @@ function updateStats(monthlyData, categoryData) {
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 
                     'July', 'August', 'September', 'October', 'November', 'December'];
     const currentDate = new Date();
-    document.getElementById('currentMonth').textContent = 
-        `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+    const currentMonth = document.getElementById('currentMonth');
+    if (currentMonth) {
+        currentMonth.textContent = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+    }
 }

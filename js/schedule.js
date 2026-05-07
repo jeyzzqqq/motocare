@@ -1,6 +1,8 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { updateFirestoreDoc } from './firebaseUtils.js';
+import { normalizeRecord } from './utils-module.js';
 
 let completedTasks = [];
 let currentUserId = null;
@@ -18,20 +20,40 @@ async function loadSchedule(userId) {
     try {
         const q = query(
             collection(db, 'maintenance'),
-            where('uid', '==', userId),
-            orderBy('dueDate')
+            where('uid', '==', userId)
         );
         const querySnapshot = await getDocs(q);
-        
+
         if (querySnapshot.empty) {
             renderEmptySchedule();
-        } else {
-            const items = querySnapshot.docs
-                .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
-                .filter(item => item.uid === userId);
-            displaySchedule(items);
-            updateCounts(items);
+            console.log('[schedule] matched maintenance docs for uid', userId, []);
+            return;
         }
+
+        let items = querySnapshot.docs
+            .map(docSnap => normalizeRecord(Object.assign({ id: docSnap.id }, docSnap.data())))
+            .filter(item => item.uid === userId && item.deleted !== true);
+
+        // Local sort by dueDate (fallback when Firestore composite index is missing)
+        items = items.sort((a, b) => {
+            const aTime = new Date(a.dueDate || a.date || 0).getTime() || 0;
+            const bTime = new Date(b.dueDate || b.date || 0).getTime() || 0;
+            return aTime - bTime;
+        });
+
+        console.log('[schedule] matched maintenance docs for uid', userId, items);
+        console.table(items.map(item => ({
+            id: item.id,
+            task: item.task || item.title || 'Maintenance item',
+            status: item.status,
+            dueDate: item.dueDate || item.date || '',
+            dueMileage: item.dueMileage || '',
+            motorcycleName: item.motorcycleName || '',
+            priority: item.priority || ''
+        })));
+
+        displaySchedule(items);
+        updateCounts(items);
     } catch (error) {
         console.error('Error loading schedule:', error);
         renderEmptySchedule();
@@ -43,9 +65,12 @@ function renderEmptySchedule() {
     if (container) {
         container.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
     }
-    document.getElementById('dueCount').textContent = '0';
-    document.getElementById('upcomingCount').textContent = '0';
-    document.getElementById('completedCount').textContent = '0';
+    const dueEl = document.getElementById('dueCount');
+    const upcomingEl = document.getElementById('upcomingCount');
+    const completedEl = document.getElementById('completedCount');
+    if (dueEl) dueEl.textContent = '0';
+    if (upcomingEl) upcomingEl.textContent = '0';
+    if (completedEl) completedEl.textContent = '0';
 }
 
 function displaySchedule(items) {
@@ -55,7 +80,10 @@ function displaySchedule(items) {
         return;
     }
     
+    if (!container) return;
+
     container.innerHTML = items.map(item => {
+        const safeTask = (item.task || '').replace(/'/g, "\\'");
         const isCompleted = completedTasks.includes(item.id) || item.status === 'completed';
         const statusIcon = getStatusIcon(isCompleted ? 'completed' : item.status);
         const statusColor = getStatusColor(isCompleted ? 'completed' : item.status);
@@ -97,7 +125,7 @@ function displaySchedule(items) {
                     </div>
                     
                     ${!isCompleted && item.status !== 'completed' ? `
-                        <button onclick="markComplete(${item.id}, '${item.task}')" 
+                        <button onclick="markComplete('${item.id}', '${safeTask}')" 
                             class="mt-3 w-full py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 transition-colors active:scale-95">
                             Mark as Complete
                         </button>
@@ -167,9 +195,8 @@ window.markComplete = async function(id, task) {
     }
 
     try {
-        await updateDoc(doc(db, 'maintenance', String(id)), {
-            status: 'completed',
-            updatedAt: new Date().toISOString()
+        await updateFirestoreDoc('maintenance', String(id), {
+            status: 'completed'
         });
         alert(`"${task}" marked as complete!`);
         await loadSchedule(currentUserId);

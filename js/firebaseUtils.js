@@ -7,7 +7,7 @@ import {
     where, 
     orderBy,
     updateDoc,
-    deleteDoc,
+    writeBatch,
     doc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -60,30 +60,51 @@ export async function getFirestoreDocs(collectionName, orderByField = null) {
         const user = auth.currentUser;
         if (!user) throw new Error('User not authenticated');
         
-        let q;
+        // Always try the base query first (no ordering)
+        const baseQuery = query(
+            collection(db, collectionName),
+            where('uid', '==', user.uid)
+        );
+        
+        let querySnapshot;
+        
         if (orderByField) {
-            q = query(
-                collection(db, collectionName),
-                where('uid', '==', user.uid),
-                orderBy(orderByField, 'desc')
-            );
+            try {
+                // Try with ordering first
+                const orderedQuery = query(
+                    collection(db, collectionName),
+                    where('uid', '==', user.uid),
+                    orderBy(orderByField, 'desc')
+                );
+                querySnapshot = await getDocs(orderedQuery);
+                console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName} with ordering`);
+            } catch (orderError) {
+                console.warn(`⚠ Ordered query failed for ${collectionName} (missing index?), trying without ordering:`, orderError.message);
+                try {
+                    // Fallback to base query without ordering
+                    querySnapshot = await getDocs(baseQuery);
+                    console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName} using fallback (no ordering)`);
+                } catch (fallbackError) {
+                    console.error(`✗ Even base query failed for ${collectionName}:`, fallbackError.message);
+                    throw fallbackError;
+                }
+            }
         } else {
-            q = query(
-                collection(db, collectionName),
-                where('uid', '==', user.uid)
-            );
+            querySnapshot = await getDocs(baseQuery);
+            console.log(`✓ Fetched ${querySnapshot.size} documents from ${collectionName}`);
         }
         
-        const querySnapshot = await getDocs(q);
         const docs = [];
         querySnapshot.forEach((doc) => {
-            docs.push({ id: doc.id, ...doc.data() });
+            const data = { id: doc.id, ...doc.data() };
+            if (data.deleted !== true) {
+                docs.push(data);
+            }
         });
         
-        console.log(`Fetched ${docs.length} documents from ${collectionName}`);
         return docs;
     } catch (error) {
-        console.error(`Error fetching from ${collectionName}:`, error);
+        console.error(`✗ Error fetching from ${collectionName}:`, error.message);
         throw error;
     }
 }
@@ -94,31 +115,41 @@ export async function getFirestoreDocsByFilter(collectionName, filterField, filt
         const user = auth.currentUser;
         if (!user) throw new Error('User not authenticated');
         
-        let q;
+        const baseQuery = query(
+            collection(db, collectionName),
+            where('uid', '==', user.uid),
+            where(filterField, '==', filterValue)
+        );
+        
+        let querySnapshot;
         if (orderByField) {
-            q = query(
-                collection(db, collectionName),
-                where('uid', '==', user.uid),
-                where(filterField, '==', filterValue),
-                orderBy(orderByField, 'desc')
-            );
+            try {
+                const orderedQuery = query(
+                    collection(db, collectionName),
+                    where('uid', '==', user.uid),
+                    where(filterField, '==', filterValue),
+                    orderBy(orderByField, 'desc')
+                );
+                querySnapshot = await getDocs(orderedQuery);
+            } catch (orderError) {
+                console.warn(`⚠ Ordered filtered query failed for ${collectionName}, falling back:`, orderError.message);
+                querySnapshot = await getDocs(baseQuery);
+            }
         } else {
-            q = query(
-                collection(db, collectionName),
-                where('uid', '==', user.uid),
-                where(filterField, '==', filterValue)
-            );
+            querySnapshot = await getDocs(baseQuery);
         }
         
-        const querySnapshot = await getDocs(q);
         const docs = [];
         querySnapshot.forEach((doc) => {
-            docs.push({ id: doc.id, ...doc.data() });
+            const data = { id: doc.id, ...doc.data() };
+            if (data.deleted !== true) {
+                docs.push(data);
+            }
         });
         
         return docs;
     } catch (error) {
-        console.error(`Error fetching filtered documents from ${collectionName}:`, error);
+        console.error(`✗ Error fetching filtered documents from ${collectionName}:`, error.message);
         throw error;
     }
 }
@@ -149,13 +180,161 @@ export async function deleteFirestoreDoc(collectionName, docId) {
     try {
         const user = auth.currentUser;
         if (!user) throw new Error('User not authenticated');
+
+        if (collectionName === 'motorcycles') {
+            const motorcycleQuery = query(
+                collection(db, 'motorcycles'),
+                where('uid', '==', user.uid)
+            );
+            const motorcycleSnapshot = await getDocs(motorcycleQuery);
+            const sourceDocument = motorcycleSnapshot.docs
+                .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
+                .find((item) => item.id === docId) || null;
+            const remainingMotorcycles = motorcycleSnapshot.docs
+                .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
+                .filter((item) => item.id !== docId);
+
+            const motorcycleName = sourceDocument
+                ? `${sourceDocument.brand || ''} ${sourceDocument.model || ''}`.trim()
+                : '';
+            const plateNumber = sourceDocument?.plate || sourceDocument?.plateNumber || '';
+            const matchingTokens = [
+                docId,
+                motorcycleName,
+                plateNumber,
+                sourceDocument?.brand || '',
+                sourceDocument?.model || ''
+            ]
+                .map((value) => String(value || '').trim().toLowerCase())
+                .filter(Boolean);
+
+            const isLinkedToMotorcycle = (record) => {
+                const fields = [
+                    record.motorcycleId,
+                    record.motorcycleName,
+                    record.motorcycle,
+                    record.plate,
+                    record.plateNumber,
+                    record.brand,
+                    record.model,
+                    record.title,
+                    record.task,
+                    record.item
+                ]
+                    .map((value) => String(value || '').trim().toLowerCase())
+                    .filter(Boolean);
+
+                return fields.some((fieldValue) =>
+                    matchingTokens.some((token) => fieldValue === token || fieldValue.includes(token) || token.includes(fieldValue))
+                );
+            };
+
+            await updateDoc(doc(db, 'motorcycles', docId), {
+                deleted: true,
+                deletedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                uid: user.uid
+            });
+
+            const cleanupTargetDocs = async (targetCollectionName) => {
+                const targetSnapshot = await getDocs(query(
+                    collection(db, targetCollectionName),
+                    where('uid', '==', user.uid)
+                ));
+
+                for (const targetDoc of targetSnapshot.docs) {
+                    const targetData = { id: targetDoc.id, ...targetDoc.data() };
+                    const shouldDeleteAll = remainingMotorcycles.length === 0;
+                    const shouldDeleteLinked = isLinkedToMotorcycle(targetData);
+
+                    if (!shouldDeleteAll && !shouldDeleteLinked) {
+                        continue;
+                    }
+
+                    await updateDoc(doc(db, targetCollectionName, targetDoc.id), {
+                        deleted: true,
+                        deletedAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                        uid: user.uid
+                    });
+                }
+            };
+
+            await cleanupTargetDocs('repairs');
+            await cleanupTargetDocs('maintenance');
+
+            console.log(`Soft-deleted motorcycle/${docId} and removed linked records`);
+            return true;
+        }
         
         const docRef = doc(db, collectionName, docId);
-        await deleteDoc(docRef);
-        console.log(`Deleted ${collectionName}/${docId}`);
+        const documentSnapshot = await getDocs(query(
+            collection(db, collectionName),
+            where('uid', '==', user.uid)
+        ));
+        const sourceDocument = documentSnapshot.docs
+            .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
+            .find((item) => item.id === docId) || null;
+
+        await updateDoc(docRef, {
+            deleted: true,
+            deletedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            uid: user.uid
+        });
+
+        console.log(`Soft-deleted ${collectionName}/${docId}`);
         return true;
     } catch (error) {
         console.error(`Error deleting ${collectionName}/${docId}:`, error);
+        throw error;
+    }
+}
+
+export async function cleanupOrphanedMotorcycleRecords(motorcycleDocs = []) {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error('User not authenticated');
+
+        const activeMotorcycleIds = new Set(
+            motorcycleDocs
+                .map((snapshot) => snapshot.id)
+                .map((value) => String(value || '').trim())
+                .filter(Boolean)
+        );
+
+        const batch = writeBatch(db);
+        let deletesQueued = 0;
+
+        const scanAndQueueDeletes = async (targetCollectionName) => {
+            const targetSnapshot = await getDocs(query(
+                collection(db, targetCollectionName),
+                where('uid', '==', user.uid)
+            ));
+
+            for (const targetDoc of targetSnapshot.docs) {
+                const targetData = { id: targetDoc.id, ...targetDoc.data() };
+                const linkedMotorcycleId = String(targetData.motorcycleId || '').trim();
+                const shouldKeep = linkedMotorcycleId && activeMotorcycleIds.has(linkedMotorcycleId);
+
+                if (!shouldKeep) {
+                    batch.delete(doc(db, targetCollectionName, targetDoc.id));
+                    deletesQueued += 1;
+                }
+            }
+        };
+
+        await scanAndQueueDeletes('repairs');
+        await scanAndQueueDeletes('maintenance');
+
+        if (deletesQueued > 0) {
+            await batch.commit();
+            console.log(`Cleaned up ${deletesQueued} orphaned motorcycle-linked records`);
+        }
+
+        return deletesQueued;
+    } catch (error) {
+        console.error('Error cleaning up orphaned motorcycle records:', error);
         throw error;
     }
 }

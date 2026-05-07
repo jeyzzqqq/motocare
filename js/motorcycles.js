@@ -19,6 +19,8 @@ let motorcycles = [];
 let editingId = null;
 let isLoading = false;
 let authReady = false;
+let pendingDeleteId = null;
+let pendingDeleteLabel = '';
 
 onAuthStateChanged(auth, (user) => {
     if (user) {
@@ -150,7 +152,7 @@ function renderMotorcycles() {
                             <button onclick="editMotorcycle('${moto.id}')" class="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                                 <i class="fa-solid fa-pen text-gray-600"></i>
                             </button>
-                            <button onclick="deleteMotorcycle('${moto.id}')" class="p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                            <button onclick='openDeleteMotorcycleModal(${JSON.stringify(moto.id)}, ${JSON.stringify((moto.brand || "") + " " + (moto.model || ""))}, ${JSON.stringify(moto.plate || moto.plateNumber || "")})' class="p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
                                 <i class="fa-solid fa-trash text-red-600"></i>
                             </button>
                         </div>
@@ -238,6 +240,48 @@ function closeModal() {
     backdrop.classList.add('hidden');
 }
 
+function openDeleteMotorcycleModal(id, label = '', plate = '') {
+    pendingDeleteId = id;
+    pendingDeleteLabel = label;
+    window.pendingDeleteMotorcycleLabel = label;
+    window.pendingDeleteMotorcyclePlate = plate;
+
+    const modal = document.getElementById('deleteMotorcycleModal');
+    const backdrop = document.getElementById('deleteMotorcycleBackdrop');
+    const labelEl = document.getElementById('deleteMotorcycleLabel');
+
+    if (labelEl) {
+        labelEl.textContent = label || 'this motorcycle';
+    }
+
+    if (!modal || !backdrop) {
+        deleteMotorcycle(id);
+        return;
+    }
+
+    modal.classList.remove('hidden');
+    backdrop.classList.remove('hidden');
+}
+
+function closeDeleteMotorcycleModal() {
+    const modal = document.getElementById('deleteMotorcycleModal');
+    const backdrop = document.getElementById('deleteMotorcycleBackdrop');
+
+    if (modal) modal.classList.add('hidden');
+    if (backdrop) backdrop.classList.add('hidden');
+
+    pendingDeleteId = null;
+    pendingDeleteLabel = '';
+}
+
+async function confirmDeleteMotorcycle() {
+    if (!pendingDeleteId) return;
+
+    const id = pendingDeleteId;
+    closeDeleteMotorcycleModal();
+    await deleteMotorcycle(id);
+}
+
 function editMotorcycle(id) {
     const moto = motorcycles.find(m => m.id === id);
     if (!moto) return;
@@ -265,8 +309,6 @@ function editMotorcycle(id) {
 }
 
 async function deleteMotorcycle(id) {
-    if (!confirm('Delete this motorcycle?')) return;
-    
     try {
         await deleteFirestoreDoc('motorcycles', id);
         motorcycles = motorcycles.filter(m => m.id !== id);
@@ -384,4 +426,15 @@ function showToast(message, type = 'info') {
 function escapeHtml(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);
+}
+
+if (typeof window !== 'undefined') {
+    window.openAddModal = openAddModal;
+    window.closeModal = closeModal;
+    window.openDeleteMotorcycleModal = openDeleteMotorcycleModal;
+    window.closeDeleteMotorcycleModal = closeDeleteMotorcycleModal;
+    window.confirmDeleteMotorcycle = confirmDeleteMotorcycle;
+    window.editMotorcycle = editMotorcycle;
+    window.deleteMotorcycle = deleteMotorcycle;
+    window.saveMotorcycle = saveMotorcycle;
 }

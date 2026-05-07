@@ -1,25 +1,33 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getFirestoreDocs } from './firebaseUtils.js';
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestoreDocs, addFirestoreDoc } from './firebaseUtils.js';
 
 let selectedFile = null;
 let motorcycles = [];
+let currentUser = null;
 
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = 'index.html';
     } else {
-        // Add small delay to ensure everything is loaded
-        setTimeout(() => loadMotorcyclesFromFirestore(), 100);
+        currentUser = user;
+        loadMotorcyclesFromFirestore(user);
     }
 });
 
 // Load motorcycles from Firestore
-async function loadMotorcyclesFromFirestore() {
+async function loadMotorcyclesFromFirestore(user = currentUser) {
     const dropdown = document.getElementById('motorcycle');
     if (!dropdown) {
         console.error('Motorcycle dropdown not found');
+        return;
+    }
+
+    if (!user) {
+        console.error('No authenticated user available while loading motorcycles');
+        dropdown.innerHTML = '<option value="">Please sign in first</option>';
+        dropdown.disabled = true;
         return;
     }
 
@@ -38,8 +46,34 @@ async function loadMotorcyclesFromFirestore() {
         }
     } catch (error) {
         console.error('Error loading motorcycles from Firestore:', error);
-        dropdown.innerHTML = '<option value="">Error loading motorcycles</option>';
-        dropdown.disabled = true;
+
+        // Fallback: try a plain uid-filtered query without ordering.
+        try {
+            const fallbackQuery = query(
+                collection(db, 'motorcycles'),
+                where('uid', '==', user.uid)
+            );
+            const snapshot = await getDocs(fallbackQuery);
+            motorcycles = [];
+            snapshot.forEach((doc) => {
+                motorcycles.push({ id: doc.id, ...doc.data() });
+            });
+
+            if (motorcycles.length === 0) {
+                dropdown.innerHTML = '<option value="">No motorcycles found. Add one in Profile.</option>';
+                dropdown.disabled = true;
+                console.log('No motorcycles found in Firestore (fallback)');
+            } else {
+                dropdown.innerHTML = '<option value="">Select a motorcycle</option>' +
+                    motorcycles.map((m) => `<option value="${m.id}">${m.brand || 'Unknown'} ${m.model || 'Unknown'} (${m.year || ''})</option>`).join('');
+                dropdown.disabled = false;
+                console.log('Loaded motorcycles from Firestore using fallback query:', motorcycles);
+            }
+        } catch (fallbackError) {
+            console.error('Fallback motorcycle query failed:', fallbackError);
+            dropdown.innerHTML = '<option value="">Error loading motorcycles</option>';
+            dropdown.disabled = true;
+        }
     }
 }
 
@@ -98,10 +132,23 @@ function formatFileSize(bytes) {
 }
 
 // Form submission
+// Toast notification system
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+    const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+    
+    toast.className = `fixed bottom-8 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg text-white ${bgColor} shadow-lg z-50 flex items-center gap-2`;
+    toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => toast.remove(), 3000);
+}
+
 document.getElementById('addRecordForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const user = auth.currentUser;
+    const user = currentUser || auth.currentUser;
     if (!user) {
         showToast('Please sign in to save a record.', 'error');
         window.location.replace('index.html');
@@ -151,14 +198,12 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         notes: document.getElementById('notes').value,
         hasReceipt: selectedFile !== null,
         motorcycleId: selectedMotorcycle.id,
-        motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`,
-        uid: user.uid,
-        createdAt: new Date().toISOString()
+        motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`
     };
     
     try {
-        // Add to Firestore
-        await addDoc(collection(db, 'repairs'), formData);
+        // Add to Firestore (uses addFirestoreDoc to attach uid and serverTimestamp)
+        await addFirestoreDoc('repairs', formData);
         
         showToast('Service record added successfully!', 'success');
         

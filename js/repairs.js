@@ -62,7 +62,7 @@ async function loadRepairs(userId) {
         
         cachedRepairs = querySnapshot.docs
             .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
-            .filter(record => record.uid === userId);
+            .filter(record => record.uid === userId && record.deleted !== true);
         
         if (cachedRepairs.length === 0) {
             renderEmptyState();

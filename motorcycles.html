@@ -180,6 +180,35 @@
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
 
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteMotorcycleModal" class="fixed inset-0 z-[60] hidden">
+        <div id="deleteMotorcycleBackdrop" class="absolute inset-0 bg-black/50 modal-backdrop" onclick="closeDeleteMotorcycleModal()"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 slide-up">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-xl font-bold text-gray-900">Delete motorcycle?</h3>
+                        <p class="text-sm text-gray-600 mt-2">
+                            Are you sure you want to delete <span id="deleteMotorcycleLabel" class="font-semibold text-gray-900">this motorcycle</span>? This action can’t be undone.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex gap-3">
+                    <button type="button" onclick="closeDeleteMotorcycleModal()" class="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors active:scale-95">
+                        No, keep it
+                    </button>
+                    <button type="button" onclick="confirmDeleteMotorcycle()" class="flex-1 py-3 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition-colors active:scale-95">
+                        Yes, delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
     <script src="./js/motorcycles.js?v=2"></script>

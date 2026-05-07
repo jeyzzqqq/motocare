@@ -1,5 +1,5 @@
-import { auth, onAuthStateChanged, db } from "./firebase-config.js";
-import { collection, query, where, getDocs, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { auth, onAuthStateChanged } from "./firebase-config.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestoreDocs } from './firebaseUtils.js';
 
 let currentUser = null;
@@ -25,19 +25,19 @@ async function loadUserStats() {
     
     try {
         // Get motorcycles count
-        const bikesSnap = await getDocs(query(collection(db, 'motorcycles'), where('uid', '==', currentUser.uid)));
-        const bikeCount = bikesSnap.size;
+        const bikes = await getFirestoreDocs('motorcycles');
+        const bikeCount = bikes.length;
         console.log('Motorcycles count:', bikeCount);
 
         // Get repairs/services count
-        const repairsSnap = await getDocs(query(collection(db, 'repairs'), where('uid', '==', currentUser.uid)));
-        const serviceCount = repairsSnap.size;
+        const repairs = await getFirestoreDocs('repairs');
+        const serviceCount = repairs.length;
         console.log('Services count:', serviceCount);
 
         // Calculate total spent from repairs collection (use 'cost' field)
         let totalSpent = 0;
-        repairsSnap.forEach(doc => {
-            totalSpent += parseFloat(doc.data().cost || 0);
+        repairs.forEach(doc => {
+            totalSpent += parseFloat(doc.cost || 0);
         });
         
         console.log('Total spent:', totalSpent);

@@ -1,6 +1,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -36,6 +37,13 @@ async function loadDashboardData(user) {
             return;
         }
 
+        const motorcyclesSnapshot = await getDocs(query(
+            collection(db, 'motorcycles'),
+            where('uid', '==', uid)
+        ));
+
+        await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
+
         const [maintenanceSnapshot, repairsSnapshot] = await Promise.all([
             getDocs(query(
                 collection(db, 'maintenance'),
@@ -47,10 +55,11 @@ async function loadDashboardData(user) {
             ))
         ]);
 
-        displayUpcomingMaintenance(maintenanceSnapshot.docs);
-        displayRecentRepairs(repairsSnapshot.docs);
-        displayExpenseChart(repairsSnapshot.docs);
-        displayMaintenancePieChart(maintenanceSnapshot.docs);
+        const activeMotorcycleTokens = buildActiveMotorcycleTokens(motorcyclesSnapshot.docs);
+        displayUpcomingMaintenance(maintenanceSnapshot.docs, activeMotorcycleTokens);
+        displayRecentRepairs(repairsSnapshot.docs, activeMotorcycleTokens);
+        displayExpenseChart(repairsSnapshot.docs, activeMotorcycleTokens);
+        displayMaintenancePieChart(maintenanceSnapshot.docs, activeMotorcycleTokens);
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         renderDashboardEmptyState();
@@ -61,12 +70,12 @@ function setDashboardLoadingState() {
     renderEmptyList('upcomingMaintenanceList', 'Loading...');
     renderEmptyList('recentRepairsList', 'Loading...');
     const expenseChart = document.getElementById('expenseChart');
-    if (expenseChart?.parentElement) {
-        expenseChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">Loading...</div>';
+    if (expenseChart) {
+        expenseChart.style.opacity = '0.4';
     }
     const maintenancePieChart = document.getElementById('maintenancePieChart');
-    if (maintenancePieChart?.parentElement) {
-        maintenancePieChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">Loading...</div>';
+    if (maintenancePieChart) {
+        maintenancePieChart.style.opacity = '0.4';
     }
 }
 
@@ -93,6 +102,7 @@ function renderEmptyList(containerId, message = 'No records yet') {
 function renderEmptyChart(containerId, message = 'No records yet') {
     const canvas = document.getElementById(containerId);
     if (canvas && canvas.parentElement) {
+        canvas.style.opacity = '1';
         canvas.parentElement.innerHTML = `<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">${message}</div>`;
     }
 }
@@ -102,11 +112,52 @@ function getRecordDate(docData) {
     return raw ? new Date(raw) : null;
 }
 
-function displayUpcomingMaintenance(docs) {
+function buildActiveMotorcycleTokens(docs) {
+    return new Set(
+        docs.flatMap((entry) => {
+            const data = entry.data();
+            return [
+                entry.id,
+                data.brand,
+                data.model,
+                data.plate,
+                data.plateNumber,
+                data.motorcycleName,
+                data.name
+            ]
+                .map((value) => String(value || '').trim().toLowerCase())
+                .filter(Boolean);
+        })
+    );
+}
+
+function isLinkedToActiveMotorcycle(record, activeMotorcycleTokens) {
+    if (!activeMotorcycleTokens || activeMotorcycleTokens.size === 0) {
+        return false;
+    }
+
+    const values = [
+        record.motorcycleId,
+        record.motorcycleName,
+        record.motorcycle,
+        record.plate,
+        record.plateNumber,
+        record.brand,
+        record.model
+    ]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean);
+
+    return values.some((value) =>
+        Array.from(activeMotorcycleTokens).some((token) => value === token || value.includes(token) || token.includes(value))
+    );
+}
+
+function displayUpcomingMaintenance(docs, activeMotorcycleTokens) {
     const container = document.getElementById('upcomingMaintenanceList');
     const items = docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((item) => item.uid && item.status !== 'completed');
+        .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
+        .filter((item) => item.uid && item.status !== 'completed' && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
 
     if (!items.length) {
         renderEmptyList('upcomingMaintenanceList');
@@ -138,11 +189,11 @@ function displayUpcomingMaintenance(docs) {
     `).join('');
 }
 
-function displayRecentRepairs(docs) {
+function displayRecentRepairs(docs, activeMotorcycleTokens) {
     const container = document.getElementById('recentRepairsList');
     const items = docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((item) => item.uid);
+        .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
+        .filter((item) => item.uid && item.deleted !== true && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
 
     if (!items.length) {
         renderEmptyList('recentRepairsList');
@@ -176,11 +227,18 @@ function displayRecentRepairs(docs) {
     `).join('');
 }
 
-function displayExpenseChart(docs) {
-    const ctx = document.getElementById('expenseChart').getContext('2d');
+function displayExpenseChart(docs, activeMotorcycleTokens) {
+    const chartElement = document.getElementById('expenseChart');
+    if (!chartElement) {
+        console.error('Chart canvas not found');
+        return;
+    }
+
+    chartElement.style.opacity = '1';
+    const ctx = chartElement.getContext('2d');
     const items = docs
-        .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((item) => item.uid);
+        .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
+        .filter((item) => item.uid && item.deleted !== true && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
 
     if (!items.length) {
         renderEmptyChart('expenseChart');
@@ -240,10 +298,10 @@ function displayExpenseChart(docs) {
     });
 }
 
-function displayMaintenancePieChart(docs) {
+function displayMaintenancePieChart(docs, activeMotorcycleTokens) {
     const items = docs
         .map((entry) => ({ id: entry.id, ...entry.data() }))
-        .filter((item) => item.uid);
+        .filter((item) => item.uid && item.deleted !== true && isLinkedToActiveMotorcycle(item, activeMotorcycleTokens));
 
     const completed = items.filter((item) => item.status === 'completed').length;
     const pending = items.filter((item) => item.status !== 'completed').length;
@@ -257,7 +315,14 @@ function displayMaintenancePieChart(docs) {
         return;
     }
 
-    const ctx = document.getElementById('maintenancePieChart').getContext('2d');
+    const chartElement = document.getElementById('maintenancePieChart');
+    if (!chartElement) {
+        console.error('Maintenance chart canvas not found');
+        return;
+    }
+
+    chartElement.style.opacity = '1';
+    const ctx = chartElement.getContext('2d');
     const data = [
         { name: 'Completed', value: completed, color: '#15803d' },
         { name: 'Pending', value: pending, color: '#9E9E9E' }
