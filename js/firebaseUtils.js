@@ -182,53 +182,7 @@ export async function deleteFirestoreDoc(collectionName, docId) {
         if (!user) throw new Error('User not authenticated');
 
         if (collectionName === 'motorcycles') {
-            const motorcycleQuery = query(
-                collection(db, 'motorcycles'),
-                where('uid', '==', user.uid)
-            );
-            const motorcycleSnapshot = await getDocs(motorcycleQuery);
-            const sourceDocument = motorcycleSnapshot.docs
-                .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
-                .find((item) => item.id === docId) || null;
-            const remainingMotorcycles = motorcycleSnapshot.docs
-                .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
-                .filter((item) => item.id !== docId);
-
-            const motorcycleName = sourceDocument
-                ? `${sourceDocument.brand || ''} ${sourceDocument.model || ''}`.trim()
-                : '';
-            const plateNumber = sourceDocument?.plate || sourceDocument?.plateNumber || '';
-            const matchingTokens = [
-                docId,
-                motorcycleName,
-                plateNumber,
-                sourceDocument?.brand || '',
-                sourceDocument?.model || ''
-            ]
-                .map((value) => String(value || '').trim().toLowerCase())
-                .filter(Boolean);
-
-            const isLinkedToMotorcycle = (record) => {
-                const fields = [
-                    record.motorcycleId,
-                    record.motorcycleName,
-                    record.motorcycle,
-                    record.plate,
-                    record.plateNumber,
-                    record.brand,
-                    record.model,
-                    record.title,
-                    record.task,
-                    record.item
-                ]
-                    .map((value) => String(value || '').trim().toLowerCase())
-                    .filter(Boolean);
-
-                return fields.some((fieldValue) =>
-                    matchingTokens.some((token) => fieldValue === token || fieldValue.includes(token) || token.includes(fieldValue))
-                );
-            };
-
+            // Step 1: Soft-delete the motorcycle
             await updateDoc(doc(db, 'motorcycles', docId), {
                 deleted: true,
                 deletedAt: serverTimestamp(),
@@ -236,21 +190,15 @@ export async function deleteFirestoreDoc(collectionName, docId) {
                 uid: user.uid
             });
 
+            // Step 2: Soft-delete ONLY records linked to this specific motorcycle ID
             const cleanupTargetDocs = async (targetCollectionName) => {
                 const targetSnapshot = await getDocs(query(
                     collection(db, targetCollectionName),
-                    where('uid', '==', user.uid)
+                    where('uid', '==', user.uid),
+                    where('motorcycleId', '==', docId)
                 ));
 
                 for (const targetDoc of targetSnapshot.docs) {
-                    const targetData = { id: targetDoc.id, ...targetDoc.data() };
-                    const shouldDeleteAll = remainingMotorcycles.length === 0;
-                    const shouldDeleteLinked = isLinkedToMotorcycle(targetData);
-
-                    if (!shouldDeleteAll && !shouldDeleteLinked) {
-                        continue;
-                    }
-
                     await updateDoc(doc(db, targetCollectionName, targetDoc.id), {
                         deleted: true,
                         deletedAt: serverTimestamp(),
@@ -268,14 +216,6 @@ export async function deleteFirestoreDoc(collectionName, docId) {
         }
         
         const docRef = doc(db, collectionName, docId);
-        const documentSnapshot = await getDocs(query(
-            collection(db, collectionName),
-            where('uid', '==', user.uid)
-        ));
-        const sourceDocument = documentSnapshot.docs
-            .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
-            .find((item) => item.id === docId) || null;
-
         await updateDoc(docRef, {
             deleted: true,
             deletedAt: serverTimestamp(),
