@@ -157,6 +157,17 @@ function getTaskStatus(odo, dueMileage, completed) {
     return { key: 'scheduled', label: 'Scheduled', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
 }
 
+function getNextMileageTarget(currentMileage, interval) {
+    const mileage = Number(currentMileage || 0);
+    const step = Number(interval || 0);
+
+    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
+    if (!mileage || mileage < 0) return step;
+
+    const remainder = mileage % step;
+    return remainder === 0 ? mileage : mileage + (step - remainder);
+}
+
 function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
     const ruleName = normalizeText(rule.task);
 
@@ -181,7 +192,7 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
 
     return MAINTENANCE_RULES[category.key].map((rule) => {
         const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
-        const dueMileage = odo + rule.interval;
+        const dueMileage = getNextMileageTarget(odo, rule.interval);
         const status = getTaskStatus(odo, dueMileage, Boolean(completedRecord));
         const remaining = Math.max(0, dueMileage - odo);
         const reminder = status.key === 'completed'

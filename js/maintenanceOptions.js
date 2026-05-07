@@ -80,6 +80,17 @@ function getNextMileageDelta(currentMileage, interval) {
     return remainder === 0 ? 0 : step - remainder;
 }
 
+function getNextMileageTarget(currentMileage, interval) {
+    const mileage = Number(currentMileage || 0);
+    const step = Number(interval || 0);
+
+    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
+    if (!mileage || mileage < 0) return step;
+
+    const remainder = mileage % step;
+    return remainder === 0 ? mileage : mileage + (step - remainder);
+}
+
 function formatRelativeMileageText(currentMileage, interval) {
     const delta = getNextMileageDelta(currentMileage, interval);
 
@@ -111,16 +122,18 @@ export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMilea
     return rules
         .map((rule) => {
             const delta = getNextMileageDelta(currentMileage, rule.interval);
+            const dueMileage = getNextMileageTarget(currentMileage, rule.interval);
 
             return {
                 value: `scheduled:${rule.key}`,
-                label: `${rule.task} • every ${rule.interval.toLocaleString()} km • ${formatRelativeMileageText(currentMileage, rule.interval)}`,
+                label: `${rule.task} • due at ${Number.isFinite(dueMileage) ? dueMileage.toLocaleString() : 'N/A'} km • ${formatRelativeMileageText(currentMileage, rule.interval)}`,
                 taskKey: rule.key,
                 title: rule.task,
                 kind: 'scheduled',
                 categoryKey: category.key,
                 sortDelta: delta,
-                sortInterval: rule.interval
+                sortInterval: rule.interval,
+                dueMileage
             };
         })
         .sort((a, b) => a.sortDelta - b.sortDelta || a.sortInterval - b.sortInterval || a.title.localeCompare(b.title));
