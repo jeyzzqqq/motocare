@@ -1,61 +1,8 @@
 import { auth } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { addFirestoreDoc, getFirestoreDocs } from './firebaseUtils.js';
+import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc } from './firebaseUtils.js';
 import { normalizeRecord } from './utils-module.js';
-
-const SCOOTER_PATTERNS = ['nmax', 'aerox', 'mio', 'fazzio', 'sight', 'click', 'beat', 'pcx', 'adv', 'airblade', 'giorno', 'burgman', 'skydrive'];
-const UNDERBONE_PATTERNS = ['winner x', 'rs125', 'tmx', 'sniper', 'raider', 'smash', 'gixxer', 'gsx', 'fury', 'barako', 'shooter', 'ct100', 'rouser'];
-const SPORT_PATTERNS = ['r15', 'mt ', 'mt-', 'cbr150r', 'cb150x', 'ninja 400', 'ninja 650', 'zx-25r', 'zx-4rr', 'dominar', 'xsr 155'];
-
-const MAINTENANCE_RULES = {
-    scooter: [
-        { key: 'oil-1000', interval: 1000, task: 'Oil Change', icon: 'droplets' },
-        { key: 'basic-3000', interval: 3000, task: 'Basic Service', icon: 'wrench' },
-        { key: 'cvt-5000', interval: 5000, task: 'CVT + Air Filter + Spark Plug', icon: 'settings-2' },
-        { key: 'brake-8000', interval: 8000, task: 'Brake + Belt Inspection', icon: 'shield-check' },
-        { key: 'major-10000', interval: 10000, task: 'Major Service', icon: 'alert-triangle' },
-        { key: 'injector-15000', interval: 15000, task: 'Injector + Throttle Body Cleaning', icon: 'sparkles' },
-        { key: 'inspection-20000', interval: 20000, task: 'Full Inspection', icon: 'clipboard-check' }
-    ],
-    underbone: [
-        { key: 'oil-chain-1000', interval: 1000, task: 'Oil Change + Chain Check', icon: 'droplets' },
-        { key: 'chain-lube-3000', interval: 3000, task: 'Chain Cleaning + Lube', icon: 'link' },
-        { key: 'air-spark-5000', interval: 5000, task: 'Air Filter + Spark Plug', icon: 'sparkles' },
-        { key: 'brake-sprocket-8000', interval: 8000, task: 'Brake + Sprocket Check', icon: 'shield-check' },
-        { key: 'valve-10000', interval: 10000, task: 'Valve Clearance Check', icon: 'settings-2' },
-        { key: 'tuneup-15000', interval: 15000, task: 'Full Tune-up', icon: 'wrench' }
-    ],
-    sport: [
-        { key: 'oil-1000', interval: 1000, task: 'Oil Change (Break-in Critical)', icon: 'droplets' },
-        { key: 'oil-chain-brake-3000', interval: 3000, task: 'Oil + Chain + Brake Check', icon: 'shield-check' },
-        { key: 'air-spark-5000', interval: 5000, task: 'Air Filter + Spark Plug', icon: 'sparkles' },
-        { key: 'brakefluid-chain-8000', interval: 8000, task: 'Brake Fluid + Chain Service', icon: 'droplets' },
-        { key: 'coolant-valve-10000', interval: 10000, task: 'Coolant + Valve Clearance', icon: 'thermometer' },
-        { key: 'injector-15000', interval: 15000, task: 'Injector + Throttle Body Cleaning', icon: 'sparkles' },
-        { key: 'overhaul-20000', interval: 20000, task: 'Full System Overhaul Check', icon: 'alert-circle' }
-    ]
-};
-
-const CATEGORY_META = {
-    scooter: {
-        label: 'SCOOTER (CVT)',
-        badge: 'bg-green-100 text-green-700',
-        chip: 'bg-green-700 text-white',
-        accent: 'green'
-    },
-    underbone: {
-        label: 'UNDERBONE / MANUAL (CHAIN TYPE)',
-        badge: 'bg-blue-100 text-blue-700',
-        chip: 'bg-blue-700 text-white',
-        accent: 'blue'
-    },
-    sport: {
-        label: 'BIG CC / SPORT',
-        badge: 'bg-red-100 text-red-700',
-        chip: 'bg-red-700 text-white',
-        accent: 'red'
-    }
-};
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 
 let currentUserId = null;
 let scheduleItems = [];
@@ -103,10 +50,6 @@ function escapeHtml(value = '') {
         .replace(/'/g, '&#39;');
 }
 
-function includesAny(text, patterns) {
-    return patterns.some((pattern) => text.includes(normalizeText(pattern)));
-}
-
 function getMotorcycleLabel(motorcycle) {
     return motorcycle.motorcycleName || [motorcycle.brand, motorcycle.model].filter(Boolean).join(' ') || 'Motorcycle';
 }
@@ -115,20 +58,6 @@ function getMileageValue(motorcycle) {
     const raw = motorcycle.mileage ?? motorcycle.odo ?? motorcycle.currentOdo ?? motorcycle.odometer ?? 0;
     const numeric = Number(raw);
     return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
-}
-
-function classifyMotorcycle(motorcycle) {
-    const text = normalizeText([motorcycle.brand, motorcycle.model, motorcycle.motorcycleName].filter(Boolean).join(' '));
-
-    if (includesAny(text, SPORT_PATTERNS)) {
-        return { key: 'sport', ...CATEGORY_META.sport };
-    }
-
-    if (includesAny(text, SCOOTER_PATTERNS)) {
-        return { key: 'scooter', ...CATEGORY_META.scooter };
-    }
-
-    return { key: 'underbone', ...CATEGORY_META.underbone };
 }
 
 function getCategoryIndicator(categoryKey, odo) {
@@ -163,18 +92,22 @@ function getCategoryIndicator(categoryKey, odo) {
 
 function getTaskStatus(odo, dueMileage, hasCompletion) {
     if (hasCompletion && odo < dueMileage) {
-        return { key: 'completed', label: 'Completed', className: 'bg-green-100 text-green-700', dotClass: 'bg-green-700' };
+        return { key: 'completed', label: 'Logged', className: 'bg-emerald-100 text-emerald-700', dotClass: 'bg-emerald-600' };
     }
 
-    if (odo >= dueMileage) {
-        return { key: 'due', label: 'Due Now', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
+    if (odo > dueMileage) {
+        return { key: 'overdue', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
+    }
+
+    if (odo === dueMileage) {
+        return { key: 'due', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
     }
 
     if ((dueMileage - odo) <= 500) {
-        return { key: 'upcoming', label: 'Due Soon', className: 'bg-yellow-100 text-yellow-700', dotClass: 'bg-yellow-500' };
+        return { key: 'upcoming', label: 'Coming up', className: 'bg-amber-100 text-amber-700', dotClass: 'bg-amber-500' };
     }
 
-    return { key: 'scheduled', label: 'Scheduled', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
+    return { key: 'scheduled', label: 'Coming up', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
 }
 
 function getNextMileageTarget(currentMileage, interval) {
@@ -184,7 +117,42 @@ function getNextMileageTarget(currentMileage, interval) {
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
     if (!Number.isFinite(mileage) || mileage < 0) return step;
 
+    return Math.ceil(mileage / step) * step || step;
+}
+
+function getNextMileageAfterCompletion(completedMileage, interval) {
+    const mileage = Number(completedMileage || 0);
+    const step = Number(interval || 0);
+
+    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
+    if (!Number.isFinite(mileage) || mileage < 0) return step;
+
     return mileage + step;
+}
+
+function getCompletionMileage(item = {}) {
+    const value = item.completedMileage ?? item.mileage ?? item.dueMileage ?? 0;
+    const normalized = typeof value === 'string' ? value.replace(/[^0-9.-]/g, '') : value;
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+}
+
+function getCompletionTimestamp(item = {}) {
+    const raw = item.completedAt ?? item.date ?? item.createdAt ?? item.updatedAt ?? null;
+    if (raw && typeof raw.toDate === 'function') {
+        const dateValue = raw.toDate();
+        return dateValue instanceof Date && !Number.isNaN(dateValue.getTime()) ? dateValue.getTime() : 0;
+    }
+    const parsed = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function isCompletionRecord(item = {}) {
+    const status = String(item.status || '').toLowerCase().trim();
+    const hasCompletionStatus = status === 'completed' || status === 'complete' || status === 'done' || status === 'logged';
+    const hasCompletionMileage = getCompletionMileage(item) > 0;
+    const hasCompletionTimestamp = getCompletionTimestamp(item) > 0;
+    return item.deleted !== true && (hasCompletionStatus || hasCompletionMileage || hasCompletionTimestamp);
 }
 
 function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
@@ -195,11 +163,20 @@ function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
             return false;
         }
 
-        const itemName = normalizeText(item.task || item.title || item.name || '');
-        const matchesTaskKey = String(item.taskKey || '') === rule.key;
-        const matchesTaskName = itemName && (itemName === ruleName || itemName.includes(ruleName) || ruleName.includes(itemName));
+        const itemTaskKey = String(item.taskKey || '').trim();
+        const matchesTaskKey = itemTaskKey === rule.key;
 
-        return item.deleted !== true && item.status === 'completed' && (matchesTaskKey || matchesTaskName);
+        if (matchesTaskKey) {
+            return isCompletionRecord(item);
+        }
+
+        if (itemTaskKey) {
+            return false;
+        }
+
+        const itemName = normalizeText(item.task || item.title || item.name || '');
+        const matchesTaskName = itemName && (itemName === ruleName || itemName.includes(ruleName) || ruleName.includes(itemName));
+        return matchesTaskName && isCompletionRecord(item);
     });
 
     if (!matches.length) {
@@ -207,14 +184,18 @@ function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
     }
 
     return matches.sort((a, b) => {
-        const aMileage = Number(a.completedMileage ?? a.dueMileage ?? a.mileage ?? 0);
-        const bMileage = Number(b.completedMileage ?? b.dueMileage ?? b.mileage ?? 0);
-        return bMileage - aMileage;
+        const timeDiff = getCompletionTimestamp(b) - getCompletionTimestamp(a);
+        if (timeDiff !== 0) return timeDiff;
+
+        const mileageDiff = getCompletionMileage(b) - getCompletionMileage(a);
+        if (mileageDiff !== 0) return mileageDiff;
+
+        return String(b.id || '').localeCompare(String(a.id || ''));
     })[0] || null;
 }
 
 function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
-    const category = classifyMotorcycle(motorcycle);
+    const category = classifyMotorcycleCategory(motorcycle);
     const odo = getMileageValue(motorcycle);
     const motorcycleLabel = getMotorcycleLabel(motorcycle);
     const overall = getCategoryIndicator(category.key, odo);
@@ -223,13 +204,17 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
         const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
         const hasCompletion = !!completedRecord;
         const anchorMileage = completedRecord
-            ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0)
-            : 0;
-        const dueMileage = getNextMileageTarget(anchorMileage, rule.interval);
+            ? getCompletionMileage(completedRecord)
+            : odo;
+        const anchorSource = completedRecord ? 'last completed service' : 'current odometer';
+        const dueMileage = hasCompletion
+            ? getNextMileageAfterCompletion(anchorMileage, rule.interval)
+            : getNextMileageTarget(anchorMileage, rule.interval);
         const status = getTaskStatus(odo, dueMileage, hasCompletion);
         const remaining = Math.max(0, dueMileage - odo);
-        const reminder = status.key === 'completed'
-            ? 'Completed and logged'
+        const overdueBy = Math.max(0, odo - dueMileage);
+        const reminder = status.key === 'overdue'
+            ? `Overdue by ${overdueBy.toLocaleString()} km (target ${dueMileage.toLocaleString()} km)`
             : status.key === 'due'
                 ? `Due now at ${dueMileage.toLocaleString()} km`
                 : `${remaining.toLocaleString()} km left until ${dueMileage.toLocaleString()} km`;
@@ -253,9 +238,19 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
             reminder,
             maintenanceId: completedRecord?.id || '',
             completed: status.key === 'completed',
-            lastCompletedMileage: completedRecord ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0) : 0
+            lastCompletedMileage: completedRecord ? getCompletionMileage(completedRecord) : null,
+            anchorMileage,
+            anchorSource
         };
     });
+}
+
+function buildComputationNote(item) {
+    const intervalText = `${Number(item?.threshold || 0).toLocaleString()} km`;
+    const anchorText = `${Number(item?.anchorMileage || 0).toLocaleString()} km`;
+    const dueText = `${Number(item?.dueMileage || 0).toLocaleString()} km`;
+    const sourceText = String(item?.anchorSource || 'computed source');
+    return `Interval: ${intervalText} | Anchor: ${anchorText} (${sourceText}) | Next due: ${dueText}`;
 }
 
 function groupScheduleByMotorcycle(items) {
@@ -413,7 +408,7 @@ async function loadSchedule(userId) {
         scheduleItems = motorcycles
             .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceItems))
             .sort((a, b) => {
-                const priority = { due: 0, upcoming: 1, scheduled: 2, completed: 3 };
+                const priority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3, completed: 4 };
                 const statusDiff = priority[a.status.key] - priority[b.status.key];
                 if (statusDiff !== 0) return statusDiff;
                 if (a.dueMileage !== b.dueMileage) return a.dueMileage - b.dueMileage;
@@ -433,7 +428,11 @@ async function loadSchedule(userId) {
 function renderEmptySchedule(message = 'No maintenance reminders yet') {
     const container = document.getElementById('scheduleList');
     if (container) {
-        container.innerHTML = `<div class="text-gray-500 text-sm py-3">${escapeHtml(message)}</div>`;
+        container.innerHTML = `
+            <div class="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-center text-gray-500 text-sm">
+                ${escapeHtml(message)}
+            </div>
+        `;
     }
 
     const dueEl = document.getElementById('dueCount');
@@ -442,6 +441,11 @@ function renderEmptySchedule(message = 'No maintenance reminders yet') {
     if (dueEl) dueEl.textContent = '0';
     if (upcomingEl) upcomingEl.textContent = '0';
     if (completedEl) completedEl.textContent = '0';
+}
+
+function formatMileage(value) {
+    const numeric = Number(value || 0);
+    return Number.isFinite(numeric) ? numeric.toLocaleString() : '0';
 }
 
 function displaySchedule(items) {
@@ -460,58 +464,81 @@ function displaySchedule(items) {
 
     const selectedMotorcycle = getSelectedMotorcycle();
     const motorcycleName = selectedMotorcycle ? getMotorcycleLabel(selectedMotorcycle) : 'Selected motorcycle';
-    const motorcycleCategory = selectedMotorcycle ? classifyMotorcycle(selectedMotorcycle) : null;
+    const motorcycleCategory = selectedMotorcycle ? classifyMotorcycleCategory(selectedMotorcycle) : null;
+    const currentOdo = selectedMotorcycle ? formatMileage(selectedMotorcycle?.mileage ?? selectedMotorcycle?.odo ?? selectedMotorcycle?.currentOdo ?? selectedMotorcycle?.odometer) : '0';
 
     container.innerHTML = `
-        <section class="bg-white rounded-2xl border border-gray-100 shadow-md p-4">
+        <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             <div class="flex items-start justify-between gap-3 mb-4">
                 <div>
                     <div class="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 class="text-gray-800 font-semibold text-lg">${escapeHtml(motorcycleName)}</h3>
+                        <h3 class="text-gray-900 font-semibold text-lg leading-tight">${escapeHtml(motorcycleName)}</h3>
                         ${motorcycleCategory ? `<span class="text-xs px-2 py-1 rounded-full font-medium ${motorcycleCategory.badge}">${escapeHtml(motorcycleCategory.label)}</span>` : ''}
                     </div>
-                    <p class="text-xs text-gray-500">Current ODO ${selectedMotorcycle ? getMileageValue(selectedMotorcycle).toLocaleString() : '0'} km</p>
                 </div>
                 <div class="text-xs text-gray-500 text-right">
-                    <p>${items.length} reminder${items.length === 1 ? '' : 's'}</p>
+                    <p class="font-medium text-gray-700">${items.length} reminder${items.length === 1 ? '' : 's'}</p>
                 </div>
             </div>
 
-            <div class="relative pl-1 space-y-4">
-                <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+            <div class="grid grid-cols-3 gap-3 mb-4 text-xs">
+                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                    <p class="text-gray-500 mb-1">Urgent</p>
+                    <p class="font-semibold text-gray-900 text-sm">${items.filter((item) => item.status.key === 'due' || item.status.key === 'overdue').length}</p>
+                </div>
+                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                    <p class="text-gray-500 mb-1">Coming up</p>
+                    <p class="font-semibold text-gray-900 text-sm">${items.filter((item) => item.status.key === 'upcoming' || item.status.key === 'scheduled').length}</p>
+                </div>
+                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                    <p class="text-gray-500 mb-1">Logged</p>
+                    <p class="font-semibold text-gray-900 text-sm">${items.filter((item) => item.status.key === 'completed' || item.lastCompletedMileage !== null).length}</p>
+                </div>
+            </div>
+
+            <div class="relative pl-8 pr-1 space-y-4">
+                <div class="absolute left-6 top-2 bottom-2 w-0.5 bg-gray-200"></div>
                 ${items.map((item) => `
-                    <div class="relative pl-10">
-                        <div class="absolute left-2.5 top-5 w-3 h-3 rounded-full ${item.status.dotClass} border-4 border-gray-50 z-10"></div>
+                    <div class="relative pl-12">
+                        <div class="absolute left-[11px] top-5 w-3 h-3 rounded-full ${item.status.dotClass} border-4 border-white z-10 shadow-sm"></div>
 
-                        <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:shadow-sm transition-shadow">
+                        <div class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
                             <div class="flex items-start justify-between gap-3 mb-3">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2 flex-wrap mb-1">
-                                        <h4 class="text-gray-800 font-medium ${item.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(item.task)}</h4>
-                                    </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">${escapeHtml(item.status.label)}</p>
+                                    <h4 class="text-gray-900 font-semibold leading-snug ${item.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(item.task)}</h4>
                                 </div>
-                                <div class="p-2 rounded-lg ${item.overall.className}">
-                                    <i class="lucide lucide-${item.overall.icon} text-lg"></i>
+                                <div class="w-10 h-10 rounded-xl ${item.overall.className} flex items-center justify-center shrink-0">
+                                    <i class="lucide lucide-${item.overall.icon} text-base"></i>
                                 </div>
                             </div>
 
-                            <div class="flex items-center gap-2 mb-3 flex-wrap">
-                                <span class="text-xs px-2 py-1 rounded-full ${item.status.className}">${escapeHtml(item.status.label)}</span>
-                                <span class="text-xs text-gray-500">Next at ${item.dueMileage.toLocaleString()} km</span>
+                            <div class="flex flex-wrap gap-2 mb-3">
+                                <span class="text-xs px-2.5 py-1 rounded-full ${item.status.className}">${escapeHtml(item.status.label)}</span>
+                                <span class="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">Target ${item.dueMileage.toLocaleString()} km</span>
                             </div>
 
-                            <div class="flex items-center gap-2 text-xs text-gray-600 mb-3">
-                                <i class="lucide lucide-${item.icon} text-gray-400"></i>
-                                <span>${escapeHtml(item.reminder)}</span>
+                            <div class="flex items-start gap-2 text-sm text-gray-600 mb-3">
+                                <i class="lucide lucide-${item.icon} text-gray-400 mt-0.5"></i>
+                                <span class="leading-relaxed">${escapeHtml(item.reminder)}</span>
                             </div>
 
-                            ${item.lastCompletedMileage ? `
-                                <div class="mb-3 text-xs text-gray-500">
-                                    Last completed at ${item.lastCompletedMileage.toLocaleString()} km
+                            <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+                                <div class="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                                    <p class="text-gray-400 mb-1">Current ODO</p>
+                                    <p class="font-semibold text-gray-900">${item.currentOdo.toLocaleString()} km</p>
                                 </div>
-                            ` : ''}
+                                <div class="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                                    <p class="text-gray-400 mb-1">Last service</p>
+                                    <p class="font-semibold text-gray-900">${item.lastCompletedMileage !== null ? `${item.lastCompletedMileage.toLocaleString()} km` : 'None yet'}</p>
+                                </div>
+                            </div>
 
-                            <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 transition-colors active:scale-95">
+                            <div class="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                                ${escapeHtml(buildComputationNote(item))}
+                            </div>
+
+                            <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2.5 bg-green-700 text-white rounded-xl text-sm font-medium hover:bg-green-800 transition-colors active:scale-95">
                                 Mark as Complete
                             </button>
                         </div>
@@ -523,9 +550,9 @@ function displaySchedule(items) {
 }
 
 function updateCounts(items) {
-    const due = items.filter((item) => item.status.key === 'due').length;
-    const upcoming = items.filter((item) => item.status.key === 'upcoming').length;
-    const completed = items.filter((item) => item.lastCompletedMileage > 0).length;
+    const due = items.filter((item) => item.status.key === 'due' || item.status.key === 'overdue').length;
+    const upcoming = items.filter((item) => item.status.key === 'upcoming' || item.status.key === 'scheduled').length;
+    const completed = items.filter((item) => item.status.key === 'completed' || item.lastCompletedMileage > 0).length;
 
     const dueEl = document.getElementById('dueCount');
     const upcomingEl = document.getElementById('upcomingCount');
@@ -548,6 +575,22 @@ window.markComplete = async function(id) {
         return;
     }
 
+    const mileageInput = prompt('Enter current ODO reading for this completed service:', String(item.currentOdo || 0));
+    if (mileageInput === null) {
+        return;
+    }
+
+    const completedMileage = Number(mileageInput);
+    if (!Number.isFinite(completedMileage) || completedMileage < 0) {
+        alert('Please enter a valid ODO value.');
+        return;
+    }
+
+    if (completedMileage < Number(item.currentOdo || 0)) {
+        alert(`Completed ODO cannot be lower than the current recorded ODO (${Number(item.currentOdo || 0).toLocaleString()} km).`);
+        return;
+    }
+
     try {
         const payload = {
             motorcycleId: item.motorcycleId,
@@ -556,13 +599,18 @@ window.markComplete = async function(id) {
             taskKey: item.ruleKey,
             task: item.task,
             dueMileage: item.dueMileage,
-            completedMileage: item.currentOdo,
+            completedMileage,
             status: 'completed',
             completedAt: new Date().toISOString(),
             source: 'schedule-mark-complete'
         };
 
         await addFirestoreDoc('maintenance', payload);
+
+        // Keep motorcycle ODO in sync with completion logs for accurate next-due calculations.
+        await updateFirestoreDoc('motorcycles', item.motorcycleId, {
+            mileage: completedMileage
+        });
 
         alert(`"${item.task}" marked as complete!`);
         await loadSchedule(currentUserId);

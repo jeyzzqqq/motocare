@@ -229,11 +229,12 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const { kind, key } = getTitleSelectionMeta(titleSelect.value);
     const selectedOption = titleSelect.selectedOptions?.[0];
     const selectedTitle = selectedOption?.textContent || '';
-    const resolvedTitle = (kind === 'upgrade' || kind === 'other')
+    const requiresCustomTitle = kind === 'other' || (kind === 'upgrade' && key === 'other');
+    const resolvedTitle = requiresCustomTitle
         ? customTitle
         : selectedTitle.split('•')[0].trim();
 
-    if ((kind === 'upgrade' || kind === 'other') && !customTitle) {
+    if (requiresCustomTitle && !customTitle) {
         showToast('Please describe the upgrade or other service item.', 'error');
         return;
     }

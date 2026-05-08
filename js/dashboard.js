@@ -145,7 +145,17 @@ function getNextMileageTarget(anchorMileage, interval) {
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
     if (!Number.isFinite(anchor) || anchor < 0) return step;
 
-    return anchor + step;
+    return Math.ceil(anchor / step) * step || step;
+}
+
+function getNextMileageAfterCompletion(completedMileage, interval) {
+    const mileage = Number(completedMileage || 0);
+    const step = Number(interval || 0);
+
+    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
+    if (!Number.isFinite(mileage) || mileage < 0) return step;
+
+    return mileage + step;
 }
 
 function getTaskStatus(odo, dueMileage, hasCompletion) {
@@ -153,7 +163,11 @@ function getTaskStatus(odo, dueMileage, hasCompletion) {
         return 'completed';
     }
 
-    if (odo >= dueMileage) {
+    if (odo > dueMileage) {
+        return 'overdue';
+    }
+
+    if (odo === dueMileage) {
         return 'due';
     }
 
@@ -164,6 +178,31 @@ function getTaskStatus(odo, dueMileage, hasCompletion) {
     return 'scheduled';
 }
 
+function getCompletionMileage(item = {}) {
+    const value = item.completedMileage ?? item.mileage ?? item.dueMileage ?? 0;
+    const normalized = typeof value === 'string' ? value.replace(/[^0-9.-]/g, '') : value;
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+}
+
+function getCompletionTimestamp(item = {}) {
+    const raw = item.completedAt ?? item.date ?? item.createdAt ?? item.updatedAt ?? null;
+    if (raw && typeof raw.toDate === 'function') {
+        const dateValue = raw.toDate();
+        return dateValue instanceof Date && !Number.isNaN(dateValue.getTime()) ? dateValue.getTime() : 0;
+    }
+    const parsed = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function isCompletionRecord(item = {}) {
+    const status = String(item.status || '').toLowerCase().trim();
+    const hasCompletionStatus = status === 'completed' || status === 'complete' || status === 'done' || status === 'logged';
+    const hasCompletionMileage = getCompletionMileage(item) > 0;
+    const hasCompletionTimestamp = getCompletionTimestamp(item) > 0;
+    return item.deleted !== true && (hasCompletionStatus || hasCompletionMileage || hasCompletionTimestamp);
+}
+
 function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
     const ruleName = normalizeText(rule.task);
 
@@ -172,11 +211,20 @@ function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
             return false;
         }
 
-        const itemName = normalizeText(item.task || item.title || item.name || '');
-        const matchesTaskKey = String(item.taskKey || '') === rule.key;
-        const matchesTaskName = itemName && (itemName === ruleName || itemName.includes(ruleName) || ruleName.includes(itemName));
+        const itemTaskKey = String(item.taskKey || '').trim();
+        const matchesTaskKey = itemTaskKey === rule.key;
 
-        return item.deleted !== true && item.status === 'completed' && (matchesTaskKey || matchesTaskName);
+        if (matchesTaskKey) {
+            return isCompletionRecord(item);
+        }
+
+        if (itemTaskKey) {
+            return false;
+        }
+
+        const itemName = normalizeText(item.task || item.title || item.name || '');
+        const matchesTaskName = itemName && (itemName === ruleName || itemName.includes(ruleName) || ruleName.includes(itemName));
+        return matchesTaskName && isCompletionRecord(item);
     });
 
     if (!matches.length) {
@@ -184,9 +232,13 @@ function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
     }
 
     return matches.sort((a, b) => {
-        const aMileage = Number(a.completedMileage ?? a.dueMileage ?? a.mileage ?? 0);
-        const bMileage = Number(b.completedMileage ?? b.dueMileage ?? b.mileage ?? 0);
-        return bMileage - aMileage;
+        const timeDiff = getCompletionTimestamp(b) - getCompletionTimestamp(a);
+        if (timeDiff !== 0) return timeDiff;
+
+        const mileageDiff = getCompletionMileage(b) - getCompletionMileage(a);
+        if (mileageDiff !== 0) return mileageDiff;
+
+        return String(b.id || '').localeCompare(String(a.id || ''));
     })[0] || null;
 }
 
@@ -201,9 +253,11 @@ function buildScheduleStatusItems(motorcycles, maintenanceItems) {
             const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
             const hasCompletion = !!completedRecord;
             const anchorMileage = hasCompletion
-                ? Number(completedRecord.completedMileage ?? completedRecord.dueMileage ?? completedRecord.mileage ?? 0)
-                : 0;
-            const dueMileage = getNextMileageTarget(anchorMileage, rule.interval);
+                ? getCompletionMileage(completedRecord)
+                : odo;
+            const dueMileage = hasCompletion
+                ? getNextMileageAfterCompletion(anchorMileage, rule.interval)
+                : getNextMileageTarget(anchorMileage, rule.interval);
             const status = getTaskStatus(odo, dueMileage, hasCompletion);
 
             return {
@@ -272,25 +326,27 @@ function displayUpcomingMaintenance(scheduleItems) {
     }
 
     const sortedItems = items.sort((a, b) => {
-        const priority = { due: 0, upcoming: 1, scheduled: 2 };
+        const priority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3 };
         const statusDiff = (priority[a.status] ?? 3) - (priority[b.status] ?? 3);
         if (statusDiff !== 0) return statusDiff;
         return a.dueMileage - b.dueMileage;
     });
 
     container.innerHTML = sortedItems.slice(0, 3).map(item => `
-        <div onclick="window.location.href='schedule.html'" class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer active:shadow-inner">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center ${item.status === 'due' ? 'bg-red-100' : item.status === 'upcoming' ? 'bg-yellow-100' : 'bg-green-100'}">
-                <i class="lucide lucide-${item.icon || 'wrench'} ${item.status === 'due' ? 'text-red-600' : item.status === 'upcoming' ? 'text-yellow-700' : 'text-green-700'} text-xl"></i>
+        <div onclick="window.location.href='schedule.html'" class="flex items-start gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer active:scale-[0.99]">
+            <div class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${item.status === 'overdue' || item.status === 'due' ? 'bg-red-50 text-red-600' : item.status === 'upcoming' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}">
+                <i class="lucide lucide-${item.icon || 'wrench'} text-lg"></i>
             </div>
-            <div class="flex-1">
-                <p class="text-gray-800 font-medium">${item.task || 'Maintenance item'}</p>
-                <p class="text-xs text-gray-500">${item.motorcycleName} • Next at ${Number(item.dueMileage || 0).toLocaleString()} km</p>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between gap-2 mb-1">
+                    <p class="text-gray-900 font-medium leading-snug line-clamp-2">${item.task || 'Maintenance item'}</p>
+                    <span class="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full font-semibold whitespace-nowrap ${item.status === 'overdue' || item.status === 'due' ? 'bg-red-50 text-red-700' : item.status === 'upcoming' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}">
+                        ${item.status === 'overdue' || item.status === 'due' ? 'Urgent' : item.status === 'upcoming' ? 'Soon' : 'Queued'}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed">${item.motorcycleName} · Target ODO ${Number(item.dueMileage || 0).toLocaleString()} km</p>
             </div>
-            <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full ${item.status === 'due' ? 'bg-red-500 animate-pulse' : item.status === 'upcoming' ? 'bg-yellow-500' : 'bg-gray-400'}"></div>
-                <i class="lucide lucide-chevron-right text-gray-400"></i>
-            </div>
+            <i class="lucide lucide-chevron-right text-gray-300 mt-3"></i>
         </div>
     `).join('');
 }
@@ -411,6 +467,7 @@ function displayMaintenancePieChart(scheduleItems) {
     const items = scheduleItems || [];
 
     const completed = items.filter((item) => item.status === 'completed').length;
+    const overdue = items.filter((item) => item.status === 'overdue').length;
     const dueNow = items.filter((item) => item.status === 'due').length;
     const upcomingDue = items.filter((item) => item.status === 'upcoming' || item.status === 'scheduled').length;
 
@@ -432,9 +489,9 @@ function displayMaintenancePieChart(scheduleItems) {
     chartElement.style.opacity = '1';
     const ctx = chartElement.getContext('2d');
     const data = [
-        { name: 'Completed', value: completed, color: '#15803d' },
-        { name: 'Upcoming Due', value: upcomingDue, color: '#F59E0B' },
-        { name: 'Due Now', value: dueNow, color: '#DC2626' }
+        { name: 'Logged', value: completed, color: '#15803d' },
+        { name: 'Coming up', value: upcomingDue, color: '#F59E0B' },
+        { name: 'Due / overdue', value: dueNow + overdue, color: '#DC2626' },
     ].filter((item) => item.value > 0);
 
     if (!data.length) {
@@ -466,12 +523,12 @@ function displayMaintenancePieChart(scheduleItems) {
     // Display legend
     const legend = document.getElementById('maintenanceLegend');
     legend.innerHTML = data.map(item => `
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2">
             <div class="flex items-center gap-2">
                 <div class="w-3 h-3 rounded-full" style="background-color: ${item.color}"></div>
-                <span class="text-gray-600 text-sm">${item.name}</span>
+                <span class="text-gray-700 text-sm font-medium">${item.name}</span>
             </div>
-            <span class="text-gray-800 font-semibold">${item.value}</span>
+            <span class="text-gray-900 font-semibold">${item.value}</span>
         </div>
     `).join('');
 }

@@ -2,6 +2,69 @@ const SCOOTER_PATTERNS = ['nmax', 'aerox', 'mio', 'fazzio', 'sight', 'click', 'b
 const UNDERBONE_PATTERNS = ['winner x', 'rs125', 'tmx', 'sniper', 'raider', 'smash', 'gixxer', 'gsx', 'fury', 'barako', 'shooter', 'ct100', 'rouser'];
 const SPORT_PATTERNS = ['r15', 'mt ', 'mt-', 'cbr150r', 'cb150x', 'ninja 400', 'ninja 650', 'zx-25r', 'zx-4rr', 'dominar', 'xsr 155'];
 
+const MODEL_CATEGORY_OVERRIDES = {
+    scooter: [
+        'NMAX V1',
+        'NMAX V2 (Standard / ABS)',
+        'NMAX Turbo (2024+)',
+        'Aerox V1',
+        'Aerox V2',
+        'Aerox ABS / S Version',
+        'Mio Sporty (Mio 1st gen)',
+        'Mio Soul i125 (Soul i / Soul GT)',
+        'Mio i125 (Mio i / Mio i125 S)',
+        'Mio Gravis',
+        'Fazzio (Hybrid)',
+        'Sight',
+        'Click 125i V1',
+        'Click 125i V2',
+        'Click 125i V3',
+        'Click 160 (Standard / CBS / ABS)',
+        'Beat V1',
+        'Beat V2',
+        'Beat Street',
+        'PCX 160 (CBS / ABS)',
+        'ADV 160 (ABS)',
+        'Airblade 150',
+        'Airblade 160',
+        'Giorno+',
+        'Skydrive 125',
+        'Burgman Street 125'
+    ],
+    underbone: [
+        'Sniper 155 (Sniper 155 / Sniper 155 R)',
+        'Winner X (Standard / ABS / ABS Racing)',
+        'RS125',
+        'TMX 125 Alpha',
+        'TMX Supremo',
+        'Raider R150 Carb',
+        'Raider R150 Fi',
+        'Raider R150 Fi ABS',
+        'Smash 115',
+        'Shooter 115',
+        'CT100',
+        'Barako II',
+        'Fury 125',
+        'Rouser NS125',
+        'Rouser NS160',
+        'Rouser NS200',
+        'Rouser RS200'
+    ],
+    sport: [
+        'XSR 155',
+        'CBR150R',
+        'CB150X',
+        'Gixxer 150',
+        'GSX-S150',
+        'GSX-R150',
+        'Dominar 400',
+        'Ninja 400',
+        'Ninja 650',
+        'ZX-25R',
+        'ZX-4RR'
+    ]
+};
+
 export const MAINTENANCE_RULES = {
     scooter: [
         { key: 'oil-1000', interval: 1000, task: 'Oil Change', icon: 'droplets' },
@@ -65,6 +128,28 @@ function normalizeText(value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+function resolveCategoryFromModelName(value = '') {
+    const normalizedValue = normalizeText(value);
+    if (!normalizedValue) return '';
+
+    const entries = Object.entries(MODEL_CATEGORY_OVERRIDES);
+    for (let index = 0; index < entries.length; index += 1) {
+        const [categoryKey, models] = entries[index];
+        const isMatch = models.some((model) => {
+            const normalizedModel = normalizeText(model);
+            return normalizedValue === normalizedModel
+                || normalizedValue.includes(normalizedModel)
+                || normalizedModel.includes(normalizedValue);
+        });
+
+        if (isMatch) {
+            return categoryKey;
+        }
+    }
+
+    return '';
+}
+
 function includesAny(text, patterns) {
     return patterns.some((pattern) => text.includes(normalizeText(pattern)));
 }
@@ -101,6 +186,13 @@ function formatRelativeMileageText(currentMileage, interval) {
 }
 
 export function classifyMotorcycleCategory(motorcycle = {}) {
+    const explicitCategory = resolveCategoryFromModelName(motorcycle.model)
+        || resolveCategoryFromModelName(motorcycle.motorcycleName);
+
+    if (explicitCategory && CATEGORY_META[explicitCategory]) {
+        return { key: explicitCategory, ...CATEGORY_META[explicitCategory] };
+    }
+
     const text = normalizeText([motorcycle.brand, motorcycle.model, motorcycle.motorcycleName].filter(Boolean).join(' '));
 
     if (includesAny(text, SPORT_PATTERNS)) {

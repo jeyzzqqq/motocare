@@ -162,43 +162,4 @@ function escapeHtml(value) {
     })[char]);
 }
 
-function exportHistory() {
-    if (!allRecords.length) {
-        return;
-    }
-
-    const rows = [
-        ['Date', 'Title', 'Category', 'Motorcycle', 'Mechanic', 'Cost', 'Mileage', 'Notes']
-    ];
-
-    allRecords.forEach((record) => {
-        rows.push([
-            formatRecordDate(record),
-            record.title || record.task || '',
-            record.category || '',
-            record.motorcycleName || '',
-            record.mechanic || '',
-            Number(record.cost || 0).toFixed(2),
-            record.mileage || '',
-            record.notes || ''
-        ]);
-    });
-
-    const csv = rows
-        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-        .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `repair-history-${currentUserId || 'motocare'}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-}
-
-if (typeof window !== 'undefined') {
-    window.exportHistory = exportHistory;
-}
+// Export history feature removed

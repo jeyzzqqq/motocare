@@ -9,6 +9,140 @@ let isLoading = false;
 let authReady = false;
 let pendingDeleteId = null;
 let pendingDeleteLabel = '';
+const CURRENT_YEAR = new Date().getFullYear();
+
+// Mapping of brand -> model -> [minYear, maxYear]
+const MODEL_YEAR_MAP = {
+    yamaha: {
+        'NMAX V1': [2015, 2019],
+        'NMAX V2 (Standard / ABS)': [2020, CURRENT_YEAR],
+        'NMAX Turbo (2024+)': [2024, CURRENT_YEAR],
+        'Aerox V1': [2017, 2020],
+        'Aerox V2': [2021, CURRENT_YEAR],
+        'Aerox ABS / S Version': [2021, CURRENT_YEAR],
+        'Mio Sporty (Mio 1st gen)': [2007, 2016],
+        'Mio Soul i125 (Soul i / Soul GT)': [2014, 2020],
+        'Mio i125 (Mio i / Mio i125 S)': [2015, CURRENT_YEAR],
+        'Mio Gravis': [2018, CURRENT_YEAR],
+        'Fazzio (Hybrid)': [2022, CURRENT_YEAR],
+        'Sniper 155 (Sniper 155 / Sniper 155 R)': [2021, CURRENT_YEAR],
+        'Sight': [2016, CURRENT_YEAR],
+        'XSR 155': [2019, CURRENT_YEAR]
+    },
+    honda: {
+        'Click 125i V1': [2014, 2017],
+        'Click 125i V2': [2018, 2021],
+        'Click 125i V3': [2022, CURRENT_YEAR],
+        'Click 160 (Standard / CBS / ABS)': [2022, CURRENT_YEAR],
+        'Beat V1': [2009, 2015],
+        'Beat V2': [2016, CURRENT_YEAR],
+        'Beat Street': [2020, CURRENT_YEAR],
+        'PCX 160 (CBS / ABS)': [2021, CURRENT_YEAR],
+        'ADV 160 (ABS)': [2022, CURRENT_YEAR],
+        'Airblade 150': [2020, 2022],
+        'Airblade 160': [2023, CURRENT_YEAR],
+        'Winner X (Standard / ABS / ABS Racing)': [2020, CURRENT_YEAR],
+        'RS125': [2015, CURRENT_YEAR],
+        'TMX 125 Alpha': [2005, CURRENT_YEAR],
+        'TMX Supremo': [2012, CURRENT_YEAR],
+        'CBR150R': [2021, CURRENT_YEAR],
+        'CB150X': [2022, CURRENT_YEAR],
+        'Giorno+': [2023, CURRENT_YEAR]
+    },
+    suzuki: {
+        'Raider R150 Carb': [2003, 2015],
+        'Raider R150 Fi': [2016, CURRENT_YEAR],
+        'Raider R150 Fi ABS': [2023, CURRENT_YEAR],
+        'Skydrive 125': [2010, CURRENT_YEAR],
+        'Burgman Street 125': [2019, CURRENT_YEAR],
+        'Smash 115': [2005, CURRENT_YEAR],
+        'Shooter 115': [2010, CURRENT_YEAR],
+        'Gixxer 150': [2015, CURRENT_YEAR],
+        'GSX-S150': [2017, CURRENT_YEAR],
+        'GSX-R150': [2017, CURRENT_YEAR]
+    },
+    'kawasaki / bajaj': {
+        'CT100': [2015, CURRENT_YEAR],
+        'Barako II': [2008, CURRENT_YEAR],
+        'Fury 125': [2010, CURRENT_YEAR],
+        'Rouser NS125': [2020, CURRENT_YEAR],
+        'Rouser NS160': [2019, CURRENT_YEAR],
+        'Rouser NS200': [2015, CURRENT_YEAR],
+        'Rouser RS200': [2016, CURRENT_YEAR],
+        'Dominar 400': [2018, CURRENT_YEAR],
+        'Ninja 400': [2018, CURRENT_YEAR],
+        'Ninja 650': [2017, CURRENT_YEAR],
+        'ZX-25R': [2020, CURRENT_YEAR],
+        'ZX-4RR': [2023, CURRENT_YEAR]
+    }
+};
+
+function normalizeKey(str = '') {
+    return String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function findYearRangeForModel(brandMap, model) {
+    if (!brandMap) return null;
+
+    const normalizedModel = normalizeKey(model || '');
+    const exactKey = Object.keys(brandMap).find((key) => normalizeKey(key) === normalizedModel);
+    if (exactKey) {
+        return { key: exactKey, range: brandMap[exactKey], matched: 'exact' };
+    }
+
+    const fuzzyKey = Object.keys(brandMap).find((key) => {
+        const normalizedKey = normalizeKey(key);
+        return normalizedKey === normalizedModel || normalizedKey.includes(normalizedModel) || normalizedModel.includes(normalizedKey);
+    });
+
+    if (fuzzyKey) {
+        return { key: fuzzyKey, range: brandMap[fuzzyKey], matched: 'fuzzy' };
+    }
+
+    return null;
+}
+
+function populateYearsForModel(brand, model) {
+    const yearSelect = document.getElementById('yearSelect');
+    if (!yearSelect) return;
+
+    const bKey = normalizeKey(brand || '');
+
+    const brandMap = MODEL_YEAR_MAP[bKey] || MODEL_YEAR_MAP[brand?.toLowerCase?.()] || null;
+    const modelMatch = findYearRangeForModel(brandMap, model);
+    const modelEntry = modelMatch?.range || null;
+
+    if (modelMatch?.matched === 'fuzzy') {
+        console.debug('populateYearsForModel: fuzzy matched model', { brand, model, candidate: modelMatch.key });
+    }
+
+    yearSelect.innerHTML = '<option value="">Select Year</option>';
+
+    if (!modelEntry) {
+        // fallback to wide range
+        console.warn('populateYearsForModel: no year mapping found for model', { brand, model });
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear + 1; y >= 1990; y--) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            yearSelect.appendChild(opt);
+        }
+        return;
+    }
+
+    let [minY, maxY] = modelEntry;
+    const currentYear = new Date().getFullYear();
+    if (!isFinite(maxY) || maxY > currentYear) maxY = currentYear;
+    if (!isFinite(minY) || minY < 1900) minY = 1990;
+
+    for (let y = maxY; y >= minY; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        yearSelect.appendChild(opt);
+    }
+}
 
 onAuthStateChanged(auth, (user) => {
     if (user) {
@@ -91,7 +225,14 @@ function setupEventListeners() {
                     model.appendChild(o);
                 });
             }
+            // Populate year options based on selected model if available
+            populateYearsForModel(brand.value, model.value);
         });
+    }
+
+    if (model) {
+        // when model selection changes, update available years
+        model.addEventListener('change', () => populateYearsForModel(brand.value, model.value));
     }
 
     if (form) {
@@ -292,14 +433,15 @@ function editMotorcycle(id) {
     }
     const evt = new Event('change');
     brandSelect?.dispatchEvent(evt);
-
     setTimeout(() => {
         if (modelSelect) {
             modelSelect.value = officialModel || moto.model || '';
+            // populate years for this model then set the year value
+            populateYearsForModel(brandSelect.value, modelSelect.value);
+            const yearEl = document.getElementById('yearSelect');
+            if (yearEl) yearEl.value = moto.year;
         }
     }, 0);
-
-    document.getElementById('yearSelect').value = moto.year;
     document.getElementById('plateInput').value = moto.plate || moto.plateNumber;
     document.getElementById('colorInput').value = moto.color;
     document.getElementById('mileageInput').value = moto.mileage;

@@ -220,7 +220,11 @@ export async function cleanupOrphanedMotorcycleRecords(motorcycleDocs = []) {
             for (const targetDoc of targetSnapshot.docs) {
                 const targetData = { id: targetDoc.id, ...targetDoc.data() };
                 const linkedMotorcycleId = String(targetData.motorcycleId || '').trim();
-                const shouldKeep = linkedMotorcycleId && activeMotorcycleIds.has(linkedMotorcycleId);
+                if (!linkedMotorcycleId) {
+                    continue;
+                }
+
+                const shouldKeep = activeMotorcycleIds.has(linkedMotorcycleId);
 
                 if (!shouldKeep) {
                     batch.delete(doc(db, targetCollectionName, targetDoc.id));

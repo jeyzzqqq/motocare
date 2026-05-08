@@ -5,10 +5,77 @@ import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebase
 import { normalizeRecord } from './utils-module.js';
 
 let expenses = [];
+let pendingUserId = null;
+let isDomReady = document.readyState !== 'loading';
+let dailyTrendChartInstance = null;
+
+function getExpenseAmount(expense = {}) {
+    const value = expense.amount ?? expense.cost ?? expense.total ?? 0;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function normalizeDateKey(dateLike) {
+    const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getDailyTotals(expenseList = []) {
+    const totals = new Map();
+
+    expenseList.forEach((expense) => {
+        const key = normalizeDateKey(expense.date || expense.createdAt || expense.updatedAt);
+        if (!key) return;
+        totals.set(key, (totals.get(key) || 0) + getExpenseAmount(expense));
+    });
+
+    return totals;
+}
+
+function canRenderExpenses() {
+    return Boolean(document.getElementById('totalExpenses'));
+}
+
+function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+function startExpensesLoad(userId) {
+    pendingUserId = null;
+    setLoadingState();
+    loadExpenses(userId).catch((error) => {
+        console.error('Error loading expenses:', error);
+        renderEmptyState();
+    });
+}
+
+function setLoadingState() {
+    if (!canRenderExpenses()) return;
+
+    setText('totalExpenses', 'Loading...');
+    setText('thisMonthExpense', 'Loading...');
+    setText('avgMonthExpense', 'Loading...');
+    setText('currentMonth', 'Loading...');
+
+    const recentList = document.getElementById('recentExpensesList');
+    if (recentList) recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">Loading...</div>';
+
+    const legend = document.getElementById('categoryLegend');
+    if (legend) legend.innerHTML = '<div class="text-gray-500 text-sm">Loading...</div>';
+}
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        await loadExpenses(user.uid);
+        if (!isDomReady || !canRenderExpenses()) {
+            pendingUserId = user.uid;
+            return;
+        }
+
+        startExpensesLoad(user.uid);
     } else {
         window.location.href = 'index.html';
     }
@@ -44,19 +111,34 @@ async function loadExpenses(userId) {
     }
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    isDomReady = true;
+
+    if (pendingUserId) {
+        startExpensesLoad(pendingUserId);
+        return;
+    }
+
+    if (auth.currentUser && canRenderExpenses()) {
+        startExpensesLoad(auth.currentUser.uid);
+    }
+});
+
 function renderEmptyState() {
     expenses = [];
-    document.getElementById('totalExpenses').textContent = '₱0.00';
-    document.getElementById('thisMonthExpense').textContent = '₱0.00';
-    document.getElementById('avgMonthExpense').textContent = '₱0.00';
-    document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (!canRenderExpenses()) return;
+
+    setText('totalExpenses', '₱0.00');
+    setText('thisMonthExpense', '₱0.00');
+    setText('avgMonthExpense', '₱0.00');
+    setText('currentMonth', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
     const recentList = document.getElementById('recentExpensesList');
     if (recentList) {
         recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
     }
 
-    const trendChart = document.getElementById('monthlyTrendChart');
+    const trendChart = document.getElementById('dailyTrendChart');
     if (trendChart?.parentElement) {
         trendChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
     }
@@ -78,25 +160,29 @@ function displayExpenses() {
         return;
     }
 
-    const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-    const now = new Date();
-    const thisMonth = expenses
-        .filter(exp => {
-            const date = new Date(exp.date);
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        })
-        .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    if (!canRenderExpenses()) return;
 
-    const monthlyAverage = calculateMonthlyAverage(expenses);
+    const total = expenses.reduce((sum, exp) => sum + getExpenseAmount(exp), 0);
+    const now = new Date();
+    const todayKey = normalizeDateKey(now);
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayKey = normalizeDateKey(yesterdayDate);
+    const dailyTotals = getDailyTotals(expenses);
+    const todayTotal = dailyTotals.get(todayKey) || 0;
+    const yesterdayTotal = dailyTotals.get(yesterdayKey) || 0;
+
+    const weeklyAverage = calculateDailyAverage(expenses, 7);
+    updateTrendIndicator(todayTotal, yesterdayTotal);
 
     // Update header stats
-    document.getElementById('totalExpenses').textContent = `₱${total.toFixed(2)}`;
-    document.getElementById('thisMonthExpense').textContent = `₱${thisMonth.toFixed(2)}`;
-    document.getElementById('avgMonthExpense').textContent = `₱${monthlyAverage.toFixed(2)}`;
-    document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    setText('totalExpenses', `₱${total.toFixed(2)}`);
+    setText('thisMonthExpense', `₱${todayTotal.toFixed(2)}`);
+    setText('avgMonthExpense', `₱${weeklyAverage.toFixed(2)}`);
+    setText('currentMonth', now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }));
 
-    // Display trend (monthly)
-    displayMonthlyTrendChart();
+    // Display trend (daily)
+    displayDailyTrendChart();
     
     // Display category breakdown
     displayCategoryChart();
@@ -105,15 +191,61 @@ function displayExpenses() {
     displayRecentExpenses();
 }
 
-function calculateMonthlyAverage(expenses) {
-    if (expenses.length === 0) return 0;
-    const daySet = new Set();
-    expenses.forEach(exp => {
-        const date = new Date(exp.date);
-        daySet.add(`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`);
-    });
-    const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-    return total / Math.max(1, daySet.size);
+function calculateDailyAverage(expenses, days = 7) {
+    if (!expenses.length) return 0;
+
+    const dailyTotals = getDailyTotals(expenses);
+    const now = new Date();
+    let total = 0;
+    let count = 0;
+
+    for (let offset = 0; offset < days; offset += 1) {
+        const date = new Date(now);
+        date.setDate(now.getDate() - offset);
+        const key = normalizeDateKey(date);
+        total += dailyTotals.get(key) || 0;
+        count += 1;
+    }
+
+    return total / Math.max(1, count);
+}
+
+function updateTrendIndicator(todayTotal, yesterdayTotal) {
+    const trendText = document.getElementById('trendText');
+    const trendIndicator = document.getElementById('trendIndicator');
+    if (!trendText) return;
+
+    if (todayTotal === 0 && yesterdayTotal === 0) {
+        trendText.textContent = 'No spending today or yesterday';
+        trendIndicator?.classList.remove('text-red-300', 'text-green-300');
+        return;
+    }
+
+    if (yesterdayTotal === 0) {
+        trendText.textContent = todayTotal > 0
+            ? `+${todayTotal.toFixed(2)} today vs yesterday`
+            : 'No spending yesterday';
+        trendIndicator?.classList.remove('text-red-300');
+        trendIndicator?.classList.add('text-green-300');
+        return;
+    }
+
+    const diff = todayTotal - yesterdayTotal;
+    const percent = Math.abs((diff / yesterdayTotal) * 100);
+    const rounded = percent.toFixed(1);
+
+    if (diff > 0) {
+        trendText.textContent = `${rounded}% higher than yesterday`;
+        trendIndicator?.classList.remove('text-green-300');
+        trendIndicator?.classList.add('text-red-300');
+    } else if (diff < 0) {
+        trendText.textContent = `${rounded}% lower than yesterday`;
+        trendIndicator?.classList.remove('text-red-300');
+        trendIndicator?.classList.add('text-green-300');
+    } else {
+        trendText.textContent = 'Same as yesterday';
+        trendIndicator?.classList.remove('text-red-300', 'text-green-300');
+    }
 }
 
 function getRecordTime(record) {
@@ -122,36 +254,32 @@ function getRecordTime(record) {
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
-function displayMonthlyTrendChart() {
+function displayDailyTrendChart() {
     if (!expenses.length) {
         return;
     }
 
-    const dailyData = new Map();
-    expenses.forEach(exp => {
-        const date = new Date(exp.date);
-        const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-        dailyData.set(key, (dailyData.get(key) || 0) + (exp.amount || 0));
-    });
+    const dailyTotals = getDailyTotals(expenses);
+    const now = new Date();
+    const labels = [];
+    const data = [];
 
-    const sortedEntries = Array.from(dailyData.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .slice(-14);
+    for (let offset = 6; offset >= 0; offset -= 1) {
+        const date = new Date(now);
+        date.setDate(now.getDate() - offset);
+        labels.push(date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+        data.push(dailyTotals.get(normalizeDateKey(date)) || 0);
+    }
 
-    const labels = sortedEntries.map(([key, _]) => {
-        const [year, month, day] = key.split('-').map(Number);
-        return new Date(year, month, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    });
-    const data = sortedEntries.map(([_, value]) => value);
-
-    const ctx = document.getElementById('monthlyTrendChart')?.getContext('2d');
+    const ctx = document.getElementById('dailyTrendChart')?.getContext('2d');
     if (ctx) {
-        new Chart(ctx, {
+        dailyTrendChartInstance?.destroy();
+        dailyTrendChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels,
                 datasets: [{
-                    label: 'Daily Expenses',
+                    label: 'Last 7 Days',
                     data,
                     backgroundColor: '#15803d',
                     borderRadius: 8
@@ -180,7 +308,7 @@ function displayCategoryChart() {
     const categoryData = new Map();
     expenses.forEach(exp => {
         const cat = exp.category || 'Other';
-        categoryData.set(cat, (categoryData.get(cat) || 0) + (exp.amount || 0));
+        categoryData.set(cat, (categoryData.get(cat) || 0) + getExpenseAmount(exp));
     });
 
     const colors = ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac'];
@@ -245,7 +373,7 @@ function displayRecentExpenses() {
                     <p class="text-xs text-gray-500">${date} • ${exp.category}</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <p class="font-bold text-green-700">₱${exp.amount?.toFixed(2)}</p>
+                        <p class="font-bold text-green-700">₱${getExpenseAmount(exp).toFixed(2)}</p>
                     <button class="delete-expense-btn" data-expense-id="${exp.id}" title="Delete">
                         <i class="lucide lucide-trash-2 text-red-500 text-lg"></i>
                     </button>
