@@ -172,6 +172,13 @@ function getNextMileageTarget(currentMileage, interval) {
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
     if (!Number.isFinite(mileage) || mileage < 0) return step;
 
+    // If mileage is exactly on an interval boundary, the next due should be the next interval
+    // e.g., mileage=10000 and step=1000 => next due = 11000 (not 10000)
+    try {
+        const remainder = mileage % step;
+        if (remainder === 0) return mileage + step;
+    } catch (e) {}
+
     return Math.ceil(mileage / step) * step || step;
 }
 

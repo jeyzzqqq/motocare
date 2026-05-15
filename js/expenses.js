@@ -58,7 +58,6 @@ function setLoadingState() {
 
     setText('totalExpenses', 'Loading...');
     setText('thisMonthExpense', 'Loading...');
-    setText('avgMonthExpense', 'Loading...');
     setText('currentMonth', 'Loading...');
 
     const recentList = document.getElementById('recentExpensesList');
@@ -130,7 +129,6 @@ function renderEmptyState() {
 
     setText('totalExpenses', '₱0.00');
     setText('thisMonthExpense', '₱0.00');
-    setText('avgMonthExpense', '₱0.00');
     setText('currentMonth', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
     const recentList = document.getElementById('recentExpensesList');
@@ -178,7 +176,6 @@ function displayExpenses() {
     // Update header stats
     setText('totalExpenses', `₱${total.toFixed(2)}`);
     setText('thisMonthExpense', `₱${todayTotal.toFixed(2)}`);
-    setText('avgMonthExpense', `₱${weeklyAverage.toFixed(2)}`);
     setText('currentMonth', now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }));
 
     // Display trend (daily)
@@ -279,7 +276,6 @@ function displayDailyTrendChart() {
             data: {
                 labels,
                 datasets: [{
-                    label: 'Last 7 Days',
                     data,
                     backgroundColor: '#15803d',
                     borderRadius: 8

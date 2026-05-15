@@ -8,6 +8,7 @@ import {
     updateDoc,
     writeBatch,
     doc,
+    getDoc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 

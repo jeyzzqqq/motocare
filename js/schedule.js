@@ -1,6 +1,7 @@
-import { auth } from './firebase-config.js';
+import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc } from './firebaseUtils.js';
+import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, getFirestoreDocById } from './firebaseUtils.js';
+import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { normalizeRecord } from './utils-module.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 import { initEmailJS, sendMaintenanceReminder } from './emailjs.js';
@@ -10,6 +11,8 @@ let currentUserEmail = '';
 let scheduleItems = [];
 let motorcycles = [];
 let selectedMotorcycleId = '';
+let motorcyclesUnsub = null;
+let maintenanceUnsub = null;
 
 const SELECTED_MOTORCYCLE_STORAGE_KEY = 'motocare.selectedMotorcycleId';
 
@@ -38,7 +41,8 @@ onAuthStateChanged(auth, async (user) => {
     currentUserId = user.uid;
     currentUserEmail = user.email || '';
     initEmailJS();
-    await loadSchedule(user.uid);
+    // Use realtime listeners so schedule reflects recent saves immediately
+    setupScheduleListeners(user.uid);
 });
 
 function normalizeText(value) {
@@ -95,10 +99,9 @@ function getCategoryIndicator(categoryKey, odo) {
 }
 
 function getTaskStatus(odo, dueMileage, hasCompletion, threshold = 500) {
-    if (hasCompletion && odo < dueMileage) {
-        return { key: 'completed', label: 'Logged', className: 'bg-emerald-100 text-emerald-700', dotClass: 'bg-emerald-600' };
-    }
-
+    // Determine status purely from current ODO vs due mileage so the schedule shows the next due
+    // after a completion is logged. The completion is stored in `maintenance` (and History),
+    // but the schedule should represent the next target rather than remaining 'Logged'.
     if (odo > dueMileage) {
         return { key: 'overdue', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
     }
@@ -112,9 +115,10 @@ function getTaskStatus(odo, dueMileage, hasCompletion, threshold = 500) {
         return { key: 'upcoming', label: 'Coming up', className: 'bg-amber-100 text-amber-700', dotClass: 'bg-amber-500' };
     }
 
-    return { key: 'scheduled', label: 'Coming up', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
+    return { key: 'scheduled', label: 'Scheduled', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
 }
 
+// Read reminder threshold for a motorcycle. Priority: per-motorcycle localStorage -> global localStorage -> default 500km
 // Read reminder threshold for a motorcycle. Priority: per-motorcycle localStorage -> global localStorage -> default 500km
 function getReminderThreshold(motorcycleId) {
     try {
@@ -139,7 +143,24 @@ function getNextMileageTarget(currentMileage, interval) {
     if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
     if (!Number.isFinite(mileage) || mileage < 0) return step;
 
+    // If mileage is exactly on an interval boundary, the next due should be the next interval
+    // e.g., mileage=10000 and step=1000 => next due = 11000 (not 10000)
+    try {
+        const remainder = mileage % step;
+        if (remainder === 0) return mileage + step;
+    } catch (e) {}
+
     return Math.ceil(mileage / step) * step || step;
+}
+
+function buildReminderSignature(item = {}) {
+    const moto = String(item.motorcycleId || '').trim();
+    const key = String(item.ruleKey || '').trim();
+    const taskNorm = normalizeText(item.task || item.title || '');
+    const due = String(item.dueMileage || item.due || '').trim();
+    // Prefer ruleKey when available, otherwise use normalized task name
+    const idPart = key ? key : taskNorm;
+    return `${moto}::${idPart}::${due}`;
 }
 
 function getNextMileageAfterCompletion(completedMileage, interval) {
@@ -413,19 +434,26 @@ function isAutoSendEnabled() {
 }
 
 async function loadSchedule(userId) {
-    try {
-        const [motorcyclesRaw, maintenanceRaw] = await Promise.all([
-            getFirestoreDocs('motorcycles', 'createdAt'),
-            getFirestoreDocs('maintenance', 'createdAt')
-        ]);
+    // Deprecated: loadSchedule is now handled by realtime listeners in setupScheduleListeners
+    return;
+}
 
-        motorcycles = motorcyclesRaw
-            .map((item) => normalizeRecord(item))
-            .filter((item) => item.uid === userId && item.deleted !== true);
+function setupScheduleListeners(userId) {
+    // Unsubscribe existing listeners
+    try { if (motorcyclesUnsub) motorcyclesUnsub(); } catch (e) {}
+    try { if (maintenanceUnsub) maintenanceUnsub(); } catch (e) {}
 
-        const maintenanceItems = maintenanceRaw
-            .map((item) => normalizeRecord(item))
-            .filter((item) => item.uid === userId && item.deleted !== true);
+    const motorcyclesQuery = query(collection(db, 'motorcycles'), where('uid', '==', userId));
+    const maintenanceQuery = query(collection(db, 'maintenance'), where('uid', '==', userId));
+
+    let maintenanceItems = [];
+
+    motorcyclesUnsub = onSnapshot(motorcyclesQuery, (snap) => {
+        motorcycles = [];
+        snap.forEach((doc) => {
+            const data = normalizeRecord({ id: doc.id, ...doc.data() });
+            if (data.deleted !== true) motorcycles.push(data);
+        });
 
         if (!motorcycles.length) {
             scheduleItems = [];
@@ -440,6 +468,7 @@ async function loadSchedule(userId) {
         selectedMotorcycleId = hasStoredSelection ? storedSelection : motorcycles[0].id;
         persistSelectedMotorcycleId(selectedMotorcycleId);
 
+        // Recompute schedule with latest maintenance items
         scheduleItems = motorcycles
             .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceItems))
             .sort((a, b) => {
@@ -453,19 +482,43 @@ async function loadSchedule(userId) {
         renderMotorcycleDrawer();
         displaySchedule(getSelectedScheduleItems());
         updateCounts(getSelectedScheduleItems());
-        // Create email reminder documents for due/overdue items if missing
+        // create pending reminders from current schedule
         (async () => {
-            try {
-                await createPendingReminders(scheduleItems);
-            } catch (err) {
-                console.error('Error creating pending reminders:', err);
-            }
+            try { await createPendingReminders(scheduleItems); } catch (err) { console.error('Error creating pending reminders:', err); }
         })();
-    } catch (error) {
-        console.error('Error loading schedule:', error);
-        scheduleItems = [];
-        renderEmptySchedule('Unable to load maintenance reminders. Please try again.');
-    }
+    }, (err) => {
+        console.error('Motorcycles listener error:', err);
+    });
+
+    maintenanceUnsub = onSnapshot(maintenanceQuery, (snap) => {
+        maintenanceItems = [];
+        snap.forEach((doc) => {
+            const data = normalizeRecord({ id: doc.id, ...doc.data() });
+            if (data.deleted !== true) maintenanceItems.push(data);
+        });
+
+        // Recompute schedule when maintenance changes
+        if (motorcycles && motorcycles.length) {
+            scheduleItems = motorcycles
+                .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceItems))
+                .sort((a, b) => {
+                    const priority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3, completed: 4 };
+                    const statusDiff = priority[a.status.key] - priority[b.status.key];
+                    if (statusDiff !== 0) return statusDiff;
+                    if (a.dueMileage !== b.dueMileage) return a.dueMileage - b.dueMileage;
+                    return a.currentOdo - b.currentOdo;
+                });
+
+            renderMotorcycleDrawer();
+            displaySchedule(getSelectedScheduleItems());
+            updateCounts(getSelectedScheduleItems());
+            (async () => {
+                try { await createPendingReminders(scheduleItems); } catch (err) { console.error('Error creating pending reminders:', err); }
+            })();
+        }
+    }, (err) => {
+        console.error('Maintenance listener error:', err);
+    });
 }
 
 function renderEmptySchedule(message = 'No maintenance reminders yet') {
@@ -595,10 +648,7 @@ function displaySchedule(items) {
                                 ${escapeHtml(buildComputationNote(item))}
                             </div>
 
-                            <div class="grid grid-cols-2 gap-2">
-                                <button onclick="sendReminderEmail(event, '${item.id}'); return false;" class="w-full py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors active:scale-95">
-                                    Send Email
-                                </button>
+                            <div>
                                 <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2.5 bg-green-700 text-white rounded-xl text-sm font-medium hover:bg-green-800 transition-colors active:scale-95">
                                     Mark as Complete
                                 </button>
@@ -714,132 +764,35 @@ window.markComplete = async function(id) {
         alert('Could not find the selected maintenance reminder.');
         return;
     }
-
-    const mileageInput = prompt('Enter current ODO reading for this completed service:', String(item.currentOdo || 0));
-    if (mileageInput === null) {
-        return;
-    }
-
-    const completedMileage = Number(mileageInput);
-    if (!Number.isFinite(completedMileage) || completedMileage < 0) {
-        alert('Please enter a valid ODO value.');
-        return;
-    }
-
-    if (completedMileage < Number(item.currentOdo || 0)) {
-        alert(`Completed ODO cannot be lower than the current recorded ODO (${Number(item.currentOdo || 0).toLocaleString()} km).`);
-        return;
-    }
-
+    // Redirect to add-record page with prefilled fields so the user can confirm and save the record
     try {
-        const payload = {
-            motorcycleId: item.motorcycleId,
-            motorcycleName: item.motorcycleName,
-            category: item.categoryLabel,
-            taskKey: item.ruleKey,
-            task: item.task,
-            dueMileage: item.dueMileage,
-            completedMileage,
-            status: 'completed',
-            completedAt: new Date().toISOString(),
-            source: 'schedule-mark-complete'
-        };
+        const params = new URLSearchParams();
+        params.set('motorcycleId', String(item.motorcycleId || ''));
+        // default mileage prefill to current recorded ODO (user can adjust on the add form)
+        params.set('mileage', String(Number(item.currentOdo || 0)));
+        // set today's date in ISO yyyy-mm-dd for date input
+        const today = new Date();
+        params.set('date', today.toISOString().slice(0, 10));
+        // Set titleSelect value for scheduled maintenance so add-record selects the correct option
+        if (item.ruleKey) params.set('titleValue', `scheduled:${item.ruleKey}`);
+        // ensure add-record will redirect back to Schedule after saving
+        params.set('source', 'schedule');
+        // include customTitle so the form can use the exact task name if the scheduled option isn't present
+        if (item.task) params.set('customTitle', String(item.task || ''));
+        if (item.categoryLabel) params.set('category', String(item.categoryLabel || ''));
+        params.set('notes', 'Prefilled from Schedule — confirm details and Save.');
 
-        // Write completion record so next-due calculations use this anchor
-        await addFirestoreDoc('maintenance', payload);
-
-        // Keep motorcycle ODO in sync with completion logs for accurate next-due calculations.
-        await updateFirestoreDoc('motorcycles', item.motorcycleId, {
-            mileage: completedMileage
-        });
-
-        // Reload schedule to recompute reminders and next due
-        await loadSchedule(currentUserId);
-
-        // Show small confirmation card in-page
-        showScheduleConfirmation(item, completedMileage);
+        window.location.href = `add-record.html?${params.toString()}`;
     } catch (error) {
-        console.error('Error marking maintenance complete:', error);
-        alert('Could not update the reminder. Please try again.');
+        console.error('Error redirecting to add-record:', error);
+        alert('Could not open Add Record form. Please try again.');
     }
 };
 
-window.sendReminderEmail = async function(clickEvent, id) {
-    if (!currentUserEmail) {
-        alert('No authenticated email found. Please sign in again.');
-        return;
-    }
+// Per-card manual send removed — email sends are handled automatically by createPendingReminders
 
-    const item = scheduleItems.find((entry) => entry.id === id);
-    if (!item) {
-        alert('Could not find the selected reminder.');
-        return;
-    }
 
-    const button = clickEvent?.target?.closest('button');
-    const originalText = button ? button.textContent : '';
 
-    try {
-        if (button) {
-            button.disabled = true;
-            button.textContent = 'Sending...';
-        }
-
-        await sendMaintenanceReminder({
-            toEmail: currentUserEmail,
-            motorcycleName: item.motorcycleName,
-            task: item.task,
-            reminder: item.reminder,
-            dueMileage: item.dueMileage,
-            currentOdo: item.currentOdo,
-            categoryLabel: item.categoryLabel,
-        });
-
-        showToast('Reminder email sent to your sign-in email.', 'success');
-    } catch (error) {
-        console.error('Error sending reminder email:', error);
-        alert(error?.message || 'Could not send the reminder email.');
-    } finally {
-        if (button) {
-            button.disabled = false;
-            button.textContent = originalText || 'Send Email';
-        }
-    }
-};
-
-function showScheduleConfirmation(item, completedMileage) {
-    const existing = document.getElementById('scheduleConfirmationCard');
-    if (existing) existing.remove();
-
-    const card = document.createElement('div');
-    card.id = 'scheduleConfirmationCard';
-    card.className = 'fixed right-6 bottom-6 max-w-sm w-full bg-white rounded-xl border shadow-lg z-50 overflow-hidden';
-    card.innerHTML = `
-        <div class="p-4">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-sm text-gray-500">Reminder logged</p>
-                    <p class="font-semibold text-gray-900">${escapeHtml(item.task || 'Service')}</p>
-                    <p class="text-xs text-gray-500 mt-1">${escapeHtml(item.motorcycleName || '')} • ${Number(completedMileage || 0).toLocaleString()} km</p>
-                </div>
-                <div class="text-sm text-gray-500 text-right">
-                    <p class="font-medium text-gray-700">${new Date().toLocaleDateString()}</p>
-                </div>
-            </div>
-            <div class="mt-3 text-xs text-gray-600">
-                <p>Next due will be recalculated and will appear in Coming Up when within 500 km.</p>
-            </div>
-        </div>
-        <div class="p-3 bg-gray-50 flex items-center gap-2 justify-end">
-            <button id="scheduleConfirmationClose" class="px-3 py-1 rounded-lg text-sm bg-white border">Close</button>
-        </div>
-    `;
-
-    document.body.appendChild(card);
-    document.getElementById('scheduleConfirmationClose')?.addEventListener('click', () => card.remove());
-
-    setTimeout(() => { const el = document.getElementById('scheduleConfirmationCard'); if (el) el.remove(); }, 6000);
-}
 
 /**
  * Create pending email reminders for items that are due or overdue.
@@ -849,7 +802,11 @@ async function createPendingReminders(items = []) {
     try {
         if (!items || !items.length) return;
         // Only proceed when we have the authenticated user's email available
-        if (!currentUserEmail) return;
+        if (!currentUserEmail) {
+            console.warn('createPendingReminders: no authenticated email available');
+            try { showToast('No authenticated email found — reminders will not be sent.', 'error'); } catch (e) {}
+            return;
+        }
 
         // Fetch existing reminders for this user
         const existing = await getFirestoreDocs('emailReminders').catch(() => []);
@@ -864,20 +821,33 @@ async function createPendingReminders(items = []) {
             return false;
         });
 
-        for (const item of pending) {
-            const already = existing.find((r) => {
-                return String(r.motorcycleId || '') === String(item.motorcycleId || '')
-                    && String(r.taskKey || '') === String(item.ruleKey || '')
-                    && r.sent !== true;
-            });
+        // Build a set of existing reminder signatures to avoid creating duplicates
+        const existingSignatures = new Set((existing || []).map(r => buildReminderSignature({
+            motorcycleId: r.motorcycleId,
+            ruleKey: r.taskKey,
+            task: r.task || r.title || r.reminderText,
+            dueMileage: r.dueMileage || r.due || ''
+        })));
 
-            if (already) continue;
+        // Group pending items by recipient email so we can create one email per recipient
+        const createdDocs = [];
+        const createdSignatures = new Set();
+        for (const item of pending) {
+            const signature = buildReminderSignature({ motorcycleId: item.motorcycleId, ruleKey: item.ruleKey, task: item.task, dueMileage: item.dueMileage });
+
+            if (existingSignatures.has(signature) || createdSignatures.has(signature)) {
+                console.log('Skipping duplicate reminder creation for', item.motorcycleName, item.task || item.title, 'signature:', signature);
+                continue;
+            }
 
             const payload = {
                 motorcycleId: item.motorcycleId,
                 motorcycleName: item.motorcycleName,
                 task: item.task,
                 taskKey: item.ruleKey,
+                dueMileage: item.dueMileage,
+                currentOdo: item.currentOdo,
+                categoryLabel: item.categoryLabel,
                 reminderText: item.reminder,
                 sendAt: new Date().toISOString(),
                 sent: false,
@@ -886,54 +856,92 @@ async function createPendingReminders(items = []) {
 
             try {
                 const newDoc = await addFirestoreDoc('emailReminders', payload);
-                console.log('Created reminder for', item.task, item.motorcycleName);
+                createdDocs.push({ docId: newDoc.id, item, signature });
+                createdSignatures.add(signature);
+                existingSignatures.add(signature);
+                console.log('Created reminder doc', newDoc.id, 'for', item.task, item.motorcycleName, 'signature:', signature);
+                try { showToast(`Created reminder: ${item.task} (${item.motorcycleName})`, 'info'); } catch (e) {}
+            } catch (err) {
+                console.warn('Could not create reminder doc for', item.id, err?.message || err);
+            }
+        }
 
-                // Demo convenience: attempt to send immediately from client using EmailJS
-                // Only run when the user has enabled auto-send in the UI (demo mode only).
-                if (isAutoSendEnabled()) {
-                    // This is intended for demo mode only (no Blaze). For production use server-side sending.
-                    (async () => {
+        if (!createdDocs.length) {
+            console.log('createPendingReminders: no new reminder docs created');
+            try { showToast('No new reminders to create.', 'info'); } catch (e) {}
+        }
+
+        // If auto-send enabled, send one email per created reminder (simple, allows duplicates)
+        if (isAutoSendEnabled() && createdDocs.length) {
+            try {
+                const mod = await import('./emailjs.js');
+                const sendReminder = mod.sendMaintenanceReminder || mod.default?.sendMaintenanceReminder;
+                if (!sendReminder) throw new Error('sendMaintenanceReminder not available');
+
+                for (const d of createdDocs) {
+                    const item = d.item;
                     try {
-                        await sendMaintenanceReminder({
+                        // Re-fetch the reminder doc to ensure it wasn't already sent by another process
+                        let latest = null;
+                        try {
+                            latest = await getFirestoreDocById('emailReminders', d.docId);
+                        } catch (e) {
+                            console.warn('Could not re-fetch reminder doc', d.docId, e?.message || e);
+                        }
+
+                        if (latest && latest.sent === true) {
+                            console.log('Reminder already sent, skipping', d.docId);
+                            try { showToast('Reminder already sent, skipping.', 'info'); } catch (e) {}
+                            continue;
+                        }
+
+                        try { showToast(`Sending reminder for ${item.task}...`, 'info'); } catch (e) {}
+                        await sendReminder({
                             toEmail: currentUserEmail,
                             motorcycleName: item.motorcycleName,
                             task: item.task,
                             reminder: item.reminder,
                             dueMileage: item.dueMileage,
                             currentOdo: item.currentOdo,
-                            categoryLabel: item.categoryLabel,
+                            categoryLabel: item.categoryLabel
                         });
-
-                        // mark as sent in Firestore for demo convenience
-                        try {
-                            await updateFirestoreDoc('emailReminders', newDoc.id, {
-                                sent: true,
-                                sentAt: new Date().toISOString(),
-                                lastError: null,
-                                source: 'emailjs-client'
-                            });
-                        } catch (uErr) {
-                            console.warn('Could not update reminder sent status:', uErr?.message || uErr);
-                        }
+                        try { showToast('Reminder sent.', 'success'); } catch (e) {}
+                        await updateFirestoreDoc('emailReminders', d.docId, {
+                            sent: true,
+                            sentAt: new Date().toISOString(),
+                            lastError: null,
+                            source: 'emailjs-client-per-item'
+                        });
                     } catch (sendErr) {
-                        console.warn('Demo email send failed for', newDoc.id, sendErr?.message || sendErr);
+                        console.warn('Per-item reminder send failed for', d.docId, sendErr?.message || sendErr);
+                        try { showToast('Reminder send failed: ' + (sendErr?.message || ''), 'error'); } catch (e) {}
                         try {
-                            await updateFirestoreDoc('emailReminders', newDoc.id, {
+                            await updateFirestoreDoc('emailReminders', d.docId, {
                                 lastError: String(sendErr?.message || sendErr),
                                 lastAttempt: new Date().toISOString()
                             });
                         } catch (uErr) {
-                            console.warn('Could not update reminder with send error:', uErr?.message || uErr);
+                            console.warn('Could not update reminder with send error for', d.docId, uErr?.message || uErr);
                         }
                     }
-                    })();
                 }
-
             } catch (err) {
-                console.warn('Could not create reminder doc for', item.id, err?.message || err);
+                console.warn('Auto-send per-item flow failed', err?.message || err);
+                try { showToast('Auto-send configuration error: ' + (err?.message || ''), 'error'); } catch (e) {}
             }
         }
     } catch (err) {
         console.error('createPendingReminders error:', err);
     }
 }
+
+// Manual trigger for debugging/send tests from Console or UI
+window.triggerReminderSend = async function() {
+    try {
+        if (!window.scheduleItems) { try { showToast('No schedule items available', 'error'); } catch (e) {} ; return; }
+        await createPendingReminders(window.scheduleItems);
+    } catch (e) {
+        console.error('triggerReminderSend error', e);
+        try { showToast('Trigger failed: ' + (e?.message || ''), 'error'); } catch (e) {}
+    }
+};

@@ -1,12 +1,18 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
+import { collection, query, where, getDocs, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { cleanupOrphanedMotorcycleRecords, countFirestoreDocs, getFirestoreDocs } from './firebaseUtils.js';
+import { normalizeRecord } from './utils-module.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+
+// Chart.js instances (kept globally to avoid reusing canvas without destroying)
+let expenseChartInstance = null;
+let maintenanceChartInstance = null;
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        document.getElementById('userName').textContent = user.email.split('@')[0];
+        const userNameEl = document.getElementById('userName');
+        if (userNameEl) userNameEl.textContent = user.email.split('@')[0];
         setDashboardLoadingState();
         await loadDashboardData(user);
     } else {
@@ -30,6 +36,12 @@ document.getElementById('logoutBtn')?.addEventListener('click', async () => {
 
 async function loadDashboardData(user) {
     try {
+        console.debug('loadDashboardData: checking DOM elements', {
+            totalRepairs: !!document.getElementById('totalRepairs'),
+            recentRepairsList: !!document.getElementById('recentRepairsList'),
+            upcomingMaintenanceList: !!document.getElementById('upcomingMaintenanceList')
+        });
+
         const currentUser = auth.currentUser || user;
         const uid = currentUser?.uid;
 
@@ -45,16 +57,14 @@ async function loadDashboardData(user) {
 
         await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
 
-        const [maintenanceSnapshot, repairsSnapshot] = await Promise.all([
-            getDocs(query(
-                collection(db, 'maintenance'),
-                where('uid', '==', uid)
-            )),
-            getDocs(query(
-                collection(db, 'repairs'),
-                where('uid', '==', uid)
-            ))
-        ]);
+        const maintenanceSnapshot = await getDocs(query(
+            collection(db, 'maintenance'),
+            where('uid', '==', uid)
+        ));
+
+        // initial repairs snapshot used for charts/list; we also subscribe to realtime updates so counts stay in sync
+        const repairsQuery = query(collection(db, 'repairs'), where('uid', '==', uid));
+        const repairsSnapshot = await getDocs(repairsQuery);
 
         const motorcycles = motorcyclesSnapshot.docs
             .map((entry) => normalizeRecord(Object.assign({ id: entry.id }, entry.data())))
@@ -65,18 +75,81 @@ async function loadDashboardData(user) {
             .filter((item) => item.uid === uid && item.deleted !== true);
 
         const scheduleStatusItems = buildScheduleStatusItems(motorcycles, maintenanceItems);
-        document.getElementById('totalServices').textContent = String(scheduleStatusItems.length);
+
+        // Use the actual repair records count for "Total Services" so it matches history.html
+        const repairsItems = repairsSnapshot.docs
+            .map((entry) => Object.assign({ id: entry.id }, entry.data()));
+
+        console.debug('Initial repairs snapshot size:', repairsSnapshot.size);
+        // Log each raw doc for inspection
+        repairsItems.forEach((d) => console.debug('repair-doc:', { id: d.id, uid: d.uid, deleted: d.deleted, data: d }));
+        const filteredRepairs = repairsItems.filter((item) => String(item.uid || '') === String(uid) && item.deleted !== true);
+        console.debug('Filtered repairs count (uid match, not deleted):', filteredRepairs.length, filteredRepairs.map(d => ({ id: d.id, uid: d.uid, deleted: d.deleted })));
+
+        // Also fetch via firebaseUtils.getFirestoreDocs to compare results
+        try {
+            const docsViaHelper = await getFirestoreDocs('repairs');
+            console.debug('getFirestoreDocs(repairs) returned count:', docsViaHelper.length);
+            docsViaHelper.forEach((d) => console.debug('helper-repair-doc:', { id: d.id, uid: d.uid, deleted: d.deleted }));
+        } catch (e) {
+            console.warn('getFirestoreDocs helper failed:', e?.message || e);
+        }
+
+        // Also get authoritative count using firebaseUtils helper (uses auth.currentUser internally)
+        try {
+            const authoritativeCount = await countFirestoreDocs('repairs');
+            console.debug('Authoritative countFirestoreDocs(repairs):', authoritativeCount);
+            const totalRepairsElInit = document.getElementById('totalRepairs');
+            if (totalRepairsElInit) totalRepairsElInit.textContent = String(authoritativeCount);
+            if (authoritativeCount !== filteredRepairs.length) {
+                console.warn('Discrepancy between initial filtered repairs and authoritative count:', filteredRepairs.length, authoritativeCount);
+            }
+        } catch (err) {
+            // fallback to filtered count
+            console.warn('Authoritative count failed, fallback to filtered length:', err?.message || err);
+            const totalRepairsElFallback = document.getElementById('totalRepairs');
+            if (totalRepairsElFallback) totalRepairsElFallback.textContent = String(filteredRepairs.length);
+        }
+
+        // Subscribe to realtime updates so dashboard stays in sync when repairs are added/edited/deleted
+        onSnapshot(repairsQuery, (snap) => {
+            try {
+                console.debug('Live repairs snapshot size:', snap.size, 'docIds:', snap.docs.map(d => d.id));
+                const liveRepairsRaw = snap.docs.map((entry) => Object.assign({ id: entry.id }, entry.data()));
+                const liveRepairs = liveRepairsRaw.filter((item) => String(item.uid || '') === String(uid) && item.deleted !== true);
+                console.debug('Filtered live repairs count:', liveRepairs.length, liveRepairs.map(d => ({ id: d.id, uid: d.uid, deleted: d.deleted })));
+
+                // update total services count
+                const totalEl = document.getElementById('totalRepairs');
+                if (totalEl) totalEl.textContent = String(liveRepairs.length);
+
+                // update recent repairs and expense chart using the live snapshot
+                const activeMotorcycleTokens = buildActiveMotorcycleTokens(motorcyclesSnapshot.docs);
+                displayRecentRepairs(snap.docs, activeMotorcycleTokens);
+                displayExpenseChart(snap.docs, activeMotorcycleTokens);
+            } catch (err) {
+                console.error('Error processing live repairs snapshot:', err);
+            }
+        });
+
+        // If real-time listen fails due to network/extension blocking, we still want a clear log
+        // The console logs above enumerate all raw docs and helper results for inspection.
 
         const activeMotorcycleTokens = buildActiveMotorcycleTokens(motorcyclesSnapshot.docs);
         displayUpcomingMaintenance(scheduleStatusItems);
         displayRecentRepairs(repairsSnapshot.docs, activeMotorcycleTokens);
         displayExpenseChart(repairsSnapshot.docs, activeMotorcycleTokens);
         displayMaintenancePieChart(scheduleStatusItems);
+
+        // totals are handled by realtime subscription; manual recalc removed
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         renderDashboardEmptyState();
     }
 }
+// manual recalc feature removed
+
+// debug helper removed; dashboard now logs detailed repair docs during loadDashboardData for inspection
 
 function setDashboardLoadingState() {
     renderEmptyList('upcomingMaintenanceList', 'Loading...');
@@ -100,8 +173,10 @@ function renderDashboardEmptyState() {
     if (maintenanceLegend) {
         maintenanceLegend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
     }
-    document.getElementById('totalServices').textContent = '0';
-    document.getElementById('totalSpent').textContent = '₱0';
+    const totalRepairsEl = document.getElementById('totalRepairs');
+    if (totalRepairsEl) totalRepairsEl.textContent = '0';
+    const totalSpentEl = document.getElementById('totalSpent');
+    if (totalSpentEl) totalSpentEl.textContent = '₱0';
 }
 
 function renderEmptyList(containerId, message = 'No records yet') {
@@ -115,6 +190,20 @@ function renderEmptyChart(containerId, message = 'No records yet') {
     const canvas = document.getElementById(containerId);
     if (canvas && canvas.parentElement) {
         canvas.style.opacity = '1';
+        // Destroy any existing Chart.js instance associated with this canvas before replacing
+        try {
+            if (containerId === 'expenseChart' && expenseChartInstance) {
+                expenseChartInstance.destroy();
+                expenseChartInstance = null;
+            }
+            if (containerId === 'maintenancePieChart' && maintenanceChartInstance) {
+                maintenanceChartInstance.destroy();
+                maintenanceChartInstance = null;
+            }
+        } catch (e) {
+            console.warn('Error destroying chart instance for', containerId, e?.message || e);
+        }
+
         canvas.parentElement.innerHTML = `<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">${message}</div>`;
     }
 }
@@ -359,13 +448,15 @@ function displayRecentRepairs(docs, activeMotorcycleTokens) {
 
     if (!items.length) {
         renderEmptyList('recentRepairsList');
-        document.getElementById('totalSpent').textContent = '₱0';
+        const totalSpentEl = document.getElementById('totalSpent');
+        if (totalSpentEl) totalSpentEl.textContent = '₱0';
         return;
     }
 
     const sortedItems = items.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
     const totalSpent = sortedItems.reduce((sum, item) => sum + Number(item.cost || 0), 0);
-    document.getElementById('totalSpent').textContent = `₱${totalSpent.toFixed(2)}`;
+    const totalSpentEl = document.getElementById('totalSpent');
+    if (totalSpentEl) totalSpentEl.textContent = `₱${totalSpent.toFixed(2)}`;
 
     container.innerHTML = sortedItems.slice(0, 2).map(item => `
         <div onclick="window.location.href='history.html'" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all cursor-pointer">
@@ -430,7 +521,17 @@ function displayExpenseChart(docs, activeMotorcycleTokens) {
         return;
     }
 
-    new Chart(ctx, {
+    // Destroy previous expense chart instance if present
+    try {
+        if (expenseChartInstance) {
+            expenseChartInstance.destroy();
+            expenseChartInstance = null;
+        }
+    } catch (e) {
+        console.warn('Failed to destroy previous expense chart instance', e?.message || e);
+    }
+
+    expenseChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels,
@@ -499,7 +600,17 @@ function displayMaintenancePieChart(scheduleItems) {
         return;
     }
 
-    new Chart(ctx, {
+    // Destroy previous maintenance chart instance if present
+    try {
+        if (maintenanceChartInstance) {
+            maintenanceChartInstance.destroy();
+            maintenanceChartInstance = null;
+        }
+    } catch (e) {
+        console.warn('Failed to destroy previous maintenance chart instance', e?.message || e);
+    }
+
+    maintenanceChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: data.map(d => d.name),
