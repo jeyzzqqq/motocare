@@ -53,6 +53,8 @@ function populateTitleSelect(motorcycleId) {
     if (customGroup) customGroup.classList.add('hidden');
     if (customLabel) customLabel.textContent = 'Custom Item';
     if (customInput) customInput.value = '';
+    // Ensure update-mode visibility is synced when titles are repopulated
+    try { syncUpdateModeVisibility(); } catch (e) {}
 }
 
 function syncTitleFieldVisibility() {
@@ -63,8 +65,9 @@ function syncTitleFieldVisibility() {
 
     if (!select || !customGroup || !customLabel || !customInput) return;
 
-    const { kind } = getTitleSelectionMeta(select.value);
-    const needsCustom = kind === 'other' || select.value === 'upgrade:other';
+    const { kind, key } = getTitleSelectionMeta(select.value);
+    const isUpdateMileage = kind === 'other' && key === 'update-mileage';
+    const needsCustom = (kind === 'other' && !isUpdateMileage) || select.value === 'upgrade:other';
 
     if (needsCustom) {
         customGroup.classList.remove('hidden');
@@ -139,6 +142,98 @@ async function loadMotorcyclesFromFirestore(user = currentUser) {
 
     syncMileageField(dropdown.value);
     populateTitleSelect(dropdown.value);
+    // Apply URL prefill parameters (used when coming from Schedule -> Mark as Complete)
+    try {
+        applyPrefillFromUrl();
+    } catch (err) {
+        console.warn('Prefill failed:', err);
+    }
+}
+
+function applyPrefillFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.toString()) return;
+
+    const motorcycleId = params.get('motorcycleId');
+    const mileage = params.get('mileage');
+    const date = params.get('date');
+    const titleValue = params.get('titleValue');
+    const category = params.get('category');
+    const notes = params.get('notes');
+
+    const dropdown = document.getElementById('motorcycle');
+    const mileageInput = document.getElementById('mileage');
+    const dateInput = document.getElementById('date');
+    const titleSelect = document.getElementById('titleSelect');
+    const customInput = document.getElementById('customTitle');
+    const categoryInput = document.getElementById('category');
+    const notesInput = document.getElementById('notes');
+
+    if (motorcycleId && dropdown) {
+        dropdown.value = motorcycleId;
+        dropdown.dispatchEvent(new Event('change'));
+    }
+
+    // Set mileage after dropdown change (syncMileageField will set min)
+    if (mileage && mileageInput) {
+        mileageInput.value = String(Number(mileage) || 0);
+    }
+
+    if (date && dateInput) {
+        dateInput.value = date;
+    }
+
+    if (titleValue && titleSelect) {
+        // Try to set the select value. If option not yet present, set after a short delay.
+        const setTitle = () => {
+            titleSelect.value = titleValue;
+            syncTitleFieldVisibility();
+            syncUpdateModeVisibility();
+            if (titleValue.startsWith('other:') && customInput && params.get('customTitle')) {
+                customInput.value = params.get('customTitle');
+            }
+        };
+
+        if ([...titleSelect.options].some(o => o.value === titleValue)) {
+            setTitle();
+        } else {
+            // options may be populated slightly later; retry once
+            setTimeout(() => { setTitle(); }, 80);
+        }
+    }
+
+    if (category && categoryInput) categoryInput.value = category;
+    if (notes && notesInput) notesInput.value = notes;
+
+    showToast('Prefilled from schedule — confirm details and Save.', 'info');
+}
+
+function syncUpdateModeVisibility() {
+    const titleSelect = document.getElementById('titleSelect');
+    if (!titleSelect) return;
+    const val = String(titleSelect.value || '').toLowerCase();
+    const isUpdate = val.includes('update');
+
+    const costInput = document.getElementById('cost');
+    const mechanicSelect = document.getElementById('mechanic');
+    const categorySelect = document.getElementById('category');
+    const notesInput = document.getElementById('notes');
+
+    const hideElement = (el) => {
+        if (!el) return;
+        const wrapper = el.parentElement;
+        if (wrapper) wrapper.style.display = isUpdate ? 'none' : '';
+        try { el.required = !isUpdate; } catch (e) {}
+        try { el.disabled = isUpdate ? true : false; } catch (e) {}
+    };
+
+    hideElement(costInput);
+    hideElement(mechanicSelect);
+    hideElement(categorySelect);
+    hideElement(notesInput);
+
+    if (isUpdate && costInput) costInput.value = '0';
+    if (isUpdate) showToast('Update mileage mode: only Date and Mileage required.', 'info');
 }
 
 function syncMileageField(motorcycleId) {
@@ -166,7 +261,7 @@ document.getElementById('motorcycle')?.addEventListener('change', (e) => {
     populateTitleSelect(e.target.value);
 });
 
-document.getElementById('titleSelect')?.addEventListener('change', syncTitleFieldVisibility);
+document.getElementById('titleSelect')?.addEventListener('change', (e) => { syncTitleFieldVisibility(e); syncUpdateModeVisibility(); });
 
 // Form submission
 // Toast notification system
@@ -208,9 +303,18 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         return;
     }
 
-    if (!titleSelect?.value || !date || !category || !motorcycleId || Number.isNaN(cost) || cost <= 0 || Number.isNaN(mileageValue) || !mechanicValue) {
+    const updateMode = String(titleSelect.value || '').toLowerCase().includes('update');
+
+    if (!titleSelect?.value || !date || !motorcycleId || Number.isNaN(mileageValue) || (Number.isNaN(cost) && !updateMode)) {
         showToast('Please complete all required fields with valid values.', 'error');
         return;
+    }
+
+    if (!updateMode) {
+        if (!category || Number.isNaN(cost) || cost <= 0 || !mechanicValue) {
+            showToast('Please complete all required fields with valid values.', 'error');
+            return;
+        }
     }
 
     // Get selected motorcycle details by ID
@@ -229,8 +333,11 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const { kind, key } = getTitleSelectionMeta(titleSelect.value);
     const selectedOption = titleSelect.selectedOptions?.[0];
     const selectedTitle = selectedOption?.textContent || '';
-    const requiresCustomTitle = kind === 'other' || (kind === 'upgrade' && key === 'other');
-    const resolvedTitle = requiresCustomTitle
+    const isUpdateMileageTitle = kind === 'other' && key === 'update-mileage';
+    const requiresCustomTitle = !updateMode && (kind === 'other' && key !== 'update-mileage' || (kind === 'upgrade' && key === 'other'));
+    const resolvedTitle = isUpdateMileageTitle
+        ? 'Update Mileage'
+        : requiresCustomTitle
         ? customTitle
         : selectedTitle.split('•')[0].trim();
 
@@ -241,20 +348,25 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     
     // Show loading state
     submitBtn.disabled = true;
-    cancelBtn.disabled = true;
+    cancelBtn.disabled = true
     submitBtn.innerHTML = `
         <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
         Saving...
     `;
     
+    const normalizedCost = updateMode ? 0 : cost;
+    const normalizedMechanic = updateMode ? '' : mechanicValue;
+    const normalizedCategory = updateMode ? '' : category;
+    const notesValue = document.getElementById('notes').value;
+
     const formData = {
         title: resolvedTitle,
         date,
-        cost,
+        cost: normalizedCost,
         mileage: mileageValue,
-        mechanic: mechanicValue,
-        category,
-        notes: document.getElementById('notes').value,
+        mechanic: normalizedMechanic,
+        category: normalizedCategory,
+        notes: notesValue,
         motorcycleId: selectedMotorcycle.id,
         motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`,
         recordKind: kind,
@@ -286,9 +398,16 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         });
         
         showToast('Service record added successfully!', 'success');
-        
+
+        // If the form was opened from the Schedule (mark as complete), return to Schedule
+        const paramsAfter = new URLSearchParams(window.location.search);
+        const fromSource = paramsAfter.get('source');
         setTimeout(() => {
-            window.location.href = 'history.html';
+            if (fromSource === 'schedule') {
+                window.location.href = 'schedule.html';
+            } else {
+                window.location.href = 'history.html';
+            }
         }, 500);
     } catch (error) {
         console.error('Error adding record:', error);

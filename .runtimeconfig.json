@@ -1,0 +1,6 @@
+{
+  "sendgrid": {
+    "key": "DUMMY_SENDGRID_KEY_FOR_EMULATOR",
+    "from": "noreply@motocare.local"
+  }
+}

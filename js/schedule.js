@@ -3,8 +3,10 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/f
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc } from './firebaseUtils.js';
 import { normalizeRecord } from './utils-module.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+import { initEmailJS, sendMaintenanceReminder } from './emailjs.js';
 
 let currentUserId = null;
+let currentUserEmail = '';
 let scheduleItems = [];
 let motorcycles = [];
 let selectedMotorcycleId = '';
@@ -34,6 +36,8 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     currentUserId = user.uid;
+    currentUserEmail = user.email || '';
+    initEmailJS();
     await loadSchedule(user.uid);
 });
 
@@ -90,7 +94,7 @@ function getCategoryIndicator(categoryKey, odo) {
     return list.find((entry) => odo >= entry.min) || { label: 'OK', icon: 'check-circle-2', className: 'bg-green-100 text-green-700' };
 }
 
-function getTaskStatus(odo, dueMileage, hasCompletion) {
+function getTaskStatus(odo, dueMileage, hasCompletion, threshold = 500) {
     if (hasCompletion && odo < dueMileage) {
         return { key: 'completed', label: 'Logged', className: 'bg-emerald-100 text-emerald-700', dotClass: 'bg-emerald-600' };
     }
@@ -103,11 +107,29 @@ function getTaskStatus(odo, dueMileage, hasCompletion) {
         return { key: 'due', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
     }
 
-    if ((dueMileage - odo) <= 500) {
+    // Use configurable threshold (in km) to decide when a task moves to "upcoming"
+    if ((dueMileage - odo) <= Number(threshold || 500)) {
         return { key: 'upcoming', label: 'Coming up', className: 'bg-amber-100 text-amber-700', dotClass: 'bg-amber-500' };
     }
 
     return { key: 'scheduled', label: 'Coming up', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
+}
+
+// Read reminder threshold for a motorcycle. Priority: per-motorcycle localStorage -> global localStorage -> default 500km
+function getReminderThreshold(motorcycleId) {
+    try {
+        if (motorcycleId) {
+            const perKey = `motocare.reminderThreshold.${motorcycleId}`;
+            const perVal = localStorage.getItem(perKey);
+            if (perVal !== null && perVal !== undefined && perVal !== '') return Number(perVal);
+        }
+
+        const globalVal = localStorage.getItem('motocare.reminderThreshold.default');
+        if (globalVal !== null && globalVal !== undefined && globalVal !== '') return Number(globalVal);
+    } catch (e) {
+        // ignore storage errors
+    }
+    return 500;
 }
 
 function getNextMileageTarget(currentMileage, interval) {
@@ -210,7 +232,8 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
         const dueMileage = hasCompletion
             ? getNextMileageAfterCompletion(anchorMileage, rule.interval)
             : getNextMileageTarget(anchorMileage, rule.interval);
-        const status = getTaskStatus(odo, dueMileage, hasCompletion);
+        const threshold = getReminderThreshold(motorcycle.id);
+        const status = getTaskStatus(odo, dueMileage, hasCompletion, threshold);
         const remaining = Math.max(0, dueMileage - odo);
         const overdueBy = Math.max(0, odo - dueMileage);
         const reminder = status.key === 'overdue'
@@ -377,6 +400,18 @@ window.openMotorcycleDrawer = openMotorcycleDrawer;
 window.closeMotorcycleDrawer = closeMotorcycleDrawer;
 window.selectMotorcycleUnit = selectMotorcycleUnit;
 
+function isAutoSendEnabled() {
+    try {
+        const el = document.getElementById('autoSendToggle');
+        if (el) return Boolean(el.checked);
+        const stored = localStorage.getItem('motocare.autoSendEnabled');
+        if (stored !== null) return stored === 'true';
+    } catch (e) {
+        // ignore
+    }
+    return true; // default to enabled for demo convenience
+}
+
 async function loadSchedule(userId) {
     try {
         const [motorcyclesRaw, maintenanceRaw] = await Promise.all([
@@ -418,6 +453,14 @@ async function loadSchedule(userId) {
         renderMotorcycleDrawer();
         displaySchedule(getSelectedScheduleItems());
         updateCounts(getSelectedScheduleItems());
+        // Create email reminder documents for due/overdue items if missing
+        (async () => {
+            try {
+                await createPendingReminders(scheduleItems);
+            } catch (err) {
+                console.error('Error creating pending reminders:', err);
+            }
+        })();
     } catch (error) {
         console.error('Error loading schedule:', error);
         scheduleItems = [];
@@ -466,8 +509,22 @@ function displaySchedule(items) {
     const motorcycleName = selectedMotorcycle ? getMotorcycleLabel(selectedMotorcycle) : 'Selected motorcycle';
     const motorcycleCategory = selectedMotorcycle ? classifyMotorcycleCategory(selectedMotorcycle) : null;
     const currentOdo = selectedMotorcycle ? formatMileage(selectedMotorcycle?.mileage ?? selectedMotorcycle?.odo ?? selectedMotorcycle?.currentOdo ?? selectedMotorcycle?.odometer) : '0';
+    const currentThreshold = selectedMotorcycle ? getReminderThreshold(selectedMotorcycle.id) : getReminderThreshold();
 
     container.innerHTML = `
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <div class="text-sm text-gray-700">Reminder threshold</div>
+            <div class="flex items-center gap-2">
+                <label for="reminderThresholdInput" class="sr-only">Threshold in kilometers</label>
+                <div class="flex items-center gap-2 bg-gray-50 border rounded-lg px-2 py-1">
+                    <input id="reminderThresholdInput" type="number" min="0" step="50" class="w-24 bg-transparent outline-none text-sm" value="${Number(currentThreshold)}" aria-label="Reminder threshold in kilometers">
+                    <span class="text-sm text-gray-600">km</span>
+                </div>
+                <button id="reminderThresholdSave" class="ml-2 px-3 py-1 rounded-lg bg-green-700 text-white text-sm">Apply</button>
+                <button id="reminderThresholdReset" class="ml-2 px-3 py-1 rounded-lg bg-white border text-sm">Reset</button>
+            </div>
+        </div>
+
         <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             <div class="flex items-start justify-between gap-3 mb-4">
                 <div>
@@ -538,15 +595,98 @@ function displaySchedule(items) {
                                 ${escapeHtml(buildComputationNote(item))}
                             </div>
 
-                            <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2.5 bg-green-700 text-white rounded-xl text-sm font-medium hover:bg-green-800 transition-colors active:scale-95">
-                                Mark as Complete
-                            </button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="sendReminderEmail(event, '${item.id}'); return false;" class="w-full py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors active:scale-95">
+                                    Send Email
+                                </button>
+                                <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2.5 bg-green-700 text-white rounded-xl text-sm font-medium hover:bg-green-800 transition-colors active:scale-95">
+                                    Mark as Complete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `).join('')}
             </div>
         </section>
     `;
+
+    // Hook auto-send toggle persistence
+    try {
+        const autoToggle = document.getElementById('autoSendToggle');
+        if (autoToggle) {
+            const stored = localStorage.getItem('motocare.autoSendEnabled');
+            if (stored !== null) {
+                autoToggle.checked = stored === 'true';
+            }
+            autoToggle.addEventListener('change', () => {
+                try { localStorage.setItem('motocare.autoSendEnabled', String(autoToggle.checked)); } catch (e) { /* ignore */ }
+            });
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    // Hook threshold controls
+    const thresholdInput = document.getElementById('reminderThresholdInput');
+    const thresholdSave = document.getElementById('reminderThresholdSave');
+    const thresholdReset = document.getElementById('reminderThresholdReset');
+    if (thresholdSave && thresholdInput) {
+        thresholdSave.addEventListener('click', () => {
+            const btn = thresholdSave;
+            const raw = thresholdInput.value;
+            const val = Number(raw);
+            if (!Number.isFinite(val) || val < 0) {
+                alert('Please enter a valid threshold (0 or greater).');
+                return;
+            }
+            // guard unrealistic values
+            if (val > 200000) {
+                if (!confirm('Threshold seems very large. Continue?')) return;
+            }
+
+            btn.disabled = true;
+            const prevText = btn.textContent;
+            btn.textContent = 'Saving...';
+
+            try {
+                const selected = getSelectedMotorcycle();
+                if (selected && selected.id) {
+                    localStorage.setItem(`motocare.reminderThreshold.${selected.id}`, String(Math.floor(val)));
+                } else {
+                    localStorage.setItem('motocare.reminderThreshold.default', String(Math.floor(val)));
+                }
+                showToast('Reminder threshold saved.', 'success');
+                // reload schedule so statuses recompute
+                setTimeout(() => loadSchedule(currentUserId), 250);
+            } catch (e) {
+                console.warn('Could not save threshold', e);
+                showToast('Could not save threshold.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = prevText;
+            }
+        });
+    }
+
+    if (thresholdReset && thresholdInput) {
+        thresholdReset.addEventListener('click', () => {
+            try {
+                const selected = getSelectedMotorcycle();
+                if (selected && selected.id) {
+                    localStorage.removeItem(`motocare.reminderThreshold.${selected.id}`);
+                } else {
+                    localStorage.removeItem('motocare.reminderThreshold.default');
+                }
+                const newVal = getReminderThreshold(selected?.id);
+                thresholdInput.value = String(newVal);
+                showToast('Threshold reset to ' + String(newVal) + ' km', 'info');
+                loadSchedule(currentUserId);
+            } catch (e) {
+                console.warn('Could not reset threshold', e);
+                showToast('Could not reset threshold.', 'error');
+            }
+        });
+    }
 }
 
 function updateCounts(items) {
@@ -605,6 +745,7 @@ window.markComplete = async function(id) {
             source: 'schedule-mark-complete'
         };
 
+        // Write completion record so next-due calculations use this anchor
         await addFirestoreDoc('maintenance', payload);
 
         // Keep motorcycle ODO in sync with completion logs for accurate next-due calculations.
@@ -612,10 +753,187 @@ window.markComplete = async function(id) {
             mileage: completedMileage
         });
 
-        alert(`"${item.task}" marked as complete!`);
+        // Reload schedule to recompute reminders and next due
         await loadSchedule(currentUserId);
+
+        // Show small confirmation card in-page
+        showScheduleConfirmation(item, completedMileage);
     } catch (error) {
         console.error('Error marking maintenance complete:', error);
         alert('Could not update the reminder. Please try again.');
     }
 };
+
+window.sendReminderEmail = async function(clickEvent, id) {
+    if (!currentUserEmail) {
+        alert('No authenticated email found. Please sign in again.');
+        return;
+    }
+
+    const item = scheduleItems.find((entry) => entry.id === id);
+    if (!item) {
+        alert('Could not find the selected reminder.');
+        return;
+    }
+
+    const button = clickEvent?.target?.closest('button');
+    const originalText = button ? button.textContent : '';
+
+    try {
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Sending...';
+        }
+
+        await sendMaintenanceReminder({
+            toEmail: currentUserEmail,
+            motorcycleName: item.motorcycleName,
+            task: item.task,
+            reminder: item.reminder,
+            dueMileage: item.dueMileage,
+            currentOdo: item.currentOdo,
+            categoryLabel: item.categoryLabel,
+        });
+
+        showToast('Reminder email sent to your sign-in email.', 'success');
+    } catch (error) {
+        console.error('Error sending reminder email:', error);
+        alert(error?.message || 'Could not send the reminder email.');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText || 'Send Email';
+        }
+    }
+};
+
+function showScheduleConfirmation(item, completedMileage) {
+    const existing = document.getElementById('scheduleConfirmationCard');
+    if (existing) existing.remove();
+
+    const card = document.createElement('div');
+    card.id = 'scheduleConfirmationCard';
+    card.className = 'fixed right-6 bottom-6 max-w-sm w-full bg-white rounded-xl border shadow-lg z-50 overflow-hidden';
+    card.innerHTML = `
+        <div class="p-4">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm text-gray-500">Reminder logged</p>
+                    <p class="font-semibold text-gray-900">${escapeHtml(item.task || 'Service')}</p>
+                    <p class="text-xs text-gray-500 mt-1">${escapeHtml(item.motorcycleName || '')} • ${Number(completedMileage || 0).toLocaleString()} km</p>
+                </div>
+                <div class="text-sm text-gray-500 text-right">
+                    <p class="font-medium text-gray-700">${new Date().toLocaleDateString()}</p>
+                </div>
+            </div>
+            <div class="mt-3 text-xs text-gray-600">
+                <p>Next due will be recalculated and will appear in Coming Up when within 500 km.</p>
+            </div>
+        </div>
+        <div class="p-3 bg-gray-50 flex items-center gap-2 justify-end">
+            <button id="scheduleConfirmationClose" class="px-3 py-1 rounded-lg text-sm bg-white border">Close</button>
+        </div>
+    `;
+
+    document.body.appendChild(card);
+    document.getElementById('scheduleConfirmationClose')?.addEventListener('click', () => card.remove());
+
+    setTimeout(() => { const el = document.getElementById('scheduleConfirmationCard'); if (el) el.remove(); }, 6000);
+}
+
+/**
+ * Create pending email reminders for items that are due or overdue.
+ * Avoid creating duplicates by checking existing user reminders.
+ */
+async function createPendingReminders(items = []) {
+    try {
+        if (!items || !items.length) return;
+        // Only proceed when we have the authenticated user's email available
+        if (!currentUserEmail) return;
+
+        // Fetch existing reminders for this user
+        const existing = await getFirestoreDocs('emailReminders').catch(() => []);
+
+        const pending = items.filter((it) => {
+            if (!it || !it.status) return false;
+            const remaining = Math.max(0, (Number(it.dueMileage || 0) - Number(it.currentOdo || 0)));
+            const threshold = getReminderThreshold(it.motorcycleId);
+            // send for due/overdue immediately, and for upcoming when within user's threshold
+            if (it.status.key === 'due' || it.status.key === 'overdue') return true;
+            if (it.status.key === 'upcoming' && Number(remaining) <= Number(threshold || 500)) return true;
+            return false;
+        });
+
+        for (const item of pending) {
+            const already = existing.find((r) => {
+                return String(r.motorcycleId || '') === String(item.motorcycleId || '')
+                    && String(r.taskKey || '') === String(item.ruleKey || '')
+                    && r.sent !== true;
+            });
+
+            if (already) continue;
+
+            const payload = {
+                motorcycleId: item.motorcycleId,
+                motorcycleName: item.motorcycleName,
+                task: item.task,
+                taskKey: item.ruleKey,
+                reminderText: item.reminder,
+                sendAt: new Date().toISOString(),
+                sent: false,
+                email: currentUserEmail
+            };
+
+            try {
+                const newDoc = await addFirestoreDoc('emailReminders', payload);
+                console.log('Created reminder for', item.task, item.motorcycleName);
+
+                // Demo convenience: attempt to send immediately from client using EmailJS
+                // Only run when the user has enabled auto-send in the UI (demo mode only).
+                if (isAutoSendEnabled()) {
+                    // This is intended for demo mode only (no Blaze). For production use server-side sending.
+                    (async () => {
+                    try {
+                        await sendMaintenanceReminder({
+                            toEmail: currentUserEmail,
+                            motorcycleName: item.motorcycleName,
+                            task: item.task,
+                            reminder: item.reminder,
+                            dueMileage: item.dueMileage,
+                            currentOdo: item.currentOdo,
+                            categoryLabel: item.categoryLabel,
+                        });
+
+                        // mark as sent in Firestore for demo convenience
+                        try {
+                            await updateFirestoreDoc('emailReminders', newDoc.id, {
+                                sent: true,
+                                sentAt: new Date().toISOString(),
+                                lastError: null,
+                                source: 'emailjs-client'
+                            });
+                        } catch (uErr) {
+                            console.warn('Could not update reminder sent status:', uErr?.message || uErr);
+                        }
+                    } catch (sendErr) {
+                        console.warn('Demo email send failed for', newDoc.id, sendErr?.message || sendErr);
+                        try {
+                            await updateFirestoreDoc('emailReminders', newDoc.id, {
+                                lastError: String(sendErr?.message || sendErr),
+                                lastAttempt: new Date().toISOString()
+                            });
+                        } catch (uErr) {
+                            console.warn('Could not update reminder with send error:', uErr?.message || uErr);
+                        }
+                    }
+                    })();
+                }
+
+            } catch (err) {
+                console.warn('Could not create reminder doc for', item.id, err?.message || err);
+            }
+        }
+    } catch (err) {
+        console.error('createPendingReminders error:', err);
+    }
+}
