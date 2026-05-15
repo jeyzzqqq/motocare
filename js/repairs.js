@@ -14,7 +14,8 @@ const logoutButton = document.getElementById("logoutButton");
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        document.getElementById('userName')?.textContent = user.email?.split('@')[0];
+        const userNameEl = document.getElementById('userName');
+        if (userNameEl) userNameEl.textContent = user.email?.split('@')[0];
         showRepairsSkeleton();
         await loadRepairs(user.uid);
         setupEventListeners();

@@ -78,6 +78,7 @@
                     <h1 class="text-3xl text-gray-800">Dashboard</h1>
                     <p class="text-gray-500 text-sm mt-1">Welcome back, <span id="userName">Rider</span>!</p>
                 </div>
+                <div class="ml-4"></div>
                 <div class="relative">
                     <button id="logoutBtn" class="logout-btn logout-icon-btn" title="Logout from MotoCare" aria-label="Logout">
                         <!-- Rounded square with exiting arrow (slightly overlapping) -->
@@ -98,8 +99,9 @@
             <div class="grid grid-cols-2 gap-4">
                 <div onclick="window.location.href='history.html'" class="bg-gradient-to-br from-green-700 to-green-900 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:scale-105 transition-transform active:scale-95">
                     <i class="lucide lucide-calendar text-3xl mb-2 opacity-80"></i>
-                    <p class="text-2xl font-bold" id="totalServices">0</p>
-                    <p class="text-sm opacity-90">Total Services</p>
+                    <p class="text-2xl font-bold" id="totalRepairs">0</p>
+                    <p class="text-sm opacity-90">Total Repairs</p>
+                    
                 </div>
                 <div onclick="window.location.href='expenses.html'" class="bg-white rounded-2xl p-5 shadow-md border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow active:scale-95">
                     <i class="lucide lucide-dollar-sign text-green-700 text-3xl mb-2"></i>
@@ -164,6 +166,8 @@
 
     <div id="mobileNav"></div>
 
+        
+
     <!-- Floating Action Button -->
     <a href="add-record.html" title="Add record" aria-label="Add record" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
         <i class="fa-solid fa-circle-plus text-2xl" aria-hidden="true"></i>
@@ -175,6 +179,7 @@
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js"></script>
-    <script type="module" src="./js/dashboard.js"></script>
+    <!-- Cache-busting query to ensure latest dashboard.js is loaded -->
+    <script type="module" src="./js/dashboard.js?v=2"></script>
 </body>
 </html>

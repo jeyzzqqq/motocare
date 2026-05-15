@@ -197,8 +197,29 @@ function applyPrefillFromUrl() {
         if ([...titleSelect.options].some(o => o.value === titleValue)) {
             setTitle();
         } else {
-            // options may be populated slightly later; retry once
-            setTimeout(() => { setTitle(); }, 80);
+                // options may be populated slightly later; retry once
+                setTimeout(() => {
+                    if ([...titleSelect.options].some(o => o.value === titleValue)) {
+                        setTitle();
+                    } else {
+                        // If the expected scheduled option is missing, inject it so the form treats this as a scheduled maintenance
+                        try {
+                            const opt = document.createElement('option');
+                            opt.value = titleValue;
+                            opt.textContent = params.get('customTitle') || titleValue;
+                            // try to insert into the first optgroup if present, otherwise append
+                            const firstOptGroup = titleSelect.querySelector('optgroup');
+                            if (firstOptGroup) firstOptGroup.appendChild(opt); else titleSelect.appendChild(opt);
+                            setTitle();
+                        } catch (e) {
+                            // fallback to custom option if injection fails
+                            titleSelect.value = 'other:custom';
+                            syncTitleFieldVisibility();
+                            syncUpdateModeVisibility();
+                            if (customInput) customInput.value = params.get('customTitle');
+                        }
+                    }
+                }, 80);
         }
     }
 
