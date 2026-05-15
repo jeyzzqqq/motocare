@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDh8x7yRqZCiDKeGezlHoPEn4OBKidw3ys",
@@ -22,3 +22,17 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const analytics = getAnalytics(app);
 export { onAuthStateChanged };
+
+// If running on localhost, connect the Firestore SDK to the local emulator.
+// This prevents the client from contacting firestore.googleapis.com during local testing
+// and avoids issues with browser extensions blocking websocket channels.
+try {
+  const host = window?.location?.hostname || '';
+  if (host === 'localhost' || host === '127.0.0.1') {
+    // Emulator default port is 8080 for Firestore
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    console.info('Connected Firestore SDK to emulator at 127.0.0.1:8080');
+  }
+} catch (e) {
+  // ignore when running in non-browser environments
+}

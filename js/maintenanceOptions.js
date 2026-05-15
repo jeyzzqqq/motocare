@@ -266,6 +266,13 @@ export function getServiceTitleGroups(motorcycle = {}, currentMileage = 0) {
             label: 'Other',
             options: [
                 {
+                    value: 'other:update-mileage',
+                    label: 'Update Mileage',
+                    title: 'Update Mileage',
+                    kind: 'other',
+                    taskKey: 'update-mileage'
+                },
+                {
                     value: 'other:custom',
                     label: 'Other Service / Repair',
                     title: 'Other Service / Repair',
