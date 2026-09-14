@@ -5,7 +5,7 @@ import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc } from './firebas
 import { getServiceTitleGroups, getTitleSelectionMeta } from './maintenanceOptions.js';
 
 let motorcycles = [];
-let currentUser = null;
+let currentUser = null; 
 
 onAuthStateChanged(auth, (user) => {
     if (!user) {
@@ -51,7 +51,7 @@ function populateTitleSelect(motorcycleId) {
     });
 
     if (customGroup) customGroup.classList.add('hidden');
-    if (customLabel) customLabel.textContent = 'Custom Item';
+    if (customLabel) customLabel.textContent = 'Describe the other service/repair';
     if (customInput) customInput.value = '';
     // Ensure update-mode visibility is synced when titles are repopulated
     try { syncUpdateModeVisibility(); } catch (e) {}
@@ -81,16 +81,16 @@ function syncTitleFieldVisibility() {
 }
 
 // Load motorcycles from Firestore
-async function loadMotorcyclesFromFirestore(user = currentUser) {
+async function loadMotorcyclesFromFirestore(user) {
     const dropdown = document.getElementById('motorcycle');
     if (!dropdown) {
-        console.error('Motorcycle dropdown not found');
+        console  .error('Motorcycle dropdown element not found in the DOM');
         return;
     }
 
     if (!user) {
         console.error('No authenticated user available while loading motorcycles');
-        dropdown.innerHTML = '<option value="">Please sign in first</option>';
+        dropdown.innerHTML = '<option value="">Please sign in to load motorcycles.</option>'; 
         dropdown.disabled = true;
         return;
     }

@@ -7,180 +7,52 @@
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Logout button enhanced styling */
-        .logout-btn {
-            position: relative;
-            transition: all 0.3s ease;
-        }
-        .logout-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);
-        }
-        .logout-btn:active {
-            transform: scale(0.95);
-        }
-        /* Tooltip styling */
-        .logout-tooltip {
-            position: absolute;
-            bottom: -40px;
-            right: 0;
-            background-color: rgba(239, 68, 68, 0.95);
-            color: white;
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.5rem;
-            font-size: 0.75rem;
-            font-weight: 500;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-            z-index: 50;
-            backdrop-filter: blur(4px);
-        }
-        .logout-btn:hover .logout-tooltip {
-            opacity: 1;
-        }
-        /* Logout icon button (rounded UI style) */
-        .logout-icon-btn {
-            background-color: #ffffff;
-            color: #faf6f6; /* icon color */
-            width: 40px;
-            height: 40px;
-            padding: 0;
-            border-radius: 9999px; /* fully rounded */
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.18s ease, transform 0.12s ease;
-        }
-        .logout-icon-btn:active { transform: scale(0.98); }
-        .logout-icon-btn:hover { background-color: #f3f4f6; }
-        .logout-icon-btn svg { display: block; }
-        /* Dark mode: invert for visibility */
-        @media (prefers-color-scheme: dark) {
-            .logout-icon-btn { background-color: #0f172a; color: #f8fafc; }
-            .logout-icon-btn:hover { background-color: #0b1220; }
-        }
-        .btn-danger:active {
-            transform: scale(0.98);
-        }
+        :root { --moto-green: #2e9e4f; --moto-purple: #8b5cf6; }
+        body { font-family: sans-serif; }
+        .dashboard-header { background: var(--moto-green); }
+        .dashboard-stat { margin-top: -30px; position: relative; z-index: 2; }
+        .dashboard-list-row { min-height: 62px; }
+        .dashboard-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
+        .streak-badge { display: flex; align-items: center; gap: 8px; width: fit-content; padding: 9px 14px; border-radius: 9px; background: rgba(255, 255, 255, 0.18); }
+        .streak-badge__icon { color: #ffd166; font-size: 14px; }
+        .streak-badge__count { color: #fff; font-weight: 700; }
+        .streak-badge__supporting { color: rgba(255, 255, 255, 0.72); font-weight: 400; }
+        .header-action { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.18); cursor: pointer; }
+        .header-action:hover { background: rgba(255, 255, 255, 0.26); }
+        .header-action:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.85); outline-offset: 2px; }
+        .header-action svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+        .notification-badge { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid var(--moto-green); border-radius: 999px; color: #fff; background: #ef4444; font: 700 9px/13px sans-serif; text-align: center; }
     </style>
-<body class="bg-gray-50 min-h-screen pb-32">
-    <div class="max-w-lg mx-auto">
-        <div class="p-4 space-y-6">
-            <!-- Header -->
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-3xl text-gray-800">Dashboard</h1>
-                    <p class="text-gray-500 text-sm mt-1">Welcome back, <span id="userName">Rider</span>!</p>
-                </div>
-                <div class="ml-4"></div>
-                <div class="relative">
-                    <button id="logoutBtn" class="logout-btn logout-icon-btn" title="Logout from MotoCare" aria-label="Logout">
-                        <!-- Rounded square with exiting arrow (slightly overlapping) -->
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                            <!-- rounded square box -->
-                            <rect x="3" y="5" width="12" height="14" rx="3" stroke="currentColor" stroke-width="1.6" fill="none" />
-                            <!-- shaft that exits the box -->
-                            <path d="M11 12H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                            <!-- arrow head outside the box -->
-                            <path d="M18 9L22 12L18 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                        <span class="logout-tooltip">Logout</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Quick Stats -->
-            <div class="grid grid-cols-2 gap-4">
-                <div onclick="window.location.href='history.html'" class="bg-gradient-to-br from-green-700 to-green-900 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:scale-105 transition-transform active:scale-95">
-                    <i class="lucide lucide-calendar text-3xl mb-2 opacity-80"></i>
-                    <p class="text-2xl font-bold" id="totalRepairs">0</p>
-                    <p class="text-sm opacity-90">Total Repairs</p>
-                    
-                </div>
-                <div onclick="window.location.href='expenses.html'" class="bg-white rounded-2xl p-5 shadow-md border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow active:scale-95">
-                    <i class="lucide lucide-dollar-sign text-green-700 text-3xl mb-2"></i>
-                    <p class="text-2xl font-bold text-gray-800" id="totalSpent">₱0</p>
-                    <p class="text-sm text-gray-500">Total Spent</p>
-                </div>
-            </div>
-
-            <!-- Upcoming Maintenance -->
-            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-gray-800">Upcoming Maintenance</h2>
-                    <button onclick="window.location.href='schedule.html'" class="text-xs text-green-700 bg-green-50 px-3 py-1 rounded-full hover:bg-green-100 transition-colors flex items-center gap-1">
-                        View All
-                        <i class="lucide lucide-chevron-right text-xs"></i>
-                    </button>
-                </div>
-                <div id="upcomingMaintenanceList" class="space-y-3">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-            </div>
-
-            <!-- Recent Repairs -->
-            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-gray-800">Recent Repairs</h2>
-                    <button onclick="window.location.href='history.html'" class="text-xs text-green-700 hover:underline flex items-center gap-1">
-                        See All
-                        <i class="lucide lucide-chevron-right text-xs"></i>
-                    </button>
-                </div>
-                <div id="recentRepairsList" class="space-y-3">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-            </div>
-
-            <!-- Expense Summary Chart -->
-            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-gray-800">Expense Summary</h2>
-                    <i class="lucide lucide-trending-up text-green-700"></i>
-                </div>
-                <div class="h-48">
-                    <canvas id="expenseChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Maintenance Overview Chart -->
-            <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                <h2 class="text-gray-800 mb-4">Maintenance Overview</h2>
-                <div class="flex items-center gap-6">
-                    <div class="w-32 h-32">
-                        <canvas id="maintenancePieChart"></canvas>
-                    </div>
-                    <div class="flex-1 space-y-3" id="maintenanceLegend">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
+</head>
+<body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
+    <header class="dashboard-header px-4 pb-12 pt-5 text-white">
+        <div class="mx-auto flex max-w-lg items-start justify-between">
+            <div class="flex min-w-0 flex-col items-start"><p id="greeting" class="text-xs font-medium text-green-100">Good morning,</p><h1 id="userName" class="mt-1 text-xl font-bold">Rider</h1><div class="streak-badge mt-3 text-xs" aria-label="Current streak"><i class="streak-badge__icon lucide lucide-flame" aria-hidden="true"></i><span id="streakCount" class="streak-badge__count">0-Day Streak</span><span class="streak-badge__supporting">Keep it up</span></div></div>
+            <div class="flex items-center gap-2">
+                <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge hidden"></span></button>
+                <button id="logoutBtn" type="button" aria-label="Log out" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M12 12h9M17 8l4 4-4 4" /></svg></button>
             </div>
         </div>
-    </div>
+    </header>
 
-    <div id="mobileNav"></div>
+    <main class="mx-auto max-w-lg px-3">
+        <section class="dashboard-stat grid grid-cols-3 gap-2" aria-label="Dashboard statistics">
+            <a href="motorcycles.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-green-50 text-green-700"><span aria-hidden="true">&#127949;</span></div><p id="totalBikes" class="mt-2 text-sm font-bold">0</p><p class="text-[9px] text-gray-500">Total Bikes</p></a>
+            <a href="schedule.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-yellow-100 text-orange-500"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3 2"></path></svg></div><p id="nextDue" class="mt-2 text-sm font-bold text-yellow-700">--</p><p class="text-[9px] text-gray-500">Next Due</p></a>
+            <a href="expenses.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-blue-50 text-blue-600"><span aria-hidden="true">&#8369;</span></div><p id="monthTotal" class="mt-2 text-sm font-bold">&#8369;0</p><p class="text-[9px] text-gray-500">This Month</p></a>
+        </section>
 
-        
+        <section class="mt-4 rounded-xl border border-purple-200 bg-[#F3F0FF] p-4" aria-labelledby="insightTitle">
+            <div class="flex items-center gap-2"><div class="dashboard-icon h-7 w-7 bg-white text-purple-600"><i class="lucide lucide-sparkles text-sm" aria-hidden="true"></i></div><h2 id="insightTitle" class="text-xs font-bold text-purple-900">AI Maintenance Insight</h2><span class="rounded-full bg-purple-100 px-2 py-0.5 text-[8px] font-bold text-purple-700">AI</span></div>
+            <p id="aiInsight" class="mt-2 text-xs leading-relaxed text-purple-900">Loading your motorcycle data...</p><a id="askMotoAi" href="motoai.html" class="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-purple-700">Ask MotoAI for details <span aria-hidden="true">&#8594;</span></a>
+        </section>
 
-    <!-- Floating Action Button -->
-    <a href="add-record.html" title="Add record" aria-label="Add record" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
-        <i class="fa-solid fa-circle-plus text-2xl" aria-hidden="true"></i>
-    </a>
+        <section class="mt-5" aria-labelledby="urgentTitle"><div class="mb-2 flex items-center justify-between"><h2 id="urgentTitle" class="text-xs font-bold">Urgent Maintenance</h2><a href="schedule.html" class="text-[10px] font-semibold text-green-700">View all <span aria-hidden="true">&#8250;</span></a></div><div id="urgentMaintenanceList" class="space-y-2"><p class="py-3 text-xs text-gray-500">Loading...</p></div></section>
+        <section class="mt-5" aria-labelledby="recentTitle"><div class="mb-2 flex items-center justify-between"><h2 id="recentTitle" class="text-xs font-bold">Recent Records</h2><a href="history.html" class="text-[10px] font-semibold text-green-700">View all <span aria-hidden="true">&#8250;</span></a></div><div id="recentRecordsList" class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"><p class="p-4 text-xs text-gray-500">Loading...</p></div></section>
+    </main>
 
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
-
-    <script type="module" src="./js/firebase-config.js"></script>
-    <script src="./js/utils.js"></script>
-    <script type="module" src="./js/mobile-nav.js"></script>
-    <!-- Cache-busting query to ensure latest dashboard.js is loaded -->
-    <script type="module" src="./js/dashboard.js?v=2"></script>
+    <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
+    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js"></script><script type="module" src="./js/dashboard.js?v=3"></script>
 </body>
 </html>

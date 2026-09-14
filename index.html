@@ -269,6 +269,7 @@
 
             try {
                 await login(email, password);
+                localStorage.setItem('motocare-streak-login-pending', 'true');
                 showToast('Login successful!', 'success');
                 setTimeout(() => {
                     window.location.href = './dashboard.html';
@@ -300,6 +301,7 @@
                 console.debug('Attempting signUp for', email);
                 const userCred = await signUp(email, password);
                 console.debug('signUp success', userCred);
+                localStorage.setItem('motocare-streak-login-pending', 'true');
                 showToast('Sign up successful! Logging you in...', 'success');
                 setTimeout(() => {
                     window.location.href = './dashboard.html';
@@ -318,6 +320,7 @@
             try {
                 console.debug('Starting Google sign-in');
                 await googleSignIn();
+                localStorage.setItem('motocare-streak-login-pending', 'true');
                 showToast('Signed in with Google', 'success');
                 setTimeout(() => { window.location.href = './dashboard.html'; }, 800);
             } catch (error) {
