@@ -5,9 +5,9 @@ import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebase
 import { normalizeRecord } from './utils-module.js';
 
 let expenses = [];
+let registeredMotorcycles = [];
 let pendingUserId = null;
 let isDomReady = document.readyState !== 'loading';
-let dailyTrendChartInstance = null;
 
 function getExpenseAmount(expense = {}) {
     const value = expense.amount ?? expense.cost ?? expense.total ?? 0;
@@ -63,8 +63,6 @@ function setLoadingState() {
     const recentList = document.getElementById('recentExpensesList');
     if (recentList) recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">Loading...</div>';
 
-    const legend = document.getElementById('categoryLegend');
-    if (legend) legend.innerHTML = '<div class="text-gray-500 text-sm">Loading...</div>';
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -87,6 +85,7 @@ async function loadExpenses(userId) {
             where('uid', '==', userId)
         ));
 
+        registeredMotorcycles = motorcyclesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
 
         const querySnapshot = await getDocs(query(
@@ -127,28 +126,25 @@ function renderEmptyState() {
     expenses = [];
     if (!canRenderExpenses()) return;
 
-    setText('totalExpenses', '₱0.00');
-    setText('thisMonthExpense', '₱0.00');
+    setText('expenseDateRange', 'No expenses logged · Total ₱0');
+    setText('totalExpenses', '₱0');
+    setText('totalDateRange', 'No expenses logged');
+    setText('thisMonthExpense', '₱0');
     setText('currentMonth', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
     const recentList = document.getElementById('recentExpensesList');
     if (recentList) {
-        recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+        recentList.innerHTML = '<div class="px-4 py-5 text-center text-xs text-gray-500">No expenses logged</div>';
     }
 
-    const trendChart = document.getElementById('dailyTrendChart');
-    if (trendChart?.parentElement) {
-        trendChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
+    const monthlyChart = document.getElementById('monthlySpendingChart');
+    if (monthlyChart) {
+        monthlyChart.innerHTML = '<div class="flex h-36 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-500">No expenses logged</div>';
     }
 
-    const pieChart = document.getElementById('categoryPieChart');
-    if (pieChart?.parentElement) {
-        pieChart.parentElement.innerHTML = '<div class="flex h-48 items-center justify-center rounded-xl bg-gray-50 text-gray-500 text-sm">No records yet</div>';
-    }
-
-    const legend = document.getElementById('categoryLegend');
-    if (legend) {
-        legend.innerHTML = '<div class="text-gray-500 text-sm">No records yet</div>';
+    const bikeList = document.getElementById('bikeSpendingList');
+    if (bikeList) {
+        displayBikeSpending(0);
     }
 }
 
@@ -162,30 +158,114 @@ function displayExpenses() {
 
     const total = expenses.reduce((sum, exp) => sum + getExpenseAmount(exp), 0);
     const now = new Date();
-    const todayKey = normalizeDateKey(now);
-    const yesterdayDate = new Date(now);
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterdayKey = normalizeDateKey(yesterdayDate);
-    const dailyTotals = getDailyTotals(expenses);
-    const todayTotal = dailyTotals.get(todayKey) || 0;
-    const yesterdayTotal = dailyTotals.get(yesterdayKey) || 0;
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthTotal = expenses.reduce((sum, expense) => {
+        const date = getExpenseDate(expense);
+        return date && `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` === thisMonthKey
+            ? sum + getExpenseAmount(expense)
+            : sum;
+    }, 0);
 
-    const weeklyAverage = calculateDailyAverage(expenses, 7);
-    updateTrendIndicator(todayTotal, yesterdayTotal);
+    const dates = expenses.map(getExpenseDate).filter(Boolean).sort((a, b) => a - b);
+    const rangeText = dates.length ? formatDateRange(dates[0], dates[dates.length - 1]) : 'No expenses logged';
+    setText('expenseDateRange', `${rangeText} · Total ${formatPeso(total)}`);
+    setText('totalExpenses', formatPeso(total));
+    setText('totalDateRange', rangeText);
+    setText('thisMonthExpense', formatPeso(thisMonthTotal));
+    setText('currentMonth', now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
-    // Update header stats
-    setText('totalExpenses', `₱${total.toFixed(2)}`);
-    setText('thisMonthExpense', `₱${todayTotal.toFixed(2)}`);
-    setText('currentMonth', now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }));
-
-    // Display trend (daily)
-    displayDailyTrendChart();
-    
-    // Display category breakdown
-    displayCategoryChart();
-
-    // Display recent expenses
+    displayMonthlySpending();
+    displayBikeSpending(total);
     displayRecentExpenses();
+}
+
+function getExpenseDate(expense = {}) {
+    const raw = expense.date || expense.createdAt || expense.updatedAt;
+    if (raw?.toDate) return raw.toDate();
+    const date = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatPeso(amount) {
+    return `₱${Number(amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
+
+function formatDateRange(start, end) {
+    const startLabel = start.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const endLabel = end.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
+}
+
+function monthKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function displayMonthlySpending() {
+    const container = document.getElementById('monthlySpendingChart');
+    if (!container) return;
+
+    const totals = new Map();
+    expenses.forEach((expense) => {
+        const date = getExpenseDate(expense);
+        if (date) totals.set(monthKey(date), (totals.get(monthKey(date)) || 0) + getExpenseAmount(expense));
+    });
+
+    const availableDates = expenses.map(getExpenseDate).filter(Boolean).sort((a, b) => a - b);
+    const latest = availableDates[availableDates.length - 1] || new Date();
+    const first = new Date(latest.getFullYear(), latest.getMonth() - 5, 1);
+    const months = [];
+    for (let index = 0; index < 6; index += 1) {
+        const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
+        months.push({ key: monthKey(date), label: date.toLocaleDateString('en-US', { month: 'short' }), value: totals.get(monthKey(date)) || 0 });
+    }
+
+    const maxValue = Math.max(...months.map((month) => month.value), 0);
+    const axisMax = maxValue ? Math.ceil(maxValue / 4) * 4 : 4;
+    const axisLabels = [axisMax, axisMax * .75, axisMax * .5, axisMax * .25, 0];
+    container.innerHTML = `
+        <div class="flex gap-2">
+            <div class="flex h-36 flex-col justify-between py-0.5 text-[8px] text-gray-400">
+                ${axisLabels.map((value) => `<span>${formatCompactPeso(value)}</span>`).join('')}
+            </div>
+            <div class="relative flex min-w-0 flex-1 flex-col">
+                <div class="pointer-events-none absolute inset-x-0 top-0 flex h-28 flex-col justify-between">
+                    ${axisLabels.slice(0, -1).map(() => '<span class="border-t border-dashed border-gray-100"></span>').join('')}
+                </div>
+                <div class="relative z-10 flex h-28 items-end justify-around gap-2">
+                    ${months.map((month, index) => `<div class="flex h-full flex-1 items-end justify-center"><span class="month-bar ${index === months.length - 1 ? 'is-latest' : ''}" style="height: ${month.value ? Math.max(3, (month.value / axisMax) * 100) : 3}%" title="${month.label}: ${formatPeso(month.value)}"></span></div>`).join('')}
+                </div>
+                <div class="mt-2 flex justify-around gap-2 text-[9px] text-gray-400">${months.map((month) => `<span class="flex-1 text-center">${month.label}</span>`).join('')}</div>
+            </div>
+        </div>`;
+}
+
+function formatCompactPeso(value) {
+    if (value >= 1000) return `P${(value / 1000).toFixed(value % 1000 ? 2 : 0)}k`;
+    return `P${Math.round(value).toLocaleString('en-US')}`;
+}
+
+function displayBikeSpending(total) {
+    const container = document.getElementById('bikeSpendingList');
+    if (!container) return;
+
+    const bikeTotals = new Map();
+    registeredMotorcycles.forEach((motorcycle) => {
+        const name = motorcycle.motorcycleName || `${motorcycle.brand || ''} ${motorcycle.model || ''}`.trim() || 'Unnamed bike';
+        bikeTotals.set(name, 0);
+    });
+    expenses.forEach((expense) => {
+        const name = expense.motorcycleName || 'Unassigned bike';
+        bikeTotals.set(name, (bikeTotals.get(name) || 0) + getExpenseAmount(expense));
+    });
+
+    const colors = ['#e33434', '#1976d2', '#e68a1e', '#7c4dca', '#2e9e4f'];
+    container.innerHTML = Array.from(bikeTotals.entries()).map(([name, amount], index) => {
+        const percentage = total ? (amount / total) * 100 : 0;
+        const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'BK';
+        const color = colors[index % colors.length];
+        const emptyLabel = amount === 0 ? '<span class="ml-8 mt-1 block text-[9px] text-gray-400">No expenses logged</span>' : `<div class="progress-track ml-8 mt-1"><div class="progress-fill" style="width:${percentage}%;background:${color}"></div></div>`;
+        return `<div class="mb-3 last:mb-0"><div class="flex items-center gap-2"><span class="grid h-6 w-6 place-items-center rounded-full text-[8px] font-bold text-white" style="background:${color}">${initials}</span><span class="min-w-0 flex-1 truncate text-[10px]">${name}</span><span class="text-[10px] font-bold">${formatPeso(amount)}</span><span class="w-7 text-right text-[9px] text-gray-400">${Math.round(percentage)}%</span></div>${emptyLabel}</div>`;
+    }).join('') || '<p class="py-3 text-xs text-gray-500">No expenses logged</p>';
 }
 
 function calculateDailyAverage(expenses, days = 7) {
@@ -247,6 +327,7 @@ function updateTrendIndicator(todayTotal, yesterdayTotal) {
 
 function getRecordTime(record) {
     const raw = record.date || record.createdAt || record.updatedAt || '';
+    if (raw?.toDate) return raw.toDate().getTime();
     const parsed = raw instanceof Date ? raw : new Date(raw);
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
@@ -353,25 +434,26 @@ function displayRecentExpenses() {
     if (!recentList) return;
 
     if (!expenses.length) {
-        recentList.innerHTML = '<div class="text-gray-500 text-sm py-3">No records yet</div>';
+        recentList.innerHTML = '<div class="px-4 py-5 text-center text-xs text-gray-500">No expenses logged</div>';
         return;
     }
 
     recentList.innerHTML = expenses.slice(0, 6).map(exp => {
-        const date = new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const dateValue = getExpenseDate(exp);
+        const date = dateValue ? dateValue.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date unavailable';
+        const category = String(exp.category || '').toLowerCase();
+        const icon = category.includes('tire') ? 'circle-dot' : category.includes('oil') ? 'droplets' : category.includes('brake') ? 'disc-3' : 'wrench';
         return `
-            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all">
-                <div class="flex-1">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <p class="text-gray-800 font-medium">${exp.title}</p>
-                        ${exp.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${exp.motorcycleName}</span>` : ''}
-                    </div>
-                    <p class="text-xs text-gray-500">${date} • ${exp.category}</p>
+            <div class="expense-log-row flex items-center gap-3 border-b border-gray-100 px-3 last:border-b-0">
+                <span class="expense-icon bg-green-50 text-green-700"><i class="lucide lucide-${icon} text-sm"></i></span>
+                <div class="min-w-0 flex-1 py-3">
+                    <p class="truncate text-[10px] font-bold text-gray-800">${exp.title || 'Untitled expense'}</p>
+                    <p class="mt-0.5 truncate text-[9px] text-gray-400">${exp.motorcycleName || 'Unassigned bike'} · ${date}</p>
                 </div>
-                <div class="flex items-center gap-3">
-                        <p class="font-bold text-green-700">₱${getExpenseAmount(exp).toFixed(2)}</p>
-                    <button class="delete-expense-btn" data-expense-id="${exp.id}" title="Delete">
-                        <i class="lucide lucide-trash-2 text-red-500 text-lg"></i>
+                <div class="flex items-center gap-2">
+                    <p class="whitespace-nowrap text-[10px] font-bold text-gray-900">${formatPeso(getExpenseAmount(exp))}</p>
+                    <button class="delete-expense-btn p-1" data-expense-id="${exp.id}" title="Delete expense" aria-label="Delete expense">
+                        <i class="lucide lucide-trash-2 text-sm text-gray-300"></i>
                     </button>
                 </div>
             </div>
