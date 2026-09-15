@@ -9,119 +9,66 @@
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        @keyframes pulse-dot {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .animate-pulse-dot {
-            animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        :root { --moto-green: #2E9E4F; }
+        body { font-family: ui-sans-serif, system-ui, sans-serif; }
+        .schedule-header { background: var(--moto-green); }
+        .header-action { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.18); cursor: pointer; }
+        .header-action:hover { background: rgba(255, 255, 255, 0.26); }
+        .header-action:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.85); outline-offset: 2px; }
+        .header-action svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+        .notification-badge { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid var(--moto-green); border-radius: 999px; color: #fff; background: #ef4444; font: 700 9px/13px sans-serif; text-align: center; }
+        .schedule-tab { flex: 1 1 auto; min-height: 36px; border: 1px solid var(--moto-green); border-radius: 999px; padding: 0 12px; color: var(--moto-green); background: transparent; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+        .schedule-tab.is-active { color: #fff; background: var(--moto-green); }
+        .schedule-tab:focus-visible { outline: 3px solid rgba(46, 158, 79, 0.28); outline-offset: 2px; }
+        .schedule-card { border: 1px solid #edf0f1; border-radius: 12px; background: #fff; box-shadow: 0 5px 18px rgba(30, 51, 38, 0.07); }
+        .schedule-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%; color: var(--moto-green); background: #eaf7ed; }
+        .schedule-label { color: #9aa2a8; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+        .schedule-status { border-radius: 999px; padding: 5px 9px; font-size: 9px; font-weight: 800; white-space: nowrap; }
+        .schedule-status--overdue { color: #b42318; background: #fee4e2; }
+        .schedule-status--due { color: #a15c00; background: #fff0cc; }
+        .schedule-status--upcoming { color: #1d5fa7; background: #e3f0ff; }
+        .schedule-status--ok { color: #237a3a; background: #e5f6e9; }
+        .schedule-status--scheduled { color: #1d5fa7; background: #e3f0ff; }
+        @media (max-width: 420px) {
+            .schedule-header h1 { font-size: 20px; line-height: 1.2; }
+            .schedule-header .header-action { width: 34px; height: 34px; }
+            .schedule-header .header-action svg { width: 17px; height: 17px; }
+            .schedule-header > div { gap: 6px; }
+            .schedule-header > div > div:last-child { gap: 4px; }
         }
     </style>
 </head>
-<body class="bg-gradient-to-b from-gray-50 via-gray-50 to-white min-h-screen pb-32">
-    <div class="max-w-lg mx-auto">
-        <div class="p-4 space-y-5">
-            <!-- Header -->
-            <section class="bg-white rounded-3xl shadow-sm border border-gray-100 p-4">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="space-y-2 min-w-0">
-                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-medium">
-                            <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
-                            Maintenance Schedule
-                        </div>
-                        <div>
-                            <h1 class="text-3xl font-semibold text-gray-900 leading-tight">Service reminders</h1>
-                            <p class="text-gray-500 text-sm mt-1 max-w-[24rem]">Clear, motorcycle-based maintenance reminders grouped by your saved unit.</p>
-                        </div>
-                        <p id="selectedMotorcycleLabel" class="inline-flex max-w-full items-center gap-2 text-xs font-medium text-green-700 bg-green-50 rounded-full px-3 py-1 truncate">Select a motorcycle</p>
-                    </div>
-                        <div class="flex items-center gap-3">
-                            <div class="hidden sm:flex items-center text-sm text-gray-600">
-                                <label for="autoSendToggle" class="inline-flex items-center gap-2 cursor-pointer select-none">
-                                    <input id="autoSendToggle" type="checkbox" class="w-4 h-4" checked>
-                                    <span>Auto-send emails</span>
-                                </label>
-                            </div>
-                            <button id="motorcycleDrawerButton" type="button" class="shrink-0 w-11 h-11 rounded-2xl bg-gray-900 text-white shadow-md flex items-center justify-center active:scale-95" aria-label="Open motorcycle selector">
-                                <i class="fa-solid fa-bars text-lg" aria-hidden="true"></i>
-                            </button>
-                        </div>
+<body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
+    <header class="schedule-header px-4 pb-12 pt-5 text-white">
+        <div class="mx-auto flex max-w-lg items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-xs font-medium text-green-100">Keep your ride ready</p>
+                    <h1 class="mt-1 text-2xl font-bold">Maintenance Schedule</h1>
+                    <p id="overdueSubtitle" class="mt-1 text-xs text-green-50">0 overdue</p>
+                    <p id="selectedMotorcycleLabel" class="mt-3 max-w-full truncate text-xs font-semibold text-green-900"></p>
                 </div>
-            </section>
-
-            <!-- Summary Cards -->
-            <section class="bg-white rounded-3xl shadow-sm border border-gray-100 p-3">
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="rounded-2xl bg-red-50 border border-red-100 p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="w-9 h-9 rounded-xl bg-white text-red-600 flex items-center justify-center shadow-sm">
-                                <i class="fa-solid fa-triangle-exclamation"></i>
-                            </span>
-                            <span class="text-[11px] uppercase tracking-wide text-red-600 font-semibold">Urgent</span>
-                        </div>
-                        <p class="text-2xl font-bold text-red-700" id="dueCount">0</p>
-                        <p class="text-xs text-red-600 mt-1">Due / overdue</p>
-                    </div>
-                    <div class="rounded-2xl bg-amber-50 border border-amber-100 p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="w-9 h-9 rounded-xl bg-white text-amber-600 flex items-center justify-center shadow-sm">
-                                <i class="fa-solid fa-clock"></i>
-                            </span>
-                            <span class="text-[11px] uppercase tracking-wide text-amber-600 font-semibold">Soon</span>
-                        </div>
-                        <p class="text-2xl font-bold text-amber-700" id="upcomingCount">0</p>
-                        <p class="text-xs text-amber-600 mt-1">Coming up</p>
-                    </div>
-                    <div class="rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="w-9 h-9 rounded-xl bg-white text-emerald-600 flex items-center justify-center shadow-sm">
-                                <i class="fa-solid fa-circle-check"></i>
-                            </span>
-                            <span class="text-[11px] uppercase tracking-wide text-emerald-600 font-semibold">Done</span>
-                        </div>
-                        <p class="text-2xl font-bold text-emerald-700" id="completedCount">0</p>
-                        <p class="text-xs text-emerald-600 mt-1">Logged</p>
-                    </div>
+                <div class="flex items-center gap-2">
+                    <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge hidden"></span></button>
+                    <button id="logoutBtn" type="button" aria-label="Log out" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M12 12h9M17 8l4 4-4 4" /></svg></button>
+                    <button id="motorcycleDrawerButton" type="button" class="header-action" aria-label="Open motorcycle selector">
+                        <i class="lucide lucide-bike text-lg" aria-hidden="true"></i>
+                    </button>
                 </div>
-            </section>
-
-            <!-- Timeline -->
-            <section class="bg-white rounded-3xl shadow-sm border border-gray-100 p-4">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-gray-900 font-semibold text-lg">All reminders</h2>
-                        <p class="text-xs text-gray-500 mt-1">Each card shows the target ODO and the current state.</p>
-                    </div>
-                </div>
-
-                <div class="relative">
-                    <div class="absolute left-5 top-2 bottom-2 w-0.5 bg-gray-200"></div>
-                    <div id="scheduleList" class="space-y-4">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- Priority Legend -->
-            <section class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
-                <h3 class="text-gray-900 font-semibold text-sm mb-3">Priority legend</h3>
-                <div class="grid grid-cols-3 gap-2 text-center">
-                    <div class="rounded-2xl bg-red-50 border border-red-100 py-3 px-2">
-                        <div class="w-3 h-3 rounded-full bg-red-500 mx-auto mb-2"></div>
-                        <span class="text-xs font-medium text-red-700">Urgent</span>
-                    </div>
-                    <div class="rounded-2xl bg-amber-50 border border-amber-100 py-3 px-2">
-                        <div class="w-3 h-3 rounded-full bg-yellow-500 mx-auto mb-2"></div>
-                        <span class="text-xs font-medium text-amber-700">Coming up</span>
-                    </div>
-                    <div class="rounded-2xl bg-emerald-50 border border-emerald-100 py-3 px-2">
-                        <div class="w-3 h-3 rounded-full bg-green-500 mx-auto mb-2"></div>
-                        <span class="text-xs font-medium text-emerald-700">Logged</span>
-                    </div>
-                </div>
-            </section>
         </div>
-    </div>
+    </header>
+
+    <main class="mx-auto max-w-lg space-y-4 px-3 pt-4">
+            <nav class="flex gap-2 overflow-x-auto pb-1" aria-label="Maintenance filters">
+                <button type="button" class="schedule-tab is-active" data-schedule-filter="all">All</button>
+                <button type="button" class="schedule-tab" data-schedule-filter="overdue">Overdue</button>
+                <button type="button" class="schedule-tab" data-schedule-filter="due-soon">Due Soon</button>
+                <button type="button" class="schedule-tab" data-schedule-filter="upcoming">Upcoming</button>
+            </nav>
+
+            <section id="scheduleList" class="space-y-3" aria-live="polite">
+                <p class="py-8 text-center text-sm text-gray-500">Loading maintenance reminders...</p>
+            </section>
+    </main>
 
     <!-- Motorcycle Drawer -->
     <div id="motorcycleDrawerBackdrop" class="fixed inset-0 bg-black/40 hidden z-40"></div>
@@ -154,6 +101,7 @@
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js"></script>
+    <script type="module" src="./js/notification-panel.js"></script>
     <script type="module" src="./js/schedule.js"></script>
 </body>
 </html>

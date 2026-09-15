@@ -1,4 +1,4 @@
-import { auth, onAuthStateChanged } from './firebase-config.js';
+import { auth, onAuthStateChanged } from './firebase-config.js';   
 
 const responses = [
     {

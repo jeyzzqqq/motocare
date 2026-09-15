@@ -1,5 +1,5 @@
 import { auth, db } from './firebase-config.js';
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, getFirestoreDocById } from './firebaseUtils.js';
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { normalizeRecord } from './utils-module.js';
@@ -13,6 +13,7 @@ let motorcycles = [];
 let selectedMotorcycleId = '';
 let motorcyclesUnsub = null;
 let maintenanceUnsub = null;
+let currentScheduleFilter = 'all';
 
 const SELECTED_MOTORCYCLE_STORAGE_KEY = 'motocare.selectedMotorcycleId';
 
@@ -24,6 +25,16 @@ function bindScheduleControls() {
     drawerButton?.addEventListener('click', openMotorcycleDrawer);
     drawerBackdrop?.addEventListener('click', closeMotorcycleDrawer);
     closeButton?.addEventListener('click', closeMotorcycleDrawer);
+    document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
+    document.querySelectorAll('[data-schedule-filter]').forEach((button) => {
+        button.addEventListener('click', () => {
+            currentScheduleFilter = button.dataset.scheduleFilter || 'all';
+            document.querySelectorAll('[data-schedule-filter]').forEach((tab) => {
+                tab.classList.toggle('is-active', tab === button);
+            });
+            displaySchedule(getSelectedScheduleItems());
+        });
+    });
 }
 
 if (document.readyState === 'loading') {
@@ -283,6 +294,7 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
             maintenanceId: completedRecord?.id || '',
             completed: status.key === 'completed',
             lastCompletedMileage: completedRecord ? getCompletionMileage(completedRecord) : null,
+            lastCompletedDate: completedRecord ? completedRecord.completedAt || completedRecord.date || completedRecord.createdAt || null : null,
             anchorMileage,
             anchorSource
         };
@@ -544,13 +556,39 @@ function formatMileage(value) {
     return Number.isFinite(numeric) ? numeric.toLocaleString() : '0';
 }
 
+function formatServiceDate(value) {
+    if (!value) return 'None yet';
+    const date = typeof value.toDate === 'function' ? value.toDate() : new Date(value);
+    return Number.isNaN(date.getTime()) ? 'None yet' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getDisplayStatus(item) {
+    if (item.status.key === 'overdue' || item.status.key === 'due') {
+        return { label: 'Overdue', className: 'schedule-status--overdue', filter: 'overdue' };
+    }
+    if (item.status.key === 'upcoming') {
+        return { label: 'Due Soon', className: 'schedule-status--due', filter: 'due-soon' };
+    }
+    return { label: item.status.key === 'completed' ? 'OK' : 'Upcoming', className: item.status.key === 'completed' ? 'schedule-status--ok' : 'schedule-status--scheduled', filter: 'upcoming' };
+}
+
+function filterScheduleItems(items) {
+    if (currentScheduleFilter === 'all') return items;
+    return items.filter((item) => getDisplayStatus(item).filter === currentScheduleFilter);
+}
+
 function displaySchedule(items) {
     const container = document.getElementById('scheduleList');
     if (!container) return;
 
-    if (!items.length) {
+    const visibleItems = filterScheduleItems(items);
+
+    if (!visibleItems.length) {
         const selectedMotorcycle = getSelectedMotorcycle();
-        if (selectedMotorcycle) {
+        if (currentScheduleFilter !== 'all') {
+            const emptyMessage = currentScheduleFilter === 'overdue' ? 'No overdue items. Great job!' : `No ${currentScheduleFilter.replace('-', ' ')} items right now.`;
+            renderEmptySchedule(emptyMessage);
+        } else if (selectedMotorcycle) {
             renderEmptySchedule(`No reminders available for ${selectedMotorcycle.motorcycleName}.`);
         } else {
             renderEmptySchedule('Select a motorcycle from the menu to view reminders.');
@@ -565,99 +603,52 @@ function displaySchedule(items) {
     const currentThreshold = selectedMotorcycle ? getReminderThreshold(selectedMotorcycle.id) : getReminderThreshold();
 
     container.innerHTML = `
-        <div class="mb-4 flex items-center justify-between gap-3">
-            <div class="text-sm text-gray-700">Reminder threshold</div>
-            <div class="flex items-center gap-2">
-                <label for="reminderThresholdInput" class="sr-only">Threshold in kilometers</label>
-                <div class="flex items-center gap-2 bg-gray-50 border rounded-lg px-2 py-1">
-                    <input id="reminderThresholdInput" type="number" min="0" step="50" class="w-24 bg-transparent outline-none text-sm" value="${Number(currentThreshold)}" aria-label="Reminder threshold in kilometers">
-                    <span class="text-sm text-gray-600">km</span>
+        <div class="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-bold text-gray-900">${escapeHtml(motorcycleName)}</p>
+                    <p class="mt-0.5 text-[10px] text-gray-500">${visibleItems.length} reminder${visibleItems.length === 1 ? '' : 's'}</p>
                 </div>
-                <button id="reminderThresholdSave" class="ml-2 px-3 py-1 rounded-lg bg-green-700 text-white text-sm">Apply</button>
-                <button id="reminderThresholdReset" class="ml-2 px-3 py-1 rounded-lg bg-white border text-sm">Reset</button>
+                <label for="autoSendToggle" class="flex items-center gap-2 text-[10px] font-medium text-gray-600">
+                    <input id="autoSendToggle" type="checkbox" class="h-3.5 w-3.5" checked>
+                    Auto-send emails
+                </label>
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-2">
+                <label for="reminderThresholdInput" class="schedule-label">REMINDER THRESHOLD</label>
+                <div class="flex items-center gap-2">
+                <label for="reminderThresholdInput" class="sr-only">Threshold in kilometers</label>
+                <div class="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
+                    <input id="reminderThresholdInput" type="number" min="0" step="50" class="w-16 bg-transparent text-xs outline-none" value="${Number(currentThreshold)}" aria-label="Reminder threshold in kilometers">
+                    <span class="text-xs text-gray-600">km</span>
+                </div>
+                <button id="reminderThresholdSave" class="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white">Apply</button>
+                <button id="reminderThresholdReset" class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs">Reset</button>
+                </div>
             </div>
         </div>
 
-        <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div class="flex items-start justify-between gap-3 mb-4">
-                <div>
-                    <div class="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 class="text-gray-900 font-semibold text-lg leading-tight">${escapeHtml(motorcycleName)}</h3>
-                        ${motorcycleCategory ? `<span class="text-xs px-2 py-1 rounded-full font-medium ${motorcycleCategory.badge}">${escapeHtml(motorcycleCategory.label)}</span>` : ''}
-                    </div>
-                </div>
-                <div class="text-xs text-gray-500 text-right">
-                    <p class="font-medium text-gray-700">${items.length} reminder${items.length === 1 ? '' : 's'}</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-3 mb-4 text-xs">
-                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                    <p class="text-gray-500 mb-1">Urgent</p>
-                    <p class="font-semibold text-gray-900 text-sm">${items.filter((item) => item.status.key === 'due' || item.status.key === 'overdue').length}</p>
-                </div>
-                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                    <p class="text-gray-500 mb-1">Coming up</p>
-                    <p class="font-semibold text-gray-900 text-sm">${items.filter((item) => item.status.key === 'upcoming' || item.status.key === 'scheduled').length}</p>
-                </div>
-                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                    <p class="text-gray-500 mb-1">Logged</p>
-                    <p class="font-semibold text-gray-900 text-sm">${items.filter((item) => item.status.key === 'completed' || item.lastCompletedMileage !== null).length}</p>
-                </div>
-            </div>
-
-            <div class="relative pl-8 pr-1 space-y-4">
-                <div class="absolute left-6 top-2 bottom-2 w-0.5 bg-gray-200"></div>
-                ${items.map((item) => `
-                    <div class="relative pl-12">
-                        <div class="absolute left-[11px] top-5 w-3 h-3 rounded-full ${item.status.dotClass} border-4 border-white z-10 shadow-sm"></div>
-
-                        <div class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-                            <div class="flex items-start justify-between gap-3 mb-3">
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">${escapeHtml(item.status.label)}</p>
-                                    <h4 class="text-gray-900 font-semibold leading-snug ${item.completed ? 'line-through text-gray-400' : ''}">${escapeHtml(item.task)}</h4>
-                                </div>
-                                <div class="w-10 h-10 rounded-xl ${item.overall.className} flex items-center justify-center shrink-0">
-                                    <i class="lucide lucide-${item.overall.icon} text-base"></i>
-                                </div>
-                            </div>
-
-                            <div class="flex flex-wrap gap-2 mb-3">
-                                <span class="text-xs px-2.5 py-1 rounded-full ${item.status.className}">${escapeHtml(item.status.label)}</span>
-                                <span class="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">Target ${item.dueMileage.toLocaleString()} km</span>
-                            </div>
-
-                            <div class="flex items-start gap-2 text-sm text-gray-600 mb-3">
-                                <i class="lucide lucide-${item.icon} text-gray-400 mt-0.5"></i>
-                                <span class="leading-relaxed">${escapeHtml(item.reminder)}</span>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
-                                <div class="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-                                    <p class="text-gray-400 mb-1">Current ODO</p>
-                                    <p class="font-semibold text-gray-900">${item.currentOdo.toLocaleString()} km</p>
-                                </div>
-                                <div class="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-                                    <p class="text-gray-400 mb-1">Last service</p>
-                                    <p class="font-semibold text-gray-900">${item.lastCompletedMileage !== null ? `${item.lastCompletedMileage.toLocaleString()} km` : 'None yet'}</p>
-                                </div>
-                            </div>
-
-                            <div class="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                                ${escapeHtml(buildComputationNote(item))}
-                            </div>
-
-                            <div>
-                                <button onclick="markComplete('${item.id}'); return false;" class="w-full py-2.5 bg-green-700 text-white rounded-xl text-sm font-medium hover:bg-green-800 transition-colors active:scale-95">
-                                    Mark as Complete
-                                </button>
-                            </div>
+        ${visibleItems.map((item) => { const displayStatus = getDisplayStatus(item); return `
+            <article class="schedule-card p-4">
+                <div class="flex items-start gap-3">
+                    <div class="schedule-icon"><i class="lucide lucide-${escapeHtml(item.icon || item.overall.icon)} text-lg" aria-hidden="true"></i></div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-start justify-between gap-2">
+                            <h2 class="truncate text-sm font-bold text-gray-900">${escapeHtml(item.task)}</h2>
+                            <span class="schedule-status ${displayStatus.className}">${displayStatus.label}</span>
                         </div>
+                        <p class="mt-1 truncate text-xs text-gray-500">${escapeHtml(item.motorcycleName)}</p>
                     </div>
-                `).join('')}
-            </div>
-        </section>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
+                    <div><p class="schedule-label">DUE DATE</p><p class="mt-1 text-xs font-bold text-gray-800">At ${formatMileage(item.dueMileage)} km</p></div>
+                    <div><p class="schedule-label">LAST DONE</p><p class="mt-1 text-xs font-bold text-gray-800">${formatServiceDate(item.lastCompletedDate)}</p></div>
+                </div>
+                <div class="mt-3 border-t border-gray-100 pt-3"><p class="schedule-label">INTERVAL</p><p class="mt-1 text-xs font-semibold text-gray-700">Every ${formatMileage(item.threshold)} km</p></div>
+                <p class="mt-3 text-[11px] leading-relaxed text-gray-500">${escapeHtml(item.reminder)}</p>
+                <button onclick="markComplete('${item.id}'); return false;" class="mt-3 w-full rounded-lg bg-green-700 py-2.5 text-xs font-bold text-white transition-colors hover:bg-green-800">Mark as Complete</button>
+            </article>
+        `; }).join('')}
     `;
 
     // Hook auto-send toggle persistence
@@ -747,10 +738,15 @@ function updateCounts(items) {
     const dueEl = document.getElementById('dueCount');
     const upcomingEl = document.getElementById('upcomingCount');
     const completedEl = document.getElementById('completedCount');
+    const overdueSubtitle = document.getElementById('overdueSubtitle');
 
     if (dueEl) dueEl.textContent = String(due);
     if (upcomingEl) upcomingEl.textContent = String(upcoming);
     if (completedEl) completedEl.textContent = String(completed);
+    if (overdueSubtitle) {
+        const overdue = items.filter((item) => item.status.key === 'overdue' || item.status.key === 'due').length;
+        overdueSubtitle.textContent = `${overdue} overdue`;
+    }
 }
 
 window.markComplete = async function(id) {
