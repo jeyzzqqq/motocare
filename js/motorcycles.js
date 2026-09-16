@@ -428,7 +428,7 @@ async function saveInlineMileage(id) {
         showToast('Mileage updated', 'success');
     } catch (error) {
         console.error('Error updating mileage:', error);
-        showToast('Error updating mileage', 'error');
+        showToast('Error updating mileage', 'error'); 
     }
 }
 
