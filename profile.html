@@ -23,6 +23,13 @@
         .motoai-banner { background: linear-gradient(110deg, #8b5cf6, #9d20f3); }
         .motoai-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.2); }
         .ai-pill { padding: 3px 7px; border-radius: 999px; color: #fff; background: rgba(255, 255, 255, 0.2); font-size: 9px; font-weight: 700; }
+        body.motorcycles-modal-open { overflow: hidden; }
+        .motorcycles-modal-backdrop { position: fixed; inset: 0; z-index: 80; display: none; background: rgba(27, 35, 30, 0.46); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+        .motorcycles-modal-backdrop.is-open { display: block; }
+        .motorcycles-modal-sheet { position: fixed; inset: auto 10px 0 10px; z-index: 90; max-width: 420px; margin: 0 auto; display: none; background: #fff; border-radius: 16px 16px 0 0; box-shadow: 0 20px 55px rgba(20, 35, 25, 0.24); overflow: hidden; animation: motorcycles-modal-in 180ms ease-out; }
+        .motorcycles-modal-sheet.is-open { display: block; }
+        @keyframes motorcycles-modal-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @media (min-width: 480px) { .motorcycles-modal-sheet { left: 50%; right: auto; transform: translateX(-50%); width: min(100%, 420px); } }
     </style>
 </head>
 <body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
@@ -30,10 +37,123 @@
     <main class="mx-auto -mt-5 max-w-lg space-y-3 px-3">
         <section class="profile-card p-3" aria-labelledby="loginStreakTitle"><div class="flex items-center justify-between px-1"><div class="flex items-center gap-2"><i class="lucide lucide-flame text-sm text-orange-500" aria-hidden="true"></i><h2 id="loginStreakTitle" class="text-xs font-bold">Login Streak</h2></div><span class="text-[10px] text-gray-500">This week</span></div><div id="profileWeek" class="mt-3 grid grid-cols-7 gap-2" aria-label="Weekly check-in progress"></div><p id="profileProgress" class="mt-2 text-center text-[10px] text-gray-500">Loading streak...</p></section>
         <a href="motoai.html" class="motoai-banner flex items-center gap-3 rounded-xl p-3 text-white shadow-sm" aria-label="Open MotoAI Assistant"><span class="motoai-icon"><i class="lucide lucide-message-circle text-base" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><span class="flex items-center gap-2"><strong class="text-xs">MotoAI Assistant</strong><span class="ai-pill">AI</span></span><small class="mt-1 block text-[10px] text-purple-100">Ask about maintenance, schedules &amp; tips</small></span><i class="lucide lucide-chevron-right text-purple-100" aria-hidden="true"></i></a>
-        <section class="profile-card overflow-hidden" aria-label="Profile settings"><a href="motorcycles.html" class="menu-row flex items-center gap-3 px-3" aria-label="My Motorcycles"><span class="menu-icon"><i class="lucide lucide-bike" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><strong class="block text-xs">My Motorcycles</strong><small id="bikeCount" class="block text-[10px] text-gray-500">Loading bikes...</small></span><i class="lucide lucide-chevron-right text-xs text-gray-300" aria-hidden="true"></i></a><a href="notifications.html" class="menu-row flex items-center gap-3 px-3" aria-label="Notification Settings"><span class="menu-icon"><i class="lucide lucide-bell" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><strong class="block text-xs">Notification Settings</strong><small class="block text-[10px] text-gray-500">Reminders &amp; alerts</small></span><i class="lucide lucide-chevron-right text-xs text-gray-300" aria-hidden="true"></i></a><button type="button" onclick="toggleEdit()" class="menu-row flex w-full items-center gap-3 px-3 text-left" aria-label="Account Settings"><span class="menu-icon"><i class="lucide lucide-settings" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><strong class="block text-xs">Account Settings</strong><small class="block text-[10px] text-gray-500">Profile &amp; password</small></span><i class="lucide lucide-chevron-right text-xs text-gray-300" aria-hidden="true"></i></button></section>
+        <section class="profile-card overflow-hidden" aria-label="Profile settings"><button type="button" onclick="openMotorcyclesModal()" class="menu-row flex w-full items-center gap-3 px-3 text-left" aria-label="My Motorcycles"><span class="menu-icon"><i class="lucide lucide-bike" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><strong class="block text-xs">My Motorcycles</strong><small id="bikeCount" class="block text-[10px] text-gray-500">Loading bikes...</small></span><i class="lucide lucide-chevron-right text-xs text-gray-300" aria-hidden="true"></i></button><a href="notifications.html" class="menu-row flex items-center gap-3 px-3" aria-label="Notification Settings"><span class="menu-icon"><i class="lucide lucide-bell" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><strong class="block text-xs">Notification Settings</strong><small class="block text-[10px] text-gray-500">Reminders &amp; alerts</small></span><i class="lucide lucide-chevron-right text-xs text-gray-300" aria-hidden="true"></i></a><button type="button" onclick="toggleEdit()" class="menu-row flex w-full items-center gap-3 px-3 text-left" aria-label="Account Settings"><span class="menu-icon"><i class="lucide lucide-settings" aria-hidden="true"></i></span><span class="min-w-0 flex-1"><strong class="block text-xs">Account Settings</strong><small class="block text-[10px] text-gray-500">Profile &amp; password</small></span><i class="lucide lucide-chevron-right text-xs text-gray-300" aria-hidden="true"></i></button></section>
         <button type="button" onclick="logoutUser()" class="flex w-full items-center justify-center gap-2 rounded-xl border border-red-300 bg-white py-3 text-xs font-medium text-red-500 shadow-sm" aria-label="Sign Out"><i class="lucide lucide-log-out" aria-hidden="true"></i>Sign Out</button>
     </main>
+
+    <div id="motorcyclesBackdrop" class="motorcycles-modal-backdrop" data-motorcycles-dismiss onclick="closeMotorcyclesModal()"></div>
+    <div id="motorcyclesBottomSheet" class="motorcycles-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="motorcyclesModalTitle">
+        <div class="flex justify-center pt-2.5 pb-1.5">
+            <div class="h-1.5 w-12 rounded-full bg-gray-300"></div>
+        </div>
+        <div class="flex items-start justify-between gap-3 px-4 pb-3 pt-1">
+            <h2 id="motorcyclesModalTitle" class="text-[17px] font-bold leading-5 text-[#111827]">My Motorcycles</h2>
+            <button type="button" aria-label="Close motorcycles panel" onclick="closeMotorcyclesModal()" class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200">
+                <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
+        </div>
+        <div class="max-h-[72vh] overflow-y-auto px-3 pb-4">
+            <div id="emptyState" class="hidden rounded-[18px] border border-dashed border-gray-200 bg-white p-10 text-center">
+                <div class="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100">
+                    <i class="fa-solid fa-motorcycle text-5xl text-gray-400"></i>
+                </div>
+                <h3 class="mb-2 text-lg font-medium text-gray-800">No motorcycles yet</h3>
+                <p class="mb-6 text-sm text-gray-500">Add your first motorcycle to get started</p>
+                <button onclick="openAddModal()" class="inline-flex items-center gap-3 rounded-full bg-green-700 px-6 py-3 text-white shadow-lg transition hover:bg-green-800 active:scale-95">
+                    <i class="fa-solid fa-plus"></i>
+                    <span class="font-medium">Add Motorcycle</span>
+                </button>
+            </div>
+            <div id="motorcyclesList" class="space-y-3"></div>
+            <button id="addAnotherBtn" onclick="openAddModal()" class="mt-3 flex w-full items-center justify-center gap-2 rounded-[16px] border-2 border-dashed border-gray-300 bg-white py-4 text-[15px] font-medium text-gray-500 transition hover:border-green-700 hover:bg-green-50 hover:text-green-700 hidden">
+                <i class="fa-solid fa-plus text-lg"></i>
+                <span>Add Motorcycle</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="motorcycleModal" class="fixed inset-0 z-[110] hidden">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-[8px]" onclick="closeModal()"></div>
+        <div class="absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-3xl bg-white p-6 slide-up">
+            <div class="mx-auto max-w-lg">
+                <div class="mb-6 flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-gray-800" id="modalTitle">Add Motorcycle</h2>
+                    <button type="button" onclick="closeModal()" class="rounded-full p-2 transition-colors hover:bg-gray-100">
+                        <i class="fa-solid fa-xmark text-2xl text-gray-600"></i>
+                    </button>
+                </div>
+                <form id="motorcycleForm" class="space-y-4">
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Brand *</label>
+                        <select id="brandSelect" required class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-700">
+                            <option value="">Select Brand</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Model *</label>
+                        <select id="modelSelect" required disabled class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 disabled:cursor-not-allowed disabled:opacity-50 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-700">
+                            <option value="">Select Brand First</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Year *</label>
+                        <select id="yearSelect" required class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-700">
+                            <option value="">Select Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Plate Number *</label>
+                        <input type="text" id="plateInput" placeholder="ABC-1234" required class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 uppercase focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-700">
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Color *</label>
+                        <input type="text" id="colorInput" placeholder="e.g., Red, Black, Blue" required class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-700">
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Current Mileage *</label>
+                        <input type="number" id="mileageInput" placeholder="12450" required class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-700">
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="flex-1 rounded-xl bg-gray-200 py-3 font-medium text-gray-700 transition-all hover:bg-gray-300 active:scale-95">
+                            Cancel
+                        </button>
+                        <button type="submit" class="flex-1 rounded-xl bg-green-700 py-3 font-medium text-white shadow-lg transition-all hover:bg-green-800 active:scale-95">
+                            <span id="submitBtnText">Add Motorcycle</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteMotorcycleModal" class="fixed inset-0 z-[130] hidden">
+        <div id="deleteMotorcycleBackdrop" class="absolute inset-0 bg-black/50 backdrop-blur-[8px]" onclick="closeDeleteMotorcycleModal()"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl slide-up">
+                <div class="flex items-start gap-4">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                        <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-xl font-bold text-gray-900">Delete motorcycle?</h3>
+                        <p class="mt-2 text-sm text-gray-600">
+                            Are you sure you want to delete <span id="deleteMotorcycleLabel" class="font-semibold text-gray-900">this motorcycle</span>? This action can’t be undone.
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-6 flex gap-3">
+                    <button type="button" onclick="closeDeleteMotorcycleModal()" class="flex-1 rounded-xl bg-gray-100 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-200 active:scale-95">
+                        No, keep it
+                    </button>
+                    <button type="button" onclick="confirmDeleteMotorcycle()" class="flex-1 rounded-xl bg-red-600 py-3 font-medium text-white transition-colors hover:bg-red-700 active:scale-95">
+                        Yes, delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
-    <script type="module" src="./js/firebase-config.js"></script><script type="module" src="./js/mobile-nav.js"></script><script type="module" src="./js/profile.js"></script>
+    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js"></script><script type="module" src="./js/motorcycles.js?v=2"></script><script type="module" src="./js/profile.js"></script>
 </body>
 </html>

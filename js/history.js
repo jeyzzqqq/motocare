@@ -140,12 +140,16 @@ function renderList(records) {
 
 function getRecordTime(record) {
     const raw = record.date || record.createdAt || record.updatedAt || '';
+    if (raw && typeof raw.toDate === 'function') return raw.toDate().getTime();
     const parsed = raw instanceof Date ? raw : new Date(raw);
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
 function formatRecordDate(record) {
     const raw = record.date || record.createdAt || record.updatedAt || '';
+    if (raw && typeof raw.toDate === 'function') {
+        return raw.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
     const parsed = raw instanceof Date ? raw : new Date(raw);
     if (Number.isNaN(parsed.getTime())) return '';
     return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

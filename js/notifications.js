@@ -7,6 +7,12 @@ function formatDate(value) {
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function timestampValue(value) {
+    if (value && typeof value.toDate === 'function') return value.toDate().getTime();
+    const date = value instanceof Date ? value : new Date(value || 0);
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
 function renderNotifications(items) {
     const list = document.getElementById('notificationsList');
     if (!items.length) {
@@ -32,7 +38,7 @@ onAuthStateChanged(auth, async (user) => {
 
     try {
         const snapshot = await getDocs(query(collection(db, 'notifications'), where('uid', '==', user.uid)));
-        const notifications = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+        const notifications = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).sort((a, b) => timestampValue(b.createdAt || b.date) - timestampValue(a.createdAt || a.date));
         renderNotifications(notifications);
     } catch (error) {
         console.error('Notifications load failed:', error);

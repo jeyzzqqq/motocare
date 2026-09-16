@@ -106,6 +106,13 @@ function renderRepairs() {
 }
 
 function renderRepair(repair) {
+    const title = escapeHtml(repair.title || 'Repair');
+    const category = escapeHtml(repair.category || 'General');
+    const motorcycleName = escapeHtml(repair.motorcycleName || '');
+    const date = escapeHtml(repair.date || 'N/A');
+    const notes = escapeHtml(repair.notes || '');
+    const mechanic = escapeHtml(repair.mechanic || 'Self');
+    const mileage = escapeHtml(String(repair.mileage || ''));
     return `
         <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-3 hover:shadow-lg transition-all">
             <div class="flex items-start justify-between gap-4">
@@ -115,17 +122,17 @@ function renderRepair(repair) {
                             <i class="lucide lucide-wrench text-green-700"></i>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-gray-800">${repair.title || 'Repair'}</h3>
-                            <p class="text-xs text-gray-500">${repair.category || 'General'}</p>
+                            <h3 class="text-lg font-bold text-gray-800">${title}</h3>
+                            <p class="text-xs text-gray-500">${category}</p>
                         </div>
                     </div>
                     
                     <div class="flex items-center gap-2 flex-wrap mb-2">
-                        ${repair.motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${repair.motorcycleName}</span>` : ''}
-                        <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">${repair.date || 'N/A'}</span>
+                        ${motorcycleName ? `<span class="text-xs bg-green-700 text-white px-2 py-1 rounded-full font-medium">${motorcycleName}</span>` : ''}
+                        <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">${date}</span>
                     </div>
                     
-                    ${repair.notes ? `<p class="text-sm text-gray-600 mb-3">${repair.notes}</p>` : ''}
+                    ${notes ? `<p class="text-sm text-gray-600 mb-3">${notes}</p>` : ''}
                     
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <div class="bg-gray-50 p-2 rounded-lg">
@@ -134,12 +141,12 @@ function renderRepair(repair) {
                         </div>
                         <div class="bg-gray-50 p-2 rounded-lg">
                             <p class="text-xs text-gray-500">Mechanic</p>
-                            <p class="text-sm font-semibold text-gray-800">${repair.mechanic || 'Self'}</p>
+                            <p class="text-sm font-semibold text-gray-800">${mechanic}</p>
                         </div>
-                        ${repair.mileage ? `
+                        ${mileage ? `
                         <div class="bg-gray-50 p-2 rounded-lg">
                             <p class="text-xs text-gray-500">Mileage</p>
-                            <p class="text-sm font-semibold text-gray-800">${repair.mileage} mi</p>
+                            <p class="text-sm font-semibold text-gray-800">${mileage} mi</p>
                         </div>
                         ` : ''}
                     </div>
@@ -195,7 +202,9 @@ function getThisMonthTotal() {
     
     return cachedRepairs
         .filter(repair => {
-            const repairDate = new Date(repair.date);
+            const rawDate = repair.date || repair.createdAt || repair.updatedAt;
+            const repairDate = rawDate && typeof rawDate.toDate === 'function' ? rawDate.toDate() : new Date(rawDate);
+            if (Number.isNaN(repairDate.getTime())) return false;
             return repairDate.getMonth() === currentMonth && repairDate.getFullYear() === currentYear;
         })
         .reduce((sum, repair) => sum + Number(repair.cost || 0), 0);

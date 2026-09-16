@@ -9,6 +9,7 @@ let isLoading = false;
 let authReady = false;
 let pendingDeleteId = null;
 let pendingDeleteLabel = '';
+let isMotorcyclesModalOpen = false;
 const CURRENT_YEAR = new Date().getFullYear();
 
 // Mapping of brand -> model -> [minYear, maxYear]
@@ -159,12 +160,41 @@ document.addEventListener('DOMContentLoaded', () => {
     populateBrands();
     populateYears();
     setupEventListeners();
+    syncMotorcyclesModalState(false);
     
     // If auth is already ready, load motorcycles
     if (authReady) {
         loadMotorcyclesFromFirestore();
     }
 });
+
+function syncMotorcyclesModalState(open) {
+    isMotorcyclesModalOpen = open;
+    const backdrop = document.getElementById('motorcyclesBackdrop');
+    const sheet = document.getElementById('motorcyclesBottomSheet');
+    if (backdrop) {
+        backdrop.classList.toggle('is-open', open);
+    }
+    if (sheet) {
+        sheet.classList.toggle('is-open', open);
+    }
+    document.body.classList.toggle('motorcycles-modal-open', open);
+}
+
+function openMotorcyclesModal() {
+    syncMotorcyclesModalState(true);
+    if (!authReady) {
+        return;
+    }
+    if (motorcycles.length === 0) {
+        loadMotorcyclesFromFirestore();
+    }
+}
+
+function closeMotorcyclesModal() {
+    syncMotorcyclesModalState(false);
+    cancelInlineEdit();
+}
 
 // Load motorcycles from Firestore
 async function loadMotorcyclesFromFirestore() {
@@ -248,6 +278,24 @@ function setupEventListeners() {
     }
 }
 
+function getBikeInitials(moto) {
+    const modelText = String(moto?.model || '').trim();
+    const brandText = String(moto?.brand || '').trim();
+    const modelMatch = modelText.match(/[A-Za-z]/g)?.slice(0, 2).join('').toUpperCase();
+    const brandMatch = brandText.match(/[A-Za-z]/g)?.slice(0, 1).join('').toUpperCase();
+    return modelMatch || brandMatch || 'M';
+}
+
+function getBikeBadgeColor(moto) {
+    const palette = ['#dc2626', '#2563eb', '#0f766e', '#f59e0b', '#7c3aed', '#db2777', '#16a34a', '#f97316'];
+    const source = `${moto?.brand || ''}${moto?.model || ''}`;
+    let hash = 0;
+    for (let i = 0; i < source.length; i++) {
+        hash = source.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return palette[Math.abs(hash) % palette.length];
+}
+
 function renderMotorcycles() {
     const list = document.getElementById('motorcyclesList');
     const emptyState = document.getElementById('emptyState');
@@ -258,70 +306,129 @@ function renderMotorcycles() {
         list.innerHTML = '';
         emptyState.classList.remove('hidden');
         addAnother.classList.add('hidden');
-    } else {
-        emptyState.classList.add('hidden');
-        addAnother.classList.remove('hidden');
-        addAnother.classList.add('flex');
+        return;
+    }
 
-        list.innerHTML = motorcycles.map((moto, idx) => {
+    emptyState.classList.add('hidden');
+    addAnother.classList.remove('hidden');
+    addAnother.classList.add('flex');
+
+    list.innerHTML = motorcycles.map((moto, idx) => {
+        const badgeColor = getBikeBadgeColor(moto);
+        const initials = getBikeInitials(moto);
+        const bikeName = `${moto.brand || ''} ${moto.model || ''}`.trim();
+        const subtitle = `${moto.year || ''} · ${moto.plate || moto.plateNumber || 'N/A'}`;
+        const isEditing = editingId === moto.id;
+
+        if (isEditing) {
             return `
-                <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100" style="animation: fadeIn 0.3s ease-out ${idx * 0.1}s both">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-start gap-4">
-                            <div class="w-14 h-14 bg-gradient-to-br from-green-700 to-green-900 rounded-xl flex items-center justify-center shrink-0">
-                                <i class="fa-solid fa-motorcycle text-white text-2xl"></i>
-                            </div>
+                <div class="rounded-[18px] border border-gray-200 bg-[#f9fafb] p-3 shadow-sm" style="animation: fadeIn 0.2s ease-out ${idx * 0.08}s both">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-start gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm" style="background-color: ${badgeColor};">${escapeHtml(initials)}</div>
                             <div>
-                                <h3 class="text-gray-800 font-bold text-lg">${escapeHtml(moto.brand)} ${escapeHtml(moto.model)}</h3>
-                                <p class="text-gray-500 text-sm">Year ${escapeHtml(moto.year)}</p>
+                                <h3 class="text-[15px] font-bold text-[#111827]">${escapeHtml(bikeName)}</h3>
+                                <p class="text-[11px] text-gray-500">${escapeHtml(subtitle)}</p>
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="editMotorcycle('${moto.id}')" class="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                                <i class="fa-solid fa-pen text-gray-600"></i>
+                            <button type="button" aria-label="Save mileage" onclick="saveInlineMileage('${moto.id}')" class="grid h-8 w-8 place-items-center rounded-full bg-green-600 text-white transition hover:bg-green-700">
+                                <i class="fa-solid fa-check text-xs"></i>
                             </button>
-                            <button onclick='openDeleteMotorcycleModal(${JSON.stringify(moto.id)}, ${JSON.stringify((moto.brand || "") + " " + (moto.model || ""))}, ${JSON.stringify(moto.plate || moto.plateNumber || "")})' class="p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-                                <i class="fa-solid fa-trash text-red-600"></i>
+                            <button type="button" aria-label="Cancel edit" onclick="cancelInlineEdit()" class="grid h-8 w-8 place-items-center rounded-full bg-gray-200 text-gray-600 transition hover:bg-gray-300">
+                                <i class="fa-solid fa-xmark text-xs"></i>
                             </button>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <div class="flex items-center gap-2 mb-1">
-                                <i class="fa-solid fa-hashtag text-gray-400"></i>
-                                <p class="text-xs text-gray-500">Plate Number</p>
-                            </div>
-                            <p class="text-gray-800 font-medium">${escapeHtml(moto.plate || moto.plateNumber)}</p>
+                    <div class="mt-4 grid grid-cols-2 gap-3">
+                        <div class="rounded-[14px] border border-gray-200 bg-white p-3">
+                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Mileage</div>
+                            <input id="inline-mileage-${moto.id}" type="number" min="0" value="${Number(moto.mileage || 0)}" class="w-full border-0 bg-transparent p-0 text-[18px] font-bold text-[#111827] outline-none" />
                         </div>
-
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <div class="flex items-center gap-2 mb-1">
-                                <i class="fa-solid fa-tachometer-alt text-gray-400"></i>
-                                <p class="text-xs text-gray-500">Mileage</p>
-                            </div>
-                            <p class="text-gray-800 font-medium">${escapeHtml(moto.mileage)} mi</p>
-                        </div>
-
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <div class="flex items-center gap-2 mb-1">
-                                <i class="fa-solid fa-palette text-gray-400"></i>
-                                <p class="text-xs text-gray-500">Color</p>
-                            </div>
-                            <p class="text-gray-800 font-medium">${escapeHtml(moto.color)}</p>
-                        </div>
-
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <div class="flex items-center gap-2 mb-1">
-                                <i class="fa-solid fa-calendar-day text-gray-400"></i>
-                                <p class="text-xs text-gray-500">Added</p>
-                            </div>
-                            <p class="text-gray-800 font-medium text-sm">${new Date(moto.createdAt?.toDate?.() || moto.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                        <div class="rounded-[14px] border border-gray-200 bg-white p-3">
+                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Year</div>
+                            <div class="text-[18px] font-bold text-[#111827]">${escapeHtml(moto.year || '')}</div>
                         </div>
                     </div>
                 </div>
             `;
-        }).join('');
+        }
+
+        return `
+            <div class="rounded-[16px] border border-gray-200 bg-white p-3 shadow-[0_2px_8px_rgba(17,24,39,0.04)] transition hover:shadow-[0_4px_12px_rgba(17,24,39,0.06)]" style="animation: fadeIn 0.2s ease-out ${idx * 0.08}s both">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex min-w-0 items-start gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm" style="background-color: ${badgeColor};">${escapeHtml(initials)}</div>
+                        <div class="min-w-0">
+                            <h3 class="truncate text-[15px] font-bold text-[#111827]">${escapeHtml(bikeName)}</h3>
+                            <p class="text-[11px] text-gray-500">${escapeHtml(subtitle)}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" aria-label="Edit motorcycle" onclick="startInlineEdit('${moto.id}')" class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200">
+                            <i class="fa-solid fa-pen text-[10px]"></i>
+                        </button>
+                        <button type="button" aria-label="Delete motorcycle" onclick='openDeleteMotorcycleModal(${JSON.stringify(moto.id)}, ${JSON.stringify(bikeName)}, ${JSON.stringify(moto.plate || moto.plateNumber || "")})' class="grid h-7 w-7 place-items-center rounded-full bg-red-50 text-red-600 transition hover:bg-red-100">
+                            <i class="fa-solid fa-trash text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-3 grid grid-cols-2 gap-2.5">
+                    <div class="rounded-[12px] border border-gray-200 bg-[#f8faf9] p-3">
+                        <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Mileage</div>
+                        <div class="text-[16px] font-bold text-[#111827]">${escapeHtml(Number(moto.mileage || 0).toLocaleString())} km</div>
+                    </div>
+                    <div class="rounded-[12px] border border-gray-200 bg-[#f8faf9] p-3">
+                        <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Year</div>
+                        <div class="text-[16px] font-bold text-[#111827]">${escapeHtml(moto.year || '')}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function closeMotorcyclesSheet() {
+    const sheet = document.getElementById('motorcyclesBottomSheet');
+    const backdrop = document.getElementById('motorcyclesBackdrop');
+    if (sheet) sheet.style.display = 'none';
+    if (backdrop) backdrop.style.display = 'none';
+}
+
+function startInlineEdit(id) {
+    editingId = id;
+    renderMotorcycles();
+}
+
+function cancelInlineEdit() {
+    editingId = null;
+    renderMotorcycles();
+}
+
+async function saveInlineMileage(id) {
+    const input = document.getElementById(`inline-mileage-${id}`);
+    if (!input) return;
+
+    const nextMileage = Number(input.value);
+    if (!Number.isFinite(nextMileage) || nextMileage < 0) {
+        showToast('Please enter a valid mileage value', 'error');
+        return;
+    }
+
+    try {
+        await updateFirestoreDoc('motorcycles', id, { mileage: nextMileage });
+        const idx = motorcycles.findIndex((bike) => bike.id === id);
+        if (idx > -1) {
+            motorcycles[idx] = { ...motorcycles[idx], mileage: nextMileage };
+        }
+        editingId = null;
+        renderMotorcycles();
+        showToast('Mileage updated', 'success');
+    } catch (error) {
+        console.error('Error updating mileage:', error);
+        showToast('Error updating mileage', 'error');
     }
 }
 
@@ -329,14 +436,13 @@ function openAddModal() {
     console.log('openAddModal called, authReady:', authReady);
     editingId = null;
     const modal = document.getElementById('motorcycleModal');
-    const backdrop = document.querySelector('.modal-backdrop');
     const form = document.getElementById('motorcycleForm');
-    if (!modal || !backdrop || !form) {
-        console.error('Modal elements not found', { modal, backdrop, form });
+    const backdrop = modal ? modal.querySelector('.modal-backdrop, .absolute.inset-0') : null;
+    if (!modal || !form || !backdrop) {
+        console.error('Modal elements not found', { modal, form, backdrop });
         return;
     }
     
-    // Reset form
     form.reset();
     console.log('Form reset');
 
@@ -345,33 +451,36 @@ function openAddModal() {
         brandSelect.value = '';
     }
     
-    // Reset selects
     const modelSelect = document.getElementById('modelSelect');
     if (modelSelect) {
         modelSelect.disabled = true;
         modelSelect.innerHTML = '<option value="">Select Brand First</option>';
     }
     
-    // Reset button text
     const submitBtnText = document.getElementById('submitBtnText');
     if (submitBtnText) {
         submitBtnText.textContent = 'Add Motorcycle';
     }
     
-    // Show modal
     modal.classList.remove('hidden');
-    backdrop.classList.remove('hidden');
+    backdrop.style.display = 'block';
     
     console.log('✓ Add motorcycle modal opened');
 }
 
 function closeModal() {
     const modal = document.getElementById('motorcycleModal');
-    const backdrop = document.querySelector('.modal-backdrop');
-    if (!modal || !backdrop) return;
+    if (!modal) return;
+    const backdrop = modal.querySelector('.absolute.inset-0');
     modal.classList.add('hidden');
-    backdrop.classList.add('hidden');
+    if (backdrop) backdrop.style.display = 'none';
 }
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isMotorcyclesModalOpen) {
+        closeMotorcyclesModal();
+    }
+});
 
 function openDeleteMotorcycleModal(id, label = '', plate = '') {
     pendingDeleteId = id;
@@ -584,6 +693,12 @@ function escapeHtml(str) {
 if (typeof window !== 'undefined') {
     window.openAddModal = openAddModal;
     window.closeModal = closeModal;
+    window.openMotorcyclesModal = openMotorcyclesModal;
+    window.closeMotorcyclesModal = closeMotorcyclesModal;
+    window.closeMotorcyclesSheet = closeMotorcyclesModal;
+    window.startInlineEdit = startInlineEdit;
+    window.cancelInlineEdit = cancelInlineEdit;
+    window.saveInlineMileage = saveInlineMileage;
     window.openDeleteMotorcycleModal = openDeleteMotorcycleModal;
     window.closeDeleteMotorcycleModal = closeDeleteMotorcycleModal;
     window.confirmDeleteMotorcycle = confirmDeleteMotorcycle;

@@ -2,7 +2,16 @@
 
 function formatDate(date) {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(date).toLocaleDateString('en-US', options);
+    const normalized = date instanceof Date ? date : new Date(date);
+    return Number.isNaN(normalized.getTime()) ? '' : normalized.toLocaleDateString('en-US', options);
+}
+
+function toDate(value) {
+    if (value && typeof value.toDate === 'function') return value.toDate();
+    if (value instanceof Date) return value;
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function normalizeRecord(raw = {}) {
@@ -13,11 +22,7 @@ export function normalizeRecord(raw = {}) {
     const created = raw.createdAt || raw.created_at || raw.created || null;
     const dateRaw = raw.date || raw.dueDate || created || null;
     let dateObj = null;
-    if (dateRaw && typeof dateRaw.toDate === 'function') {
-        dateObj = dateRaw.toDate();
-    } else if (dateRaw) {
-        dateObj = new Date(dateRaw);
-    }
+    dateObj = toDate(dateRaw);
     r.rawDate = dateObj;
     r.dateString = r.rawDate ? formatDate(r.rawDate) : '';
 
