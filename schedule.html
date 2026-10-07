@@ -6,7 +6,7 @@
     <title>MotoCare - Maintenance Schedule</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css?v=3" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css?v=4" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css?v=3">
     <style>
         :root { --moto-green: #2E9E4F; }
@@ -94,8 +94,11 @@
     <div id="mobileNav"></div>
 
     <!-- Floating Action Button -->
-    <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
-        <i class="lucide lucide-plus text-3xl"></i>
+    <a href="add-record.html" aria-label="Add record" class="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-green-700 text-white shadow-xl transition-all hover:scale-110 hover:bg-green-800 active:scale-95">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
     </a>
 
     <!-- Toast Container -->
@@ -105,7 +108,7 @@
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js"></script>
-    <script type="module" src="./js/notification-panel.js?v=3"></script>
-    <script type="module" src="./js/schedule.js?v=3"></script>
+    <script type="module" src="./js/notification-panel.js?v=4"></script>
+    <script type="module" src="./js/schedule.js?v=4"></script>
 </body>
 </html>
