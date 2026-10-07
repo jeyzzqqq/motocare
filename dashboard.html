@@ -14,6 +14,8 @@
         .dashboard-stat { margin-top: -30px; position: relative; z-index: 2; }
         .dashboard-list-row { min-height: 62px; }
         .dashboard-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
+        .insight-ai-badge { width: 34px; height: 34px; color: #8b5cf6; background: #f3f0ff; }
+        .insight-ai-badge svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .streak-badge { display: flex; align-items: center; gap: 8px; width: fit-content; padding: 9px 14px; border-radius: 9px; background: rgba(255, 255, 255, 0.18); }
         .streak-badge__icon { color: #ffd166; font-size: 14px; }
         .streak-badge__count { color: #fff; font-weight: 700; }
@@ -44,7 +46,7 @@
         </section>
 
         <section class="mt-4 rounded-xl border border-purple-200 bg-[#F3F0FF] p-4" aria-labelledby="insightTitle">
-            <div class="flex items-center gap-2"><div class="dashboard-icon h-7 w-7 bg-white text-purple-600"><i class="lucide lucide-sparkles text-sm" aria-hidden="true"></i></div><h2 id="insightTitle" class="text-xs font-bold text-purple-900">AI Maintenance Insight</h2><span class="rounded-full bg-purple-100 px-2 py-0.5 text-[8px] font-bold text-purple-700">AI</span></div>
+            <div class="flex items-center gap-2"><div class="dashboard-icon insight-ai-badge rounded-full"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg></div><h2 id="insightTitle" class="text-xs font-bold text-purple-900">AI Maintenance Insight</h2><span class="rounded-full bg-purple-100 px-2 py-0.5 text-[8px] font-bold text-purple-700">AI</span></div>
             <p id="aiInsight" class="mt-2 text-xs leading-relaxed text-purple-900">Loading your motorcycle data...</p><a id="askMotoAi" href="motoai.html" class="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-purple-700">Ask MotoAI for details <span aria-hidden="true">&#8594;</span></a>
         </section>
 
@@ -53,6 +55,6 @@
     </main>
 
     <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
-    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js"></script><script type="module" src="./js/notification-panel.js"></script><script type="module" src="./js/streak-modal.js"></script><script type="module" src="./js/dashboard.js?v=5"></script>
+    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=2"></script><script type="module" src="./js/notification-panel.js?v=4"></script><script type="module" src="./js/streak-modal.js"></script><script type="module" src="./js/dashboard.js?v=6"></script>
 </body>
 </html>

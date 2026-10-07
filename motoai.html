@@ -46,6 +46,7 @@
             background: var(--motoai-lavender);
         }
         .motoai-header__badge { width: 30px; height: 30px; border-radius: 50%; }
+        .motoai-header__badge svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .motoai-avatar { width: 22px; height: 22px; border-radius: 50%; }
         .motoai-header__content { min-width: 0; flex: 1; }
         .motoai-title-row { display: flex; align-items: center; gap: 7px; }
@@ -85,7 +86,7 @@
         <section class="motoai-sheet" role="dialog" aria-modal="true" aria-labelledby="motoAiTitle">
             <div class="motoai-sheet__inner">
                 <header class="motoai-header">
-                    <div class="motoai-header__badge"><i class="lucide lucide-message-circle" aria-hidden="true"></i></div>
+                    <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg></div>
                     <div class="motoai-header__content">
                         <div class="motoai-title-row"><h1 id="motoAiTitle" class="motoai-title">MotoAI Assistant</h1><span class="motoai-ai-pill">AI</span></div>
                         <p class="motoai-online">● Online</p>
@@ -126,7 +127,7 @@
 
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
-    <script type="module" src="./js/mobile-nav.js"></script>
-    <script type="module" src="./js/motoai.js"></script>
+    <script type="module" src="./js/mobile-nav.js?v=2"></script>
+    <script type="module" src="./js/motoai.js?v=2"></script>
 </body>
 </html>

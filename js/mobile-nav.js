@@ -1,7 +1,7 @@
 const NAV_ITEMS = [
     { label: 'Home', href: 'dashboard.html', icon: 'home', activePaths: ['/', '/dashboard.html'] },
     { label: 'Schedule', href: 'schedule.html', icon: 'calendar', activePaths: ['/schedule.html', '/maintenance.html'] },
-    { label: 'MotoAI', href: 'motoai.html', icon: 'sparkles', activePaths: ['/motoai.html'], center: true },
+    { label: 'MotoAI', href: 'motoai.html', icon: 'motoai', activePaths: ['/motoai.html'], center: true },
     { label: 'Expenses', href: 'expenses.html', icon: 'receipt', activePaths: ['/expenses.html'] },
     { label: 'Profile', href: 'profile.html', icon: 'user', activePaths: ['/profile.html'] }
 ];
@@ -9,7 +9,7 @@ const NAV_ITEMS = [
 const NAV_ICONS = {
     home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z" />',
     calendar: '<rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />',
-    sparkles: '<path d="m12 3-1.2 4.1L7 8.3l3.8 1.2L12 13l1.2-3.5L17 8.3l-3.8-1.2L12 3ZM19 13l-.7 2.3L16 16l2.3.7L19 19l.7-2.3L22 16l-2.3-.7L19 13ZM5 14l-.8 2.7L2 17.5l2.2.8L5 21l.8-2.7 2.2-.8-2.2-.8L5 14Z" />',
+    motoai: '<path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" />',
     receipt: '<path d="M4 3h16v18l-3-2-3 2-3-2-3 2-4-2V3Z" /><path d="M8 8h8M8 12h8M8 16h4" />',
     user: '<circle cx="12" cy="8" r="3.5" /><path d="M5 21a7 7 0 0 1 14 0" />'
 };
@@ -128,7 +128,7 @@ function addNavStyles() {
         .mobile-bottom-nav__icon--center svg {
             width: 22px;
             height: 22px;
-            stroke-width: 1.9;
+            stroke-width: 2;
         }
         .mobile-bottom-nav__item--center .mobile-bottom-nav__label {
             font-weight: 700;
