@@ -6,8 +6,8 @@
     <title>MotoCare - Maintenance Schedule</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css?v=3" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css?v=3">
     <style>
         :root { --moto-green: #2E9E4F; }
         body { font-family: ui-sans-serif, system-ui, sans-serif; }
@@ -33,14 +33,14 @@
             .schedule-header h1 { font-size: 20px; line-height: 1.2; }
             .schedule-header .header-action { width: 34px; height: 34px; }
             .schedule-header .header-action svg { width: 17px; height: 17px; }
-            .schedule-header > div { gap: 6px; }
-            .schedule-header > div > div:last-child { gap: 4px; }
+            .schedule-header > div { gap: 6px; align-items: center; }
+            .schedule-header > div > div:last-child { flex: 0 0 auto; gap: 8px; }
         }
     </style>
 </head>
 <body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
     <header class="schedule-header px-4 pb-12 pt-5 text-white">
-        <div class="mx-auto flex max-w-lg items-start justify-between gap-3">
+        <div class="mx-auto flex max-w-lg items-center justify-between gap-3">
                 <div class="min-w-0">
                     <p class="text-xs font-medium text-green-100">Keep your ride ready</p>
                     <h1 class="mt-1 text-2xl font-bold">Maintenance Schedule</h1>
@@ -48,11 +48,15 @@
                     <p id="selectedMotorcycleLabel" class="mt-3 max-w-full truncate text-xs font-semibold text-green-900"></p>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button id="motorcycleDrawerButton" type="button" class="header-action" aria-label="Open motorcycle selector">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="4" y1="6" x2="20" y2="6"></line>
+                            <line x1="4" y1="12" x2="20" y2="12"></line>
+                            <line x1="4" y1="18" x2="20" y2="18"></line>
+                        </svg>
+                    </button>
                     <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge hidden"></span></button>
                     <button id="logoutBtn" type="button" aria-label="Log out" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M12 12h9M17 8l4 4-4 4" /></svg></button>
-                    <button id="motorcycleDrawerButton" type="button" class="header-action" aria-label="Open motorcycle selector">
-                        <i class="lucide lucide-bike text-lg" aria-hidden="true"></i>
-                    </button>
                 </div>
         </div>
     </header>
@@ -101,7 +105,7 @@
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js"></script>
-    <script type="module" src="./js/notification-panel.js"></script>
-    <script type="module" src="./js/schedule.js"></script>
+    <script type="module" src="./js/notification-panel.js?v=3"></script>
+    <script type="module" src="./js/schedule.js?v=3"></script>
 </body>
 </html>
