@@ -1,11 +1,12 @@
 import { auth, db, onAuthStateChanged } from './firebase-config.js';
-import { collection, onSnapshot, query, updateDoc, where, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { collection, getDoc, onSnapshot, query, updateDoc, where, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const GREEN = '#2E9E4F';
 let unsubscribe = null;
 let notifications = [];
 let activeUserId = '';
 let panelOpen = false;
+let notificationPreferences = { maintenanceReminders: true, overdueAlerts: true, aiInsights: true };
 
 function escapeHtml(value = '') {
     return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
@@ -42,6 +43,13 @@ function getTarget(item, meta) {
     if (meta.key === 'ai') return `motoai.html?context=${encodeURIComponent(item.message || item.body || item.title || 'Tell me more about this notification.')}`;
     if (meta.key === 'due' || meta.key === 'overdue') return 'schedule.html';
     return item.target || 'history.html';
+}
+
+function isNotificationEnabled(meta) {
+    if (meta.key === 'ai') return notificationPreferences.aiInsights !== false;
+    if (meta.key === 'overdue') return notificationPreferences.overdueAlerts !== false;
+    if (meta.key === 'due') return notificationPreferences.maintenanceReminders !== false;
+    return true;
 }
 
 function ensurePanel() {
@@ -84,16 +92,17 @@ function updateBell(unreadCount) {
 
 function renderNotifications() {
     const list = document.getElementById('notificationPanelList');
-    const unread = notifications.filter((item) => item.read !== true).length;
+    const visibleNotifications = notifications.filter((item) => isNotificationEnabled(getNotificationMeta(item)));
+    const unread = visibleNotifications.filter((item) => item.read !== true).length;
     const unreadLabel = document.getElementById('notificationPanelUnread');
     if (unreadLabel) unreadLabel.textContent = `${unread} unread`;
     updateBell(unread);
     if (!list) return;
-    if (!notifications.length) {
+    if (!visibleNotifications.length) {
         list.innerHTML = '<p class="notification-panel__empty">You are all caught up.</p>';
         return;
     }
-    list.innerHTML = notifications.map((item) => {
+    list.innerHTML = visibleNotifications.map((item) => {
         const meta = getNotificationMeta(item);
         const title = item.title || (meta.key === 'overdue' ? 'Maintenance overdue' : meta.key === 'due' ? 'Maintenance due soon' : meta.key === 'ai' ? 'AI Insight' : 'Record logged');
         const description = item.message || item.body || item.reminderText || 'You have a new MotoCare update.';
@@ -152,6 +161,10 @@ function subscribe(user) {
     if (unsubscribe) unsubscribe();
     activeUserId = user.uid;
     ensurePanel();
+    getDoc(doc(db, 'userSettings', user.uid)).then((snapshot) => {
+        if (snapshot.exists()) notificationPreferences = { ...notificationPreferences, ...snapshot.data() };
+        renderNotifications();
+    }).catch((error) => console.warn('Notification preferences unavailable:', error));
     const notificationQuery = query(collection(db, 'notifications'), where('uid', '==', user.uid));
     unsubscribe = onSnapshot(notificationQuery, (snapshot) => {
         notifications = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).sort((a, b) => (asDate(b.createdAt || b.date || b.updatedAt)?.getTime() || 0) - (asDate(a.createdAt || a.date || a.updatedAt)?.getTime() || 0));
@@ -211,6 +224,7 @@ onAuthStateChanged(auth, (user) => {
         if (unsubscribe) unsubscribe();
         activeUserId = '';
         notifications = [];
+        notificationPreferences = { maintenanceReminders: true, overdueAlerts: true, aiInsights: true };
         updateBell(0);
     }
 });

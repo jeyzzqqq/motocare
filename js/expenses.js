@@ -126,10 +126,10 @@ function renderEmptyState() {
     expenses = [];
     if (!canRenderExpenses()) return;
 
-    setText('expenseDateRange', 'No expenses logged · Total ₱0');
-    setText('totalExpenses', '₱0');
+    setText('expenseDateRange', `No expenses logged · Total ${formatCurrency(0)}`);
+    setText('totalExpenses', formatCurrency(0));
     setText('totalDateRange', 'No expenses logged');
-    setText('thisMonthExpense', '₱0');
+    setText('thisMonthExpense', formatCurrency(0));
     setText('currentMonth', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
     const recentList = document.getElementById('recentExpensesList');
@@ -187,7 +187,7 @@ function getExpenseDate(expense = {}) {
 }
 
 function formatPeso(amount) {
-    return `₱${Number(amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+    return formatCurrency(amount);
 }
 
 function formatDateRange(start, end) {

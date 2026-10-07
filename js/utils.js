@@ -32,9 +32,21 @@ function showToast(message, type = 'info') {
 }
 
 // Format Currency
-function formatCurrency(amount) {
-    return `₱${amount.toFixed(2)}`;
+function getCurrencyPreference() {
+    return localStorage.getItem('motocare.currency') || 'PHP';
 }
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: getCurrencyPreference(),
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(Number(amount) || 0);
+}
+
+window.getCurrencyPreference = getCurrencyPreference;
+window.formatCurrency = formatCurrency;
 
 // Format Date
 function formatDate(date) {

@@ -83,7 +83,7 @@ function updateSummary(records, filteredRecords) {
     }
 
     if (totalHistorySpent) {
-        totalHistorySpent.textContent = `₱${totalSpent.toFixed(2)}`;
+        totalHistorySpent.textContent = formatCurrency(totalSpent);
     }
 
     if (recordCount) {
@@ -107,7 +107,7 @@ function renderList(records) {
 
     container.innerHTML = records.map((record) => {
         const dateText = formatRecordDate(record);
-        const amountText = `₱${Number(record.cost || 0).toFixed(2)}`;
+        const amountText = formatCurrency(Number(record.cost || 0));
         const motorcycleLabel = record.motorcycleName || [record.brand, record.model].filter(Boolean).join(' ');
 
         return `

@@ -137,7 +137,7 @@ function renderRepair(repair) {
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <div class="bg-gray-50 p-2 rounded-lg">
                             <p class="text-xs text-gray-500">Cost</p>
-                            <p class="text-sm font-semibold text-green-700">₱${Number(repair.cost || 0).toFixed(2)}</p>
+                            <p class="text-sm font-semibold text-green-700">${formatCurrency(Number(repair.cost || 0))}</p>
                         </div>
                         <div class="bg-gray-50 p-2 rounded-lg">
                             <p class="text-xs text-gray-500">Mechanic</p>
@@ -178,17 +178,17 @@ function updateStats() {
             </div>
             <div class="bg-white rounded-xl p-4 border border-gray-100">
                 <p class="text-xs text-gray-500 mb-1">Total Spent</p>
-                <p class="text-2xl font-bold text-green-700">₱${totalSpent.toFixed(2)}</p>
+                <p class="text-2xl font-bold text-green-700">${formatCurrency(totalSpent)}</p>
                 <p class="text-xs text-gray-400 mt-1">All repairs</p>
             </div>
             <div class="bg-white rounded-xl p-4 border border-gray-100">
                 <p class="text-xs text-gray-500 mb-1">Average Cost</p>
-                <p class="text-2xl font-bold text-gray-800">₱${average.toFixed(2)}</p>
+                <p class="text-2xl font-bold text-gray-800">${formatCurrency(average)}</p>
                 <p class="text-xs text-gray-400 mt-1">Per repair</p>
             </div>
             <div class="bg-white rounded-xl p-4 border border-gray-100">
                 <p class="text-xs text-gray-500 mb-1">This Month</p>
-                <p class="text-2xl font-bold text-gray-800">₱${getThisMonthTotal().toFixed(2)}</p>
+                <p class="text-2xl font-bold text-gray-800">${formatCurrency(getThisMonthTotal())}</p>
                 <p class="text-xs text-gray-400 mt-1">Month total</p>
             </div>
         </div>
