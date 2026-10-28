@@ -7,11 +7,10 @@
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=2">
     <style>
-        :root { --moto-green: #2e9e4f; --moto-purple: #8b5cf6; }
+        :root { --moto-purple: #8b5cf6; }
         body { font-family: sans-serif; }
-        .dashboard-header { background: var(--moto-green); }
-        .dashboard-stat { margin-top: -30px; position: relative; z-index: 2; }
         .dashboard-list-row { min-height: 62px; }
         .dashboard-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
         .insight-ai-badge { width: 34px; height: 34px; color: #8b5cf6; background: #f3f0ff; }
@@ -20,25 +19,23 @@
         .streak-badge__icon { color: #ffd166; font-size: 14px; }
         .streak-badge__count { color: #fff; font-weight: 700; }
         .streak-badge__supporting { color: rgba(255, 255, 255, 0.72); font-weight: 400; }
-        .header-action { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.18); cursor: pointer; }
-        .header-action:hover { background: rgba(255, 255, 255, 0.26); }
-        .header-action:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.85); outline-offset: 2px; }
-        .header-action svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-        .notification-badge { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid var(--moto-green); border-radius: 999px; color: #fff; background: #ef4444; font: 700 9px/13px sans-serif; text-align: center; }
     </style>
 </head>
 <body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
-    <header class="dashboard-header px-4 pb-12 pt-5 text-white">
-        <div class="mx-auto flex max-w-lg items-start justify-between">
-            <div class="flex min-w-0 flex-col items-start"><p id="greeting" class="text-xs font-medium text-green-100">Good morning,</p><h1 id="userName" class="mt-1 text-xl font-bold">Rider</h1><div class="streak-badge mt-3 text-xs" aria-label="Current streak"><i class="streak-badge__icon lucide lucide-flame" aria-hidden="true"></i><span id="streakCount" class="streak-badge__count">0-Day Streak</span><span class="streak-badge__supporting">Keep it up</span></div></div>
-            <div class="flex items-center gap-2">
+    <header class="app-header dashboard-header">
+        <div class="app-header__inner">
+            <div class="app-header__top">
+            <div class="app-header__title"><p id="greeting" class="text-xs font-medium text-green-100">Good morning,</p><h1 id="userName" class="mt-1 text-xl font-bold">Rider</h1></div>
+            <div class="app-header__actions">
                 <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge hidden"></span></button>
                 <button id="logoutBtn" type="button" aria-label="Log out" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M12 12h9M17 8l4 4-4 4" /></svg></button>
             </div>
+            </div>
+            <div class="app-header__second"><div class="streak-badge text-xs" aria-label="Current streak"><i class="streak-badge__icon lucide lucide-flame" aria-hidden="true"></i><span id="streakCount" class="streak-badge__count">0-Day Streak</span><span class="streak-badge__supporting">Keep it up</span></div></div>
         </div>
     </header>
 
-    <main class="mx-auto max-w-lg px-3">
+    <main class="page-content">
         <section class="dashboard-stat grid grid-cols-3 gap-2" aria-label="Dashboard statistics">
             <a href="motorcycles.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-green-50 text-green-700"><span aria-hidden="true">&#127949;</span></div><p id="totalBikes" class="mt-2 text-sm font-bold">0</p><p class="text-[9px] text-gray-500">Total Bikes</p></a>
             <a href="schedule.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-yellow-100 text-orange-500"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3 2"></path></svg></div><p id="nextDue" class="mt-2 text-sm font-bold text-yellow-700">--</p><p class="text-[9px] text-gray-500">Next Due</p></a>
@@ -55,6 +52,6 @@
     </main>
 
     <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
-    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=2"></script><script type="module" src="./js/notification-panel.js?v=4"></script><script type="module" src="./js/streak-modal.js"></script><script type="module" src="./js/dashboard.js?v=6"></script>
+    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=4"></script><script type="module" src="./js/notification-panel.js?v=6"></script><script type="module" src="./js/streak-modal.js?v=2"></script><script type="module" src="./js/dashboard.js?v=8"></script>
 </body>
 </html>

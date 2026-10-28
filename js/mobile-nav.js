@@ -66,6 +66,8 @@ function addNavStyles() {
             background: #fff;
             border-top: 1px solid #e8e8ea;
             box-shadow: 0 -4px 16px rgba(31, 35, 32, 0.08);
+            box-sizing: border-box;
+            height: var(--bottom-nav-height, 72px);
             padding: 7px 12px max(7px, env(safe-area-inset-bottom));
         }
         .mobile-bottom-nav__inner {

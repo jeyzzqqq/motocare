@@ -7,11 +7,10 @@
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css?v=3" rel="stylesheet">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=2">
     <style>
-        :root { --moto-green: #2e9e4f; --moto-green-dark: #237b3c; --moto-green-soft: #dff7e6; }
+        :root { --moto-green-dark: #237b3c; --moto-green-soft: #dff7e6; }
         body { font-family: sans-serif; }
-        .expenses-header { background: var(--moto-green); }
-        .expense-stat { margin-top: -25px; position: relative; z-index: 2; }
         .expense-card { border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; box-shadow: 0 2px 6px rgba(15, 23, 42, .08); }
         .expense-log-row { min-height: 62px; }
         .expense-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: 0 0 auto; }
@@ -22,14 +21,17 @@
     </style>
 </head>
 <body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
-    <header class="expenses-header px-4 pb-12 pt-5 text-white">
-        <div class="mx-auto max-w-lg">
-            <h1 class="text-xl font-bold">Expenses</h1>
-            <p id="expenseDateRange" class="mt-1 text-xs text-green-100">Loading...</p>
+    <header class="app-header expenses-header">
+        <div class="app-header__inner">
+            <div class="app-header__top">
+                <div class="app-header__title"><h1 class="text-xl font-bold">Expenses</h1></div>
+                <div class="app-header__actions app-header__actions--reserved" aria-hidden="true"></div>
+            </div>
+            <div class="app-header__second"><div><p id="expenseDateRange" class="text-xs text-green-100">Loading...</p><p id="totalExpensesHeader" class="mt-1 text-xs text-green-50">Total spent</p></div></div>
         </div>
     </header>
 
-    <main class="mx-auto max-w-lg px-3">
+    <main class="page-content">
         <section class="expense-stat grid grid-cols-2 gap-2" aria-label="Expense summary">
             <div class="expense-card p-3">
                 <p class="text-[9px] font-medium uppercase tracking-wide text-gray-500">Total Spent</p>
@@ -76,7 +78,7 @@
 
     <script type="module" src="./js/firebase-config.js"></script>
     <script src="./js/utils.js"></script>
-    <script type="module" src="./js/mobile-nav.js?v=2"></script>
-    <script type="module" src="./js/expenses.js?v=2"></script>
+    <script type="module" src="./js/mobile-nav.js?v=4"></script>
+    <script type="module" src="./js/expenses.js?v=4"></script>
 </body>
 </html>
