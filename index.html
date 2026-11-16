@@ -3,331 +3,701 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#278238">
     <title>MotoCare - Login</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
     <style>
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        :root {
+            --auth-green: #2e7d32;
+            --auth-dark-green: #1b5e20;
+            --auth-background: #f6f7f5;
+            --auth-card: #fff;
+            --auth-border: rgba(17, 22, 19, .08);
+            --auth-text: #111613;
+            --auth-muted: #7a817c;
+            --auth-toggle: #eff1ee;
+            --auth-focus: rgba(46, 125, 50, .1);
         }
-        .fade-in-up {
-            animation: fadeInUp 0.5s ease-out;
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-width: 320px;
+            color: var(--auth-text);
+            background: var(--auth-background);
+            font-family: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
-        @keyframes scaleIn {
-            from {
-                transform: scale(0);
-            }
-            to {
-                transform: scale(1);
-            }
+
+        .auth-shell {
+            min-height: 100vh;
+            overflow-x: hidden;
+            background: var(--auth-background);
         }
-        .scale-in {
-            animation: scaleIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+        .auth-hero {
+            min-height: 315px;
+            padding: max(44px, env(safe-area-inset-top)) 24px 110px;
+            color: #fff;
+            background: linear-gradient(145deg, var(--auth-green) 0%, var(--auth-dark-green) 100%);
+            position: relative;
+            overflow: hidden;
         }
-        /* Password toggle button styling */
-        .password-toggle-btn {
-            background: none;
-            border: none;
-            padding: 0.5rem;
+
+        .auth-hero::after {
+            content: "";
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            right: -120px;
+            bottom: -180px;
+            border: 1px solid rgba(255, 255, 255, .13);
+            border-radius: 50%;
+            box-shadow: 0 0 0 30px rgba(255, 255, 255, .035), 0 0 0 60px rgba(255, 255, 255, .025);
+        }
+
+        .auth-hero__content {
+            width: min(100%, 560px);
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .brand__logo {
+            width: 40px;
+            height: 40px;
+            padding: 5px;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .17);
+        }
+
+        .brand__logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+        .brand__logo i { font-size: 19px; color: #fff; }
+
+        .hero-copy { margin-top: 40px; }
+        .hero-copy h1 {
+            margin: 0;
+            font-size: 32px;
+            line-height: 1.1;
+            letter-spacing: -.03em;
+            font-weight: 600;
+        }
+        .hero-copy p {
+            max-width: 315px;
+            margin: 8px 0 0;
+            color: rgba(255, 255, 255, .7);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .auth-card {
+            width: min(100% - 32px, 560px);
+            margin: -48px auto 0;
+            padding: 20px 18px 34px;
+            min-height: 420px;
+            position: relative;
+            z-index: 2;
+            background: var(--auth-card);
+            border-radius: 26px 26px 0 0;
+            box-shadow: 0 -4px 20px rgba(20, 70, 30, .05);
+        }
+
+        .auth-toggle {
+            position: relative;
+            display: flex;
+            gap: 4px;
+            padding: 3px;
+            margin-bottom: 24px;
+            background: var(--auth-toggle);
+            border-radius: 999px;
+        }
+        .auth-toggle__indicator {
+            position: absolute;
+            inset: 3px auto 3px 3px;
+            width: calc(50% - 5px);
+            border-radius: 999px;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .13);
+            pointer-events: none;
+            transform: translateX(0);
+            transition: transform .55s cubic-bezier(.34, 1.56, .64, 1);
+        }
+        .auth-toggle button {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            min-height: 36px;
+            border: 0;
+            border-radius: 999px;
+            color: var(--auth-muted);
+            background: transparent;
+            font-size: 12px;
             cursor: pointer;
+            transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+        }
+        .auth-toggle button.active {
+            color: #171717;
+        }
+        .auth-toggle button:focus-visible,
+        .auth-link:focus-visible,
+        .forgot-link:focus-visible,
+        .password-toggle-btn:focus-visible {
+            outline: 2px solid var(--auth-green);
+            outline-offset: 2px;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .form-copy-transition,
+        .auth-submit__label,
+        .switch-copy__text,
+        .switch-copy .auth-link {
+            transition: opacity .24s ease, transform .24s cubic-bezier(.22, 1, .36, 1), filter .24s ease;
+        }
+        .auth-card.is-changing .form-copy-transition,
+        .auth-card.is-changing .auth-submit__label,
+        .auth-card.is-changing .switch-copy__text,
+        .auth-card.is-changing .switch-copy .auth-link {
+            opacity: 0;
+            transform: translateY(12px);
+            filter: blur(4px);
+        }
+        .hero-copy {
+            min-height: 94px;
+        }
+        .hero-copy h1,
+        .hero-copy p {
+            transition: opacity .25s ease, transform .25s cubic-bezier(.22, 1, .36, 1), filter .25s ease;
+        }
+        .auth-hero.mode-transition .hero-copy h1,
+        .auth-hero.mode-transition .hero-copy p {
+            opacity: 0;
+            transform: translateY(12px);
+            filter: blur(4px);
+        }
+        .auth-hero.mode-transition::after {
+            animation: ambientShift .9s cubic-bezier(.22, 1, .36, 1);
+        }
+        @keyframes ambientShift {
+            50% { transform: translate(-18px, -10px) scale(1.05); }
+        }
+        .collapsible-fields {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            overflow: hidden;
+            transition: grid-template-rows .4s cubic-bezier(.22, 1, .36, 1), opacity .3s ease;
+        }
+        .collapsible-fields.is-open {
+            grid-template-rows: 1fr;
+            opacity: 1;
+        }
+        .collapsible-fields__inner {
+            min-height: 0;
+            overflow: hidden;
+        }
+        .collapsible-fields:not(.is-open) input,
+        .collapsible-fields:not(.is-open) button {
+            pointer-events: none;
+        }
+        .auth-submit__label { display: inline-block; }
+        @media (prefers-reduced-motion: reduce) {
+            .auth-toggle__indicator,
+            .form-copy-transition,
+            .auth-submit__label,
+            .switch-copy__text,
+            .switch-copy .auth-link,
+            .hero-copy h1,
+            .hero-copy p,
+            .collapsible-fields {
+                transition: none;
+            }
+            .auth-hero.mode-transition::after { animation: none; }
+        }
+        .field { display: block; }
+        .field label {
+            display: block;
+            margin: 0 0 7px 3px;
+            color: var(--auth-muted);
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: .09em;
+        }
+        .input-wrap { position: relative; }
+        .input-wrap > svg {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            z-index: 1;
+            width: 22px;
+            height: 22px;
+            color: var(--auth-muted);
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.75;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+        .auth-input {
+            width: 100%;
+            height: 52px;
+            padding: 0 48px;
+            color: var(--auth-text);
+            border: 1px solid var(--auth-border);
+            border-radius: 16px;
+            background: var(--auth-card);
+            font-size: 15px;
+            transition: border-color .2s ease, box-shadow .2s ease;
+        }
+        .auth-input::placeholder { color: rgba(122, 129, 124, .6); }
+        .auth-input:focus {
+            outline: none;
+            border-color: rgba(46, 125, 50, .5);
+            box-shadow: 0 0 0 4px var(--auth-focus);
+        }
+        .auth-input.has-error,
+        .field.has-error .auth-input {
+            border-color: #fca5a5;
+        }
+        .field-error {
+            margin: 6px 3px 0;
+            color: #ef4444;
+            font-size: 12px;
+        }
+        .password-toggle-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            display: grid;
+            place-items: center;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            transform: translateY(-50%);
+        }
+        .password-toggle-btn svg {
+            width: 22px;
+            height: 22px;
+            color: var(--auth-muted);
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.75;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: color .2s ease;
+        }
+        .password-toggle-btn:hover svg { color: var(--auth-text); }
+
+        .forgot-row { display: flex; justify-content: flex-end; margin-top: -3px; }
+        .forgot-link, .auth-link {
+            color: var(--auth-green);
+            font-size: 12px;
+            text-decoration: none;
+        }
+        .forgot-link:hover, .auth-link:hover { text-decoration: underline; }
+        .auth-submit {
+            width: 100%;
+            min-height: 42px;
+            margin-top: 1px;
+            border: 0;
+            border-radius: 999px;
+            color: #fff;
+            background: var(--auth-green);
+            box-shadow: 0 8px 16px rgba(39, 130, 56, .2);
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .2s ease, transform .2s ease, box-shadow .2s ease;
+        }
+        .auth-submit:hover { background: var(--auth-dark-green); box-shadow: 0 10px 20px rgba(39, 130, 56, .25); }
+        .auth-submit:active { transform: scale(.985); }
+        .auth-submit:disabled { opacity: .7; cursor: wait; }
+        .auth-submit i { margin-left: 5px; font-size: 13px; }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 25px 0 22px;
+            color: var(--auth-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: #e2e5e2; }
+        .google-btn {
+            width: 100%;
+            min-height: 42px;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 9px;
+            border: 1px solid var(--auth-border);
+            border-radius: 999px;
+            color: var(--auth-text);
+            background: var(--auth-card);
+            font-size: 15px;
+            cursor: pointer;
+            transition: background .2s ease, border-color .2s ease, transform .2s ease;
         }
-        .password-toggle-btn:hover i {
-            color: #059669;
+        .google-btn:hover { background: #fafcfa; border-color: #cbd4cb; }
+        .google-btn:active { transform: scale(.985); }
+        .google-btn svg { width: 16px; height: 16px; }
+        .switch-copy { margin: 26px 0 0; color: var(--auth-muted); text-align: center; font-size: 14px; }
+        .switch-copy .auth-link { margin-left: 3px; font-weight: 600; }
+        .toast-container { max-width: min(90vw, 360px); }
+        .auth-error { color: #ef4444; font-size: 12px; }
+        .password-strength--weak { color: #ef4444; }
+        .password-strength--okay { color: #f59e0b; }
+        .password-strength--strong { color: #22c55e; }
+
+        @media (min-width: 768px) {
+            .auth-shell {
+                padding: 28px 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .auth-frame { width: min(100%, 760px); }
+            .auth-hero {
+                min-height: 320px;
+                padding: 42px 44px 108px;
+                border-radius: 28px 28px 0 0;
+            }
+            .auth-hero__content { width: min(100%, 640px); }
+            .brand { font-size: 16px; }
+            .brand__logo { width: 40px; height: 40px; }
+            .hero-copy { margin-top: 44px; }
+            .hero-copy h1 { font-size: 32px; }
+            .hero-copy p { max-width: 390px; font-size: 14px; }
+            .auth-card {
+                width: min(calc(100% - 48px), 680px);
+                margin-top: -56px;
+                padding: 32px 40px 44px;
+                border-radius: 28px;
+                box-shadow: 0 -5px 24px rgba(20, 70, 30, .07);
+            }
+            .auth-toggle { margin-bottom: 28px; }
+            .auth-input { height: 52px; font-size: 15px; }
+            .auth-submit, .google-btn { min-height: 48px; font-size: 15px; }
+            .switch-copy { margin-top: 28px; font-size: 14px; }
         }
-        .password-toggle-btn i {
-            transition: color 0.2s ease;
-            color: #6b7280; /* default gray */
-            font-size: 1rem;
+
+        @media (min-width: 1024px) {
+            body { background: #eef2ef; }
+            .auth-shell { padding: clamp(16px, 2.5vh, 28px); }
+            .auth-frame { width: min(100%, 960px); }
+            .auth-hero {
+                min-height: 310px;
+                padding: 42px 52px 108px;
+            }
+            .auth-hero__content { width: min(100%, 856px); }
+            .hero-copy { margin-top: 46px; }
+            .hero-copy h1 { font-size: 32px; }
+            .hero-copy p { max-width: 450px; font-size: 14px; }
+            .auth-card {
+                width: min(calc(100% - 220px), 740px);
+                margin-top: -58px;
+                padding: 44px 56px 48px;
+            }
+            .auth-toggle { margin-bottom: 30px; }
+            .auth-form { gap: 16px; }
+            .field label { font-size: 11px; }
+            .auth-input { height: 52px; font-size: 15px; }
+            .auth-submit, .google-btn { min-height: 50px; font-size: 15px; }
+            .divider { margin-top: 28px; margin-bottom: 24px; }
+        }
+
+        @media (min-width: 1024px) and (max-height: 820px) {
+            .auth-shell { padding: 10px 24px; }
+            .auth-hero {
+                min-height: 260px;
+                padding-top: 32px;
+                padding-bottom: 88px;
+            }
+            .hero-copy { margin-top: 34px; }
+            .auth-card {
+                margin-top: -48px;
+                padding-top: 30px;
+                padding-bottom: 32px;
+            }
+            .auth-toggle { margin-bottom: 22px; }
+            .auth-form { gap: 12px; }
+            .divider { margin-top: 20px; margin-bottom: 18px; }
+            .switch-copy { margin-top: 20px; }
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-green-700 to-green-900 min-h-screen flex items-center justify-center p-4">
-    <div class="w-full max-w-md fade-in-up">
-        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <!-- Logo Section -->
-            <div class="bg-green-700 p-8 text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full mb-3 scale-in overflow-hidden">
-                    <img src="assets/images/logo.png" alt="MotoCare logo" class="w-12 h-12 object-contain">
+<body>
+    <main class="auth-shell">
+        <div class="auth-frame">
+            <header class="auth-hero">
+                <div class="auth-hero__content">
+                    <div class="brand">
+                        <span class="brand__logo" aria-label="MotoCare motorcycle"><i class="lucide lucide-bike" aria-hidden="true"></i></span>
+                        <span>MotoCare</span>
+                    </div>
+                    <div class="hero-copy">
+                        <h1 id="welcomeHeading">Welcome back.</h1>
+                        <p id="welcomeSubtitle">Log in to see your schedule, records, and MotoAI insights.</p>
+                    </div>
                 </div>
-                <h1 class="text-white text-2xl font-bold">MotoCare</h1>
-                <p class="text-green-100 text-sm mt-1">Your Motorcycle Companion</p>
-            </div>
+            </header>
 
-            <!-- Form Section -->
-            <div class="p-8">
-                <!-- Toggle Buttons -->
-                <div class="flex gap-2 mb-6">
-                    <button id="loginTab" onclick="switchTab('login')" class="flex-1 py-2.5 rounded-lg transition-all bg-green-700 text-white">
-                        Login
-                    </button>
-                    <button id="signupTab" onclick="switchTab('signup')" class="flex-1 py-2.5 rounded-lg transition-all bg-gray-100 text-gray-600">
-                        Sign Up
-                    </button>
+            <section class="auth-card" aria-label="Authentication">
+                <div class="auth-toggle" role="tablist" aria-label="Authentication type">
+                    <span id="toggleIndicator" class="auth-toggle__indicator" aria-hidden="true"></span>
+                    <button id="loginTab" type="button" role="tab" aria-selected="true" onclick="switchTab('login')" class="active">Log in</button>
+                    <button id="signupTab" type="button" role="tab" aria-selected="false" onclick="switchTab('signup')">Sign up</button>
                 </div>
 
-                <!-- Login Form -->
-                <form id="loginForm" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 mb-2">Email</label>
-                        <div class="relative">
-                            <i class="lucide lucide-mail absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                            <input type="email" id="loginEmail" placeholder="Enter your email" required
-                                class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
+                <form id="loginForm" class="auth-form">
+                    <div id="signupNameField" class="collapsible-fields" aria-hidden="true">
+                        <div class="collapsible-fields__inner">
+                            <div class="field">
+                                <label for="signupFullName">FULL NAME</label>
+                                <div class="input-wrap">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    <input type="text" id="signupFullName" placeholder="Your full name" autocomplete="name" disabled class="auth-input">
+                                </div>
+                            </div>
                         </div>
                     </div>
-
-                    <div>
-                        <label class="block text-gray-700 mb-2">Password</label>
-                        <div class="relative">
-                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-                            <input type="password" id="loginPassword" placeholder="Enter your password" required
-                                class="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
-                            <button type="button" id="loginPasswordToggle" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility('loginPassword', 'loginPasswordToggle')" class="absolute right-3 top-1/2 -translate-y-1/2 hover:text-gray-600 transition-colors cursor-pointer password-toggle-btn">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
-                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>
-                                </svg>
+                    <div class="field">
+                        <label id="emailLabel" for="loginEmail">EMAIL</label>
+                        <div class="input-wrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                            <input type="email" id="loginEmail" placeholder="Enter your email" autocomplete="email" required class="auth-input">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label id="passwordLabel" for="loginPassword">PASSWORD</label>
+                        <div class="input-wrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            <input type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password" required class="auth-input">
+                            <button type="button" id="loginPasswordToggle" aria-label="Show password" aria-pressed="false" title="Show password" class="password-toggle-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
                             </button>
                         </div>
                     </div>
-
-                    <div class="flex justify-end">
-                        <button type="button" class="text-sm text-green-700 hover:underline">
-                            Forgot Password?
-                        </button>
+                    <div class="forgot-row"><button type="button" id="forgotPasswordBtn" class="forgot-link">Forgot password?</button></div>
+                    <div id="signupFields" class="collapsible-fields" aria-hidden="true">
+                        <div class="collapsible-fields__inner">
+                          <div class="field">
+                            <label for="signupConfirmPassword">CONFIRM PASSWORD</label>
+                        <div class="input-wrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            <input type="password" id="signupConfirmPassword" placeholder="Confirm your password" autocomplete="new-password" required disabled class="auth-input">
+                            <button type="button" id="confirmPasswordToggle" aria-label="Show password" aria-pressed="false" title="Show password" class="password-toggle-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                          </div>
+                        </div>
                     </div>
-
-                    <button type="submit" class="w-full bg-green-700 text-white py-3.5 rounded-xl hover:bg-green-800 transition-all shadow-lg hover:shadow-xl active:scale-95 font-medium">
-                        <i class="lucide lucide-log-in mr-2"></i>Login
-                    </button>
+                    <button type="submit" class="auth-submit"><span id="submitLabel" class="auth-submit__label">Log in</span> <i class="lucide lucide-arrow-right" aria-hidden="true"></i></button>
                 </form>
 
-                <!-- Signup Form (Hidden by default) -->
-                <form id="signupForm" class="space-y-4 hidden">
-                    <div>
-                        <label class="block text-gray-700 mb-2">Email</label>
-                        <div class="relative">
-                            <i class="lucide lucide-mail absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                            <input type="email" id="signupEmail" placeholder="Enter your email" required
-                                class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-gray-700 mb-2">Password</label>
-                        <div class="relative">
-                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-                            <input type="password" id="signupPassword" placeholder="Enter your password" required
-                                class="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
-                            <button type="button" id="signupPasswordToggle" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility('signupPassword', 'signupPasswordToggle')" class="absolute right-3 top-1/2 -translate-y-1/2 hover:text-gray-600 transition-colors cursor-pointer password-toggle-btn">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
-                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-gray-700 mb-2">Confirm Password</label>
-                        <div class="relative">
-                            <i class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-                            <input type="password" id="signupConfirmPassword" placeholder="Confirm your password" required
-                                class="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition-all">
-                            <button type="button" id="confirmPasswordToggle" aria-pressed="false" title="Show password" onclick="togglePasswordVisibility('signupConfirmPassword', 'confirmPasswordToggle')" class="absolute right-3 top-1/2 -translate-y-1/2 hover:text-gray-600 transition-colors cursor-pointer password-toggle-btn">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
-                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="w-full bg-green-700 text-white py-3.5 rounded-xl hover:bg-green-800 transition-all shadow-lg hover:shadow-xl active:scale-95 font-medium">
-                        <i class="lucide lucide-user-plus mr-2"></i>Sign Up
-                    </button>
-                </form>
-
-                <!-- Divider -->
-                <div class="mt-6 mb-6 flex items-center gap-3">
-                    <div class="flex-1 h-px bg-gray-200"></div>
-                    <span class="text-gray-400 text-sm">or</span>
-                    <div class="flex-1 h-px bg-gray-200"></div>
-                </div>
-
-                <!-- Google Sign-In Button -->
-                <button id="googleSignInBtn" class="w-full bg-white border-2 border-gray-200 text-gray-700 py-3.5 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3 shadow-md hover:shadow-lg active:scale-95">
-                    <svg class="w-5 h-5" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    <span class="font-medium">Continue with Google</span>
+                <div class="divider"><span>or</span></div>
+                <button id="googleSignInBtn" type="button" class="google-btn">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    <span>Continue with Google</span>
                 </button>
-
-                <div class="mt-6 text-center">
-                    <p class="text-gray-500 text-sm">
-                        <span id="switchText">Don't have an account?</span>
-                        <button onclick="toggleForm()" class="text-green-700 font-medium hover:underline ml-1" id="switchBtn">Sign Up</button>
-                    </p>
-                </div>
-            </div>
+                <p class="switch-copy"><span id="switchText" class="switch-copy__text">New to MotoCare?</span><button type="button" onclick="toggleForm()" class="auth-link" id="switchBtn">Create an account</button></p>
+            </section>
         </div>
+    </main>
 
-        <p class="text-white text-center mt-6 text-sm opacity-90">
-            Manage your motorcycle maintenance with ease
-        </p>
-    </div>
-
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
-
-    <!-- Firebase -->
-    <script type="module" src="./js/firebase-config.js"></script>
+    <div id="toastContainer" class="toast-container fixed top-4 right-4 z-50 space-y-2"></div>
+    <script type="module" src="./js/firebase-config.js?v=2"></script>
     <script type="module" src="./js/auth.js"></script>
     <script src="./js/utils.js"></script>
-    
     <script type="module">
         import { login, signUp, googleSignIn } from "./js/auth.js";
 
         let isLoginMode = true;
-
+        let copyTransitionTimer;
+        let heroTransitionTimer;
         function switchTab(mode) {
-            isLoginMode = mode === 'login';
+            const nextIsLoginMode = mode === 'login';
+            if (nextIsLoginMode === isLoginMode) return;
+            isLoginMode = nextIsLoginMode;
             const loginTab = document.getElementById('loginTab');
             const signupTab = document.getElementById('signupTab');
-            const loginForm = document.getElementById('loginForm');
-            const signupForm = document.getElementById('signupForm');
+            const authCard = document.querySelector('.auth-card');
+            const signupNameField = document.getElementById('signupNameField');
+            const signupFields = document.getElementById('signupFields');
+            const emailInput = document.getElementById(isLoginMode ? 'signupEmail' : 'loginEmail') || document.getElementById('loginEmail');
+            const passwordInput = document.getElementById(isLoginMode ? 'signupPassword' : 'loginPassword') || document.getElementById('loginPassword');
+            const passwordToggle = document.getElementById('loginPasswordToggle') || document.getElementById('signupPasswordToggle');
+            const emailId = isLoginMode ? 'loginEmail' : 'signupEmail';
+            const passwordId = isLoginMode ? 'loginPassword' : 'signupPassword';
+            const copy = {
+                heading: isLoginMode ? 'Welcome back.' : 'Create your account.',
+                subtitle: isLoginMode ? 'Log in to see your schedule, records, and MotoAI insights.' : 'Start managing your motorcycle maintenance with MotoCare.',
+                footer: isLoginMode ? 'New to MotoCare?' : 'Already have an account?',
+                footerLink: isLoginMode ? 'Create an account' : 'Log in',
+                submit: isLoginMode ? 'Log in' : 'Sign up'
+            };
 
-            if (isLoginMode) {
-                loginTab.className = 'flex-1 py-2.5 rounded-lg transition-all bg-green-700 text-white';
-                signupTab.className = 'flex-1 py-2.5 rounded-lg transition-all bg-gray-100 text-gray-600';
-                loginForm.classList.remove('hidden');
-                signupForm.classList.add('hidden');
-                document.getElementById('switchText').textContent = "Don't have an account?";
-                document.getElementById('switchBtn').textContent = "Sign Up";
-            } else {
-                loginTab.className = 'flex-1 py-2.5 rounded-lg transition-all bg-gray-100 text-gray-600';
-                signupTab.className = 'flex-1 py-2.5 rounded-lg transition-all bg-green-700 text-white';
-                loginForm.classList.add('hidden');
-                signupForm.classList.remove('hidden');
-                document.getElementById('switchText').textContent = "Already have an account?";
-                document.getElementById('switchBtn').textContent = "Login";
+            loginTab.classList.toggle('active', isLoginMode);
+            signupTab.classList.toggle('active', !isLoginMode);
+            loginTab.setAttribute('aria-selected', String(isLoginMode));
+            signupTab.setAttribute('aria-selected', String(!isLoginMode));
+            document.getElementById('toggleIndicator').style.transform = isLoginMode ? 'translateX(0)' : 'translateX(100%)';
+            authCard.classList.add('is-changing');
+            signupNameField.classList.toggle('is-open', !isLoginMode);
+            signupNameField.setAttribute('aria-hidden', String(isLoginMode));
+            document.querySelector('.auth-hero').classList.add('mode-transition');
+            signupFields.classList.toggle('is-open', !isLoginMode);
+            signupFields.setAttribute('aria-hidden', String(isLoginMode));
+            document.getElementById('forgotPasswordBtn').hidden = !isLoginMode;
+
+            window.clearTimeout(copyTransitionTimer);
+            window.clearTimeout(heroTransitionTimer);
+            copyTransitionTimer = window.setTimeout(() => {
+                document.getElementById('welcomeHeading').textContent = copy.heading;
+                document.getElementById('welcomeSubtitle').textContent = copy.subtitle;
+                document.getElementById('switchText').textContent = copy.footer;
+                document.getElementById('switchBtn').textContent = copy.footerLink;
+                document.getElementById('submitLabel').textContent = copy.submit;
+                authCard.classList.remove('is-changing');
+            }, 120);
+            heroTransitionTimer = window.setTimeout(() => document.querySelector('.auth-hero').classList.remove('mode-transition'), 900);
+
+            const activeEmail = emailInput;
+            const activePassword = passwordInput;
+            if (activeEmail) {
+                activeEmail.id = emailId;
+                activeEmail.autocomplete = isLoginMode ? 'email' : 'email';
             }
+            if (activePassword) {
+                activePassword.id = passwordId;
+                activePassword.autocomplete = isLoginMode ? 'current-password' : 'new-password';
+            }
+            document.getElementById('emailLabel').htmlFor = emailId;
+            document.getElementById('passwordLabel').htmlFor = passwordId;
+            passwordToggle.id = isLoginMode ? 'loginPasswordToggle' : 'signupPasswordToggle';
+            document.getElementById('signupConfirmPassword').disabled = isLoginMode;
+            document.getElementById('signupFullName').disabled = isLoginMode;
         }
-
-        function toggleForm() {
-            switchTab(isLoginMode ? 'signup' : 'login');
-        }
-
-        // Expose functions to global scope for inline onclick handlers
+        function toggleForm() { switchTab(isLoginMode ? 'signup' : 'login'); }
         window.switchTab = switchTab;
         window.toggleForm = toggleForm;
 
-        // PASSWORD TOGGLE FUNCTIONALITY
         window.togglePasswordVisibility = function(inputId, toggleBtnId) {
-            const input = document.getElementById(inputId);
+            const input = document.getElementById(inputId) || document.querySelector('#loginForm input[type="password"]:not(#signupConfirmPassword)');
             const toggleBtn = document.getElementById(toggleBtnId);
-
             if (!input || !toggleBtn) return;
-
-            // Debug log for visibility during development
-            console.debug('togglePasswordVisibility called for', inputId);
-
-            // Determine new state
             const willShow = input.type === 'password';
             input.type = willShow ? 'text' : 'password';
-
-            // Update accessible attributes
-            toggleBtn.setAttribute('aria-pressed', willShow ? 'true' : 'false');
+            toggleBtn.setAttribute('aria-pressed', String(willShow));
+            toggleBtn.setAttribute('aria-label', willShow ? 'Hide password' : 'Show password');
             toggleBtn.title = willShow ? 'Hide password' : 'Show password';
-
-            // Replace inner HTML with explicit icon markup so the visual always updates
-            const iconHtml = willShow
-                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">\n                    <path d="M2 2l20 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>\n                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>\n                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>\n                </svg>'
-                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#6b7280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">\n                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>\n                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"></circle>\n                </svg>';
-            toggleBtn.innerHTML = iconHtml;
+            toggleBtn.innerHTML = willShow
+                ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>'
+                : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>';
         };
 
-        // LOGIN FORM SUBMISSION
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
+        function setLoading(form, loading) {
+            const button = form.querySelector('button[type="submit"]');
+            if (!button) return;
+            button.disabled = loading;
+            button.setAttribute('aria-busy', String(loading));
+            if (loading) button.dataset.originalText = button.textContent;
+            button.innerHTML = loading ? 'Please wait…' : button.dataset.originalText;
+        }
 
-            try {
-                await login(email, password);
-                localStorage.setItem('motocare-streak-login-pending', 'true');
-                showToast('Login successful!', 'success');
-                setTimeout(() => {
-                    window.location.href = './dashboard.html';
-                }, 1000);
-            } catch (error) {
-                showToast(error.message || 'Login failed', 'error');
-                console.error('Login error:', error);
-            }
+        document.getElementById('loginPasswordToggle').addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const passwordInput = document.getElementById(isLoginMode ? 'loginPassword' : 'signupPassword');
+            if (passwordInput) togglePasswordVisibility(passwordInput.id, event.currentTarget.id);
+        });
+        document.getElementById('confirmPasswordToggle').addEventListener('click', () => {
+            togglePasswordVisibility('signupConfirmPassword', 'confirmPasswordToggle');
         });
 
-        // SIGNUP FORM SUBMISSION
-        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('signupEmail').value;
-            const password = document.getElementById('signupPassword').value;
-            const confirmPassword = document.getElementById('signupConfirmPassword').value;
+            const form = e.currentTarget;
+            const email = document.getElementById(isLoginMode ? 'loginEmail' : 'signupEmail').value;
+            const password = document.getElementById(isLoginMode ? 'loginPassword' : 'signupPassword').value;
 
-            if (password !== confirmPassword) {
-                showToast('Passwords do not match', 'error');
+            if (isLoginMode) {
+                setLoading(form, true);
+                try {
+                    await login(email, password);
+                    localStorage.setItem('motocare-streak-login-pending', 'true');
+                    showToast('Login successful!', 'success');
+                    setTimeout(() => { window.location.href = './dashboard.html'; }, 1000);
+                } catch (error) {
+                    showToast(error.message || 'Login failed', 'error');
+                    console.error('Login error:', error);
+                } finally { setLoading(form, false); }
                 return;
             }
 
+            if (password !== document.getElementById('signupConfirmPassword').value) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
             if (password.length < 6) {
                 showToast('Password must be at least 6 characters', 'error');
                 return;
             }
-
+            setLoading(form, true);
             try {
-                console.debug('Attempting signUp for', email);
-                const userCred = await signUp(email, password);
-                console.debug('signUp success', userCred);
+                await signUp(email, password);
                 localStorage.setItem('motocare-streak-login-pending', 'true');
                 showToast('Sign up successful! Logging you in...', 'success');
-                setTimeout(() => {
-                    window.location.href = './dashboard.html';
-                }, 1000);
+                setTimeout(() => { window.location.href = './dashboard.html'; }, 1000);
             } catch (error) {
-                const code = error.code || 'unknown';
-                const msg = error.message || 'Sign up failed';
-                showToast(`${msg} (${code})`, 'error');
+                showToast(`${error.message || 'Sign up failed'} (${error.code || 'unknown'})`, 'error');
                 console.error('Sign up error:', error);
-            }
+            } finally { setLoading(form, false); }
         });
 
-        // GOOGLE SIGN-IN BUTTON
         document.getElementById('googleSignInBtn').addEventListener('click', async (e) => {
             e.preventDefault();
+            const button = e.currentTarget;
+            button.disabled = true;
             try {
-                console.debug('Starting Google sign-in');
                 await googleSignIn();
                 localStorage.setItem('motocare-streak-login-pending', 'true');
                 showToast('Signed in with Google', 'success');
                 setTimeout(() => { window.location.href = './dashboard.html'; }, 800);
             } catch (error) {
-                const code = error.code || 'unknown';
-                showToast(error.message ? `${error.message} (${code})` : 'Google sign-in failed', 'error');
+                showToast(error.message ? `${error.message} (${error.code || 'unknown'})` : 'Google sign-in failed', 'error');
                 console.error('Google sign-in error:', error);
-            }
+            } finally { button.disabled = false; }
         });
     </script>
 </body>

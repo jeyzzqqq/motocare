@@ -1,11 +1,12 @@
-import { auth, db, onAuthStateChanged } from './firebase-config.js';
+import { auth, db, onAuthStateChanged } from './firebase-config.js?v=2';
 import { collection, getDoc, onSnapshot, query, updateDoc, where, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-const GREEN = '#2E9E4F';
+const GREEN = '#2E7D32';
 let unsubscribe = null;
 let notifications = [];
 let activeUserId = '';
 let panelOpen = false;
+let animatePanelRows = false;
 let notificationPreferences = { maintenanceReminders: true, overdueAlerts: true, aiInsights: true };
 
 function escapeHtml(value = '') {
@@ -32,10 +33,23 @@ function timeAgo(value) {
 
 function getNotificationMeta(item) {
     const text = `${item.type || ''} ${item.category || ''} ${item.title || ''} ${item.message || item.body || ''}`.toLowerCase();
-    if (item.ai === true || text.includes('ai') || text.includes('insight')) return { key: 'ai', icon: 'sparkles', className: 'notification-panel__icon--ai', label: 'AI' };
-    if (text.includes('overdue') || text.includes('alert')) return { key: 'overdue', icon: 'triangle-alert', className: 'notification-panel__icon--overdue', label: '' };
-    if (text.includes('due') || text.includes('reminder') || text.includes('soon')) return { key: 'due', icon: 'triangle-alert', className: 'notification-panel__icon--due', label: '' };
-    return { key: 'complete', icon: 'circle-check', className: 'notification-panel__icon--complete', label: '' };
+    if (item.ai === true || text.includes('ai') || text.includes('insight')) return { key: 'ai', className: 'notification-panel__icon--ai' };
+    if (text.includes('overdue') || text.includes('alert')) return { key: 'overdue', className: 'notification-panel__icon--overdue' };
+    if (text.includes('due') || text.includes('reminder') || text.includes('soon')) return { key: 'due', className: 'notification-panel__icon--due' };
+    if (text.includes('logged') || text.includes('success') || text.includes('complete')) return { key: 'complete', className: 'notification-panel__icon--complete' };
+    return { key: 'other', className: 'notification-panel__icon--other' };
+}
+
+function notificationIcon(meta) {
+    const common = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+    const paths = {
+        due: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+        ai: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+        overdue: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+        complete: '<path d="M20 6 9 17l-5-5"/>',
+        other: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'
+    };
+    return `<svg ${common}>${paths[meta.key] || paths.other}</svg>`;
 }
 
 function getTarget(item, meta) {
@@ -61,7 +75,7 @@ function ensurePanel() {
             <section class="notification-panel" role="dialog" aria-modal="true" aria-labelledby="notificationPanelTitle">
                 <header class="notification-panel__header">
                     <div><h2 id="notificationPanelTitle">Notifications</h2><p id="notificationPanelUnread">0 unread</p></div>
-                    <div class="notification-panel__header-actions"><button id="notificationMarkAll" type="button">Mark all read</button><button class="notification-panel__close" type="button" aria-label="Close notifications" data-notification-dismiss><i class="lucide lucide-x" aria-hidden="true"></i></button></div>
+                    <div class="notification-panel__header-actions"><button id="notificationMarkAll" type="button">Mark all read</button><button class="notification-panel__close" type="button" aria-label="Close notifications" data-notification-dismiss><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
                 </header>
                 <div id="notificationPanelList" class="notification-panel__list" aria-live="polite"><p class="notification-panel__empty">Loading notifications...</p></div>
             </section>
@@ -79,7 +93,12 @@ function ensurePanel() {
         if (!item) return;
         if (!item.read) updateDoc(doc(db, 'notifications', item.id), { read: true }).catch((error) => console.warn('Notification read update failed:', error));
         closePanel();
-        window.location.href = getTarget(item, getNotificationMeta(item));
+        const target = getTarget(item, getNotificationMeta(item));
+        if (target.startsWith('motoai.html')) {
+            document.dispatchEvent(new CustomEvent('motoai:open', { detail: { context: new URL(target, window.location.href).searchParams.get('context') || '' } }));
+        } else {
+            window.location.href = target;
+        }
     });
 }
 
@@ -95,23 +114,27 @@ function renderNotifications() {
     const visibleNotifications = notifications.filter((item) => isNotificationEnabled(getNotificationMeta(item)));
     const unread = visibleNotifications.filter((item) => item.read !== true).length;
     const unreadLabel = document.getElementById('notificationPanelUnread');
-    if (unreadLabel) unreadLabel.textContent = `${unread} unread`;
+    if (unreadLabel) unreadLabel.textContent = unread ? `${unread} unread` : 'All caught up';
+    const markAll = document.getElementById('notificationMarkAll');
+    if (markAll) markAll.hidden = unread === 0;
     updateBell(unread);
     if (!list) return;
     if (!visibleNotifications.length) {
-        list.innerHTML = '<p class="notification-panel__empty">You are all caught up.</p>';
+        list.innerHTML = '<p class="notification-panel__empty">You\'re all caught up.</p>';
         return;
     }
-    list.innerHTML = visibleNotifications.map((item) => {
+    const shouldAnimateRows = animatePanelRows;
+    animatePanelRows = false;
+    list.innerHTML = visibleNotifications.map((item, index) => {
         const meta = getNotificationMeta(item);
         const title = item.title || (meta.key === 'overdue' ? 'Maintenance overdue' : meta.key === 'due' ? 'Maintenance due soon' : meta.key === 'ai' ? 'AI Insight' : 'Record logged');
         const description = item.message || item.body || item.reminderText || 'You have a new MotoCare update.';
-        return `<button type="button" class="notification-panel__row ${item.read ? '' : 'is-unread'}" data-notification-id="${escapeHtml(item.id)}">
-            <span class="notification-panel__icon ${meta.className}"><i class="lucide lucide-${meta.icon}" aria-hidden="true"></i></span>
+        return `<button type="button" class="notification-panel__row${shouldAnimateRows ? ' notification-panel__row--enter' : ''} ${item.read ? 'is-read' : 'is-unread'}" style="--notification-delay:${index * 50}ms" data-notification-id="${escapeHtml(item.id)}">
+            <span class="notification-panel__icon ${meta.className}">${notificationIcon(meta)}</span>
             <span class="notification-panel__content"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(description)}</span><time>${timeAgo(item.createdAt || item.date || item.updatedAt)}</time></span>
-            <span class="notification-panel__indicators">${meta.label ? `<small>✨ ${meta.label}</small>` : ''}${item.read ? '' : '<i aria-label="Unread"></i>'}</span>
+            <span class="notification-panel__indicators">${item.read ? '' : '<i aria-label="Unread"></i>'}</span>
         </button>`;
-    }).join('');
+    }).join('') + '<p class="notification-panel__empty notification-panel__empty--footer">You\'re all caught up.</p>';
 }
 
 async function markAllRead() {
@@ -140,6 +163,8 @@ function openPanel() {
     if (!backdrop) return;
     backdrop.hidden = false;
     panelOpen = true;
+    animatePanelRows = true;
+    renderNotifications();
     document.body.classList.add('notification-panel-open');
 }
 
@@ -184,32 +209,36 @@ function addStyles() {
         body.notification-panel-open { overflow: hidden; }
         .notification-panel__backdrop { position: fixed; inset: 0; z-index: 80; display: flex; justify-content: flex-end; align-items: flex-start; padding: 72px 14px 20px; background: rgba(27, 35, 30, .38); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); }
         .notification-panel__backdrop[hidden] { display: none; }
-        .notification-panel { width: min(100%, 420px); max-height: min(650px, calc(100vh - 92px)); overflow: hidden; border-radius: 16px; background: #fff; box-shadow: 0 20px 55px rgba(20, 35, 25, .24); animation: notification-panel-in 180ms ease-out; }
-        .notification-panel__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid #edf0ee; }
-        .notification-panel__header h2 { margin: 0; color: #172033; font: 700 18px/1.2 sans-serif; }
-        .notification-panel__header p { margin: 4px 0 0; color: #89918d; font: 500 11px/1 sans-serif; }
+        .notification-panel { width: min(100%, 420px); max-height: min(650px, calc(100vh - 92px)); overflow: hidden; border-radius: 16px; color: var(--moto-text, #111613); background: var(--moto-bg, #f6f7f5); box-shadow: 0 20px 55px rgba(20, 35, 25, .24); animation: notification-panel-in 180ms ease-out; }
+        .notification-panel__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 18px 16px 14px; background: var(--moto-bg, #f6f7f5); }
+        .notification-panel__header h2 { margin: 0; color: var(--moto-text, #111613); font: 700 20px/1.2 var(--moto-font, sans-serif); }
+        .notification-panel__header p { margin: 6px 0 0; color: var(--moto-muted, #7a817c); font: 500 10px/1 var(--moto-font, sans-serif); }
         .notification-panel__header-actions { display: flex; align-items: center; gap: 9px; }
-        #notificationMarkAll { padding: 4px 0; border: 0; color: ${GREEN}; background: transparent; font: 700 10px sans-serif; cursor: pointer; white-space: nowrap; }
+        #notificationMarkAll { padding: 4px 0; border: 0; color: ${GREEN}; background: transparent; font: 600 10px var(--moto-font, sans-serif); cursor: pointer; white-space: nowrap; }
         #notificationMarkAll:disabled { opacity: .5; }
-        .notification-panel__close { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; color: #7e8783; background: #f1f3f2; cursor: pointer; }
-        .notification-panel__list { max-height: min(560px, calc(100vh - 170px)); overflow-y: auto; padding: 6px; }
-        .notification-panel__row { display: flex; width: 100%; align-items: flex-start; gap: 10px; padding: 12px 10px; border: 0; border-bottom: 1px solid #f0f2f1; color: inherit; background: #fff; text-align: left; cursor: pointer; }
-        .notification-panel__row:last-child { border-bottom: 0; }
-        .notification-panel__row:hover, .notification-panel__row.is-unread { background: rgba(46, 158, 79, .05); }
-        .notification-panel__icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; }
-        .notification-panel__icon--due { color: #a15c00; background: #fff0cc; }
-        .notification-panel__icon--overdue { color: #b42318; background: #fee4e2; }
-        .notification-panel__icon--ai { color: #7044cf; background: #eee8ff; }
-        .notification-panel__icon--complete { color: #237a3a; background: #e5f6e9; }
-        .notification-panel__content { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
-        .notification-panel__content strong { overflow: hidden; color: #202a27; font: 700 12px/1.25 sans-serif; text-overflow: ellipsis; white-space: nowrap; }
-        .notification-panel__content span { color: #737d78; font: 500 11px/1.35 sans-serif; }
-        .notification-panel__content time { color: #a1aaa5; font: 500 9px/1 sans-serif; }
-        .notification-panel__indicators { display: flex; align-items: flex-end; flex-direction: column; gap: 6px; color: #7044cf; }
-        .notification-panel__indicators small { font: 700 9px sans-serif; white-space: nowrap; }
-        .notification-panel__indicators i { width: 7px; height: 7px; border-radius: 50%; background: ${GREEN}; }
-        .notification-panel__empty { padding: 36px 14px; color: #89918d; font: 500 12px/1.4 sans-serif; text-align: center; }
+        .notification-panel__close { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; color: var(--moto-muted, #7a817c); background: var(--moto-surface, #fff); cursor: pointer; }
+        .notification-panel__close svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
+        .notification-panel__list { max-height: min(560px, calc(100vh - 160px)); overflow-y: auto; padding: 0 10px 12px; }
+        .notification-panel__row { display: flex; width: 100%; align-items: flex-start; gap: 10px; min-height: 92px; margin-bottom: 12px; padding: 14px 12px; border: 0; border-radius: 16px; color: inherit; background: var(--moto-surface, #fff); box-shadow: 0 3px 12px rgba(20, 35, 25, .04); text-align: left; cursor: pointer; transition: background 120ms ease, transform 120ms ease; }
+        .notification-panel__row:active { background: var(--moto-icon-tile, #eff1ee); transform: scale(.99); }
+        .notification-panel__row.is-read .notification-panel__content strong { color: #53605a; }
+        .notification-panel__row.notification-panel__row--enter { animation: notification-row-in 400ms ease both; animation-delay: var(--notification-delay, 0ms); }
+        .notification-panel__icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; background: var(--moto-icon-tile, #eff1ee); }
+        .notification-panel__icon svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
+        .notification-panel__icon--due, .notification-panel__icon--ai, .notification-panel__icon--complete, .notification-panel__icon--other { color: ${GREEN}; }
+        .notification-panel__icon--overdue { color: var(--moto-overdue, #ef4444); }
+        .notification-panel__content { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; padding-top: 1px; }
+        .notification-panel__content strong { overflow: hidden; color: var(--moto-text, #111613); font: 600 12px/1.3 var(--moto-font, sans-serif); text-overflow: ellipsis; white-space: nowrap; }
+        .notification-panel__content span { color: var(--moto-muted, #7a817c); font: 400 10px/1.4 var(--moto-font, sans-serif); }
+        .notification-panel__content time { color: var(--moto-muted, #7a817c); font: 400 9px/1 var(--moto-font, sans-serif); }
+        .notification-panel__indicators { display: flex; align-items: flex-start; flex-direction: column; padding-top: 2px; }
+        .notification-panel__indicators i { display: block; width: 8px; height: 8px; border-radius: 50%; background: ${GREEN}; transition: opacity 200ms ease, transform 200ms ease; }
+        .notification-panel__row.is-read .notification-panel__indicators i { opacity: 0; transform: scale(0); }
+        .notification-panel__empty { padding: 30px 14px; color: var(--moto-muted, #7a817c); font: 400 10px/1.4 var(--moto-font, sans-serif); text-align: center; }
+        .notification-panel__empty--footer { padding: 18px 14px 8px; }
         @keyframes notification-panel-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes notification-row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) { .notification-panel, .notification-panel__row { animation: none !important; transition: none !important; } }
         @media (max-width: 480px) { .notification-panel__backdrop { padding: 64px 10px 16px; } .notification-panel { max-height: calc(100vh - 80px); } .notification-panel__header-actions { gap: 6px; } }
     `;
     document.head.appendChild(style);

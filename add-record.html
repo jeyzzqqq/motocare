@@ -6,176 +6,156 @@
     <title>MotoCare - Add Record</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
+    <link rel="stylesheet" href="./css/add-record-overlay.css">
+    <style>
+        :root {
+            --record-primary: var(--moto-deep);
+            --record-bg: var(--moto-bg);
+            --record-surface: var(--moto-surface);
+            --record-muted: var(--moto-muted);
+            --record-border: var(--moto-border);
+        }
+
+        * { box-sizing: border-box; }
+        html, body { min-width: 320px; min-height: 100%; margin: 0; background: var(--record-bg); }
+        body { color: var(--moto-text); font-family: var(--moto-font); -webkit-font-smoothing: antialiased; }
+        .record-page { width: min(100%, 480px); min-height: 100dvh; margin: 0 auto; padding: 18px 16px calc(92px + env(safe-area-inset-bottom, 0px)); }
+        .record-header { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 24px; }
+        .record-back { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; margin-left: -8px; border: 0; border-radius: 50%; color: var(--record-primary); background: transparent; cursor: pointer; }
+        .record-back:active { background: var(--moto-icon-tile); }
+        .record-back:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 2px; }
+        .record-back svg { width: 24px; height: 24px; }
+        .record-title { margin: 0; color: var(--moto-text); font-size: 24px; font-weight: 700; line-height: 1.15; }
+        .record-form { display: grid; gap: 16px; }
+        .record-toggle { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; min-height: 44px; padding: 4px; border-radius: var(--moto-radius-pill); background: var(--moto-icon-tile); }
+        .record-toggle__option { min-width: 0; border: 0; border-radius: var(--moto-radius-pill); color: var(--moto-muted); background: transparent; font: 500 11px/1 var(--moto-font); cursor: pointer; transition: color 200ms ease, background-color 200ms ease, transform 200ms ease; }
+        .record-toggle__option.is-active { color: var(--moto-surface); background: var(--record-primary); font-weight: 600; }
+        .record-field { min-width: 0; }
+        .record-label { display: block; margin: 0 0 7px; color: var(--record-muted); font-size: 8px; font-weight: 500; letter-spacing: .08em; line-height: 1.2; text-transform: uppercase; }
+        .record-control { position: relative; }
+        .record-input,
+        .record-select { display: block; width: 100%; height: 56px; padding: 0 42px 0 16px; border: 1px solid var(--record-border); border-radius: 14px; outline: 0; color: var(--moto-text); background: var(--record-surface); font: 400 14px/1 var(--moto-font); box-shadow: 0 1px 2px rgba(17, 22, 19, .02); }
+        .record-input::placeholder { color: var(--record-muted); opacity: .9; }
+        .record-select { appearance: none; cursor: pointer; text-overflow: ellipsis; }
+        .record-input:focus,
+        .record-select:focus { border: 1.5px solid var(--moto-primary); }
+        .record-chevron { position: absolute; top: 50%; right: 12px; display: grid; place-items: center; width: 24px; height: 24px; pointer-events: none; color: var(--moto-muted); transform: translateY(-50%); }
+        .record-chevron svg { width: 22px; height: 22px; }
+        .record-date { color-scheme: light; }
+        .record-date::-webkit-calendar-picker-indicator { opacity: 0; width: 100%; height: 100%; position: absolute; inset: 0; cursor: pointer; }
+        .record-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .record-pair .record-input { padding-right: 16px; }
+        .record-meta { display: block; min-height: 12px; margin: 6px 0 0 4px; color: var(--record-muted); font-size: 9px; line-height: 1.3; }
+        .record-meta:empty { display: none; }
+        .record-error { margin: 5px 0 0; color: var(--moto-overdue); font-size: 10px; }
+        .record-form > * { opacity: 0; transform: translateY(8px); }
+        .record-form.is-ready > * { animation: record-field-in 260ms ease-out forwards; animation-delay: calc(var(--record-index, 0) * 40ms); }
+        .record-submit-bar { position: fixed; right: 0; bottom: 0; left: 0; z-index: 4; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to bottom, transparent, var(--record-bg) 28%); }
+        .record-submit-wrap { width: min(100%, 448px); margin: 0 auto; }
+        #submitBtn { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; border: 0; border-radius: var(--moto-radius-pill); color: #fff; background: var(--record-primary); font: 600 13px/1 var(--moto-font); cursor: pointer; transition: transform 120ms ease, background-color 120ms ease; }
+        #submitBtn:active { transform: scale(.99); }
+        #submitBtn:disabled { color: var(--record-muted); background: var(--moto-icon-tile); cursor: wait; }
+        .record-hidden-field, .record-page ~ #mobileNav { display: none !important; }
+        #toastContainer { z-index: 10; }
+        @media (max-width: 380px) {
+            .record-page { padding-right: 12px; padding-left: 12px; }
+            .record-title { font-size: 22px; }
+            .record-input, .record-select { padding-left: 14px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .record-toggle__option, #submitBtn { transition: none; }
+            .record-form > *, .record-form.is-ready > * { animation: none; opacity: 1; transform: none; }
+        }
+        @keyframes record-field-in { to { opacity: 1; transform: translateY(0); } }
+    </style>
 </head>
-<body class="bg-gray-50 min-h-screen pb-32">
-    <div class="max-w-lg mx-auto">
-        <div class="p-4 space-y-6">
-            <!-- Header -->
-            <div class="flex items-center gap-4">
-                <button onclick="window.history.back()" class="p-2.5 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors">
-                    <i class="lucide lucide-arrow-left text-gray-600 text-xl"></i>
-                </button>
-                <div>
-                    <h1 class="text-3xl text-gray-800">Add Record</h1>
-                    <p class="text-gray-500 text-sm mt-1">Log a new service or repair</p>
-                </div>
+<body>
+    <main class="record-page">
+        <header class="record-header">
+            <button type="button" class="record-back" onclick="window.closeAddRecordSheet && document.getElementById('addRecordBackdrop') ? window.closeAddRecordSheet() : window.history.back()" aria-label="Go back">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <h1 class="record-title">Add record</h1>
+        </header>
+
+        <form id="addRecordForm" class="record-form">
+            <div class="record-toggle" role="tablist" aria-label="Record type">
+                <button type="button" class="record-toggle__option is-active" data-record-mode="maintenance" role="tab" aria-selected="true">Maintenance</button>
+                <button type="button" class="record-toggle__option" data-record-mode="repair" role="tab" aria-selected="false">Repair</button>
             </div>
 
-            <!-- Form -->
-            <form id="addRecordForm" class="space-y-5">
-                <!-- Select Motorcycle -->
-                <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                    <label class="flex items-center gap-2 text-gray-700 mb-3">
-                        <i class="lucide lucide-bike text-green-700 text-xl"></i>
-                        Motorcycle
-                    </label>
-                    <select id="motorcycle" required
-                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent appearance-none cursor-pointer">
+            <div class="record-field">
+                <label class="record-label" for="motorcycle">Motorcycle</label>
+                <div class="record-control">
+                    <select id="motorcycle" required class="record-select">
                         <option value="">Loading motorcycles...</option>
                     </select>
+                    <span class="record-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
                 </div>
-
-                <!-- Service Title -->
-                <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                    <label class="flex items-center gap-2 text-gray-700 mb-3">
-                        <i class="lucide lucide-wrench text-green-700 text-xl"></i>
-                        Service/Repair Title
-                    </label>
-                    <select id="titleSelect" required
-                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent appearance-none cursor-pointer">
-                        <option value="">Select a motorcycle first</option>
-                    </select>
-                    <div id="customTitleGroup" class="mt-3 hidden">
-                        <label class="block text-sm text-gray-600 mb-2" id="customTitleLabel">Custom Item</label>
-                        <input type="text" id="customTitle" placeholder="e.g., Top box, seat cover, brake pads"
-                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent">
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">Pick from the same schedule rules used in the Maintenance page, or choose an upgrade/accessory item.</p>
-                </div>
-
-                <!-- Date & Cost -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                        <label class="flex items-center gap-2 text-gray-700 mb-3">
-                            <i class="lucide lucide-calendar text-green-700 text-xl"></i>
-                            Date
-                        </label>
-                        <input type="date" id="date" required
-                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent">
-                    </div>
-
-                    <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                        <label class="flex items-center gap-2 text-gray-700 mb-3">
-                            <i class="lucide lucide-dollar-sign text-green-700 text-xl"></i>
-                            Cost
-                        </label>
-                        <input type="number" id="cost" placeholder="0.00" step="0.01" required
-                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent">
-                    </div>
-                </div>
-
-                <!-- Mileage & Service Type -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                        <label class="flex items-center gap-2 text-gray-700 mb-3">
-                            <i class="lucide lucide-gauge text-green-700 text-xl"></i>
-                            Mileage
-                        </label>
-                        <input type="number" id="mileage" placeholder="12,450" required min="0" step="1"
-                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent">
-                        <p class="text-xs text-gray-500 mt-2" id="mileageHint">Select a motorcycle first to lock the minimum mileage.</p>
-                    </div>
-
-                    <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                        <label class="flex items-center gap-2 text-gray-700 mb-3">
-                            <i class="lucide lucide-user text-green-700 text-xl"></i>
-                            Service Type
-                        </label>
-                        <select id="mechanic" required
-                            class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent appearance-none cursor-pointer">
-                            <option value="">Select service type</option>
-                            <option value="Self Service">Self Service</option>
-                            <option value="Mechanic / Shop">Mechanic / Shop</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Category -->
-                <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                    <label class="flex items-center gap-2 text-gray-700 mb-3">
-                        <i class="lucide lucide-file-text text-green-700 text-xl"></i>
-                        Category
-                    </label>
-                    <select id="category" required
-                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent appearance-none cursor-pointer">
-                        <option value="">Select a category</option>
-                        <option value="Routine Maintenance">Routine Maintenance</option>
-                        <option value="Major Repair">Major Repair</option>
-                        <option value="Parts Replacement">Parts Replacement</option>
-                        <option value="Tire Service">Tire Service</option>
-                        <option value="Brake Service">Brake Service</option>
-                        <option value="Engine Work">Engine Work</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-
-                <!-- Notes -->
-                <div class="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-                    <label class="flex items-center gap-2 text-gray-700 mb-3">
-                        <i class="lucide lucide-file-text text-green-700 text-xl"></i>
-                        Notes (Optional)
-                    </label>
-                    <textarea id="notes" placeholder="Add any additional details about the service..." rows="4"
-                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent resize-none"></textarea>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="window.history.back()" id="cancelBtn"
-                        class="flex-1 py-4 bg-white text-gray-700 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm">
-                        Cancel
-                    </button>
-                    <button type="submit" id="submitBtn"
-                        class="flex-1 py-4 bg-green-700 text-white rounded-xl hover:bg-green-800 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                        Save Record
-                    </button>
-                </div>
-            </form>
-
-            <!-- Quick Tips -->
-            <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-5 border border-green-200">
-                <h3 class="text-green-700 font-medium mb-2 flex items-center gap-2">
-                    <i class="lucide lucide-file-text text-xl"></i>
-                    Quick Tips
-                </h3>
-                <ul class="text-sm text-gray-700 space-y-1.5">
-                    <li class="flex items-start gap-2">
-                        <span class="text-green-700 mt-0.5">•</span>
-                        <span>Always enter mileage equal to or higher than the current motorcycle ODO</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-green-700 mt-0.5">•</span>
-                        <span>Pick a scheduled service title or a parts/accessories upgrade to keep history readable</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-green-700 mt-0.5">•</span>
-                        <span>Add detailed notes for future reference</span>
-                    </li>
-                </ul>
             </div>
+
+            <div class="record-field">
+                <label class="record-label" for="titleSelect">Service type</label>
+                <div class="record-control">
+                    <select id="titleSelect" required class="record-select">
+                        <option value="">Select service type</option>
+                    </select>
+                    <span class="record-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+                </div>
+                <div id="customTitleGroup" class="record-hidden-field">
+                    <label id="customTitleLabel" for="customTitle">Custom service</label>
+                    <input type="text" id="customTitle">
+                </div>
+            </div>
+
+            <div class="record-field">
+                <label class="record-label" for="date">Service date</label>
+                <div class="record-control">
+                    <input type="date" id="date" required class="record-input record-date">
+                    <span class="record-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+                </div>
+            </div>
+
+            <div class="record-pair">
+                <div class="record-field">
+                    <label class="record-label" for="mileage">Odometer (km)</label>
+                    <input type="number" id="mileage" inputmode="numeric" placeholder="0" required min="0" step="1" class="record-input">
+                    <small id="mileageUpdated" class="record-meta"></small>
+                    <small id="mileageHint" class="record-meta">Odometer changes help keep service reminders accurate.</small>
+                </div>
+                <div class="record-field">
+                    <label class="record-label" for="cost">Total cost (₱)</label>
+                    <input type="number" id="cost" inputmode="decimal" placeholder="0.00" step="0.01" required class="record-input">
+                </div>
+            </div>
+
+            <div class="record-hidden-field">
+                <select id="mechanic" required><option value="Self Service" selected>Self Service</option></select>
+                <select id="category" required><option value="Routine Maintenance" selected>Routine Maintenance</option></select>
+                <textarea id="notes"></textarea>
+            </div>
+            <button type="button" id="cancelBtn" class="record-hidden-field">Cancel</button>
+        </form>
+    </main>
+
+    <div class="record-submit-bar">
+        <div class="record-submit-wrap">
+            <button type="submit" id="submitBtn" form="addRecordForm">Save record</button>
         </div>
     </div>
 
     <div id="mobileNav"></div>
+    <div id="toastContainer" class="fixed top-4 right-4 max-w-sm"></div>
 
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
-
-    <script type="module" src="./js/firebase-config.js"></script>
+    <script type="module" src="./js/firebase-config.js?v=2"></script>
     <script type="module" src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=2"></script>
+    <script type="module" src="./js/motoai.js?v=3"></script>
+    <script type="module" src="./js/add-record-overlay.js"></script>
     <script type="module" src="./js/addRecord.js"></script>
 </body>
 </html>

@@ -1,0 +1,58 @@
+.logout-confirmation-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(27, 35, 30, .38);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+}
+.logout-confirmation-backdrop[hidden],
+.logout-confirmation-dialog[hidden] { display: none; }
+.logout-confirmation-backdrop.is-open { opacity: 1; pointer-events: auto; }
+.logout-confirmation-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 201;
+    width: calc(100% - 32px);
+    max-width: 360px;
+    padding: 24px;
+    border-radius: 24px;
+    background: var(--moto-surface);
+    box-shadow: 0 18px 50px rgba(20, 35, 25, .2);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(.96);
+    transition: opacity 220ms ease, transform 220ms cubic-bezier(.22, 1, .36, 1), visibility 220ms ease;
+}
+.logout-confirmation-dialog.is-open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+.logout-confirmation-dialog__icon { display: block; width: 28px; height: 28px; color: var(--moto-primary); }
+.logout-confirmation-dialog__icon svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.logout-confirmation-dialog__title { margin: 16px 0 0; color: var(--moto-text); font: 700 24px/1.15 var(--moto-font); }
+.logout-confirmation-dialog__body { margin: 12px 0 0; color: var(--moto-muted); font: 400 16px/1.45 var(--moto-font); }
+.logout-confirmation-dialog__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.logout-confirmation-dialog__cancel,
+.logout-confirmation-dialog__confirm { min-height: 48px; border: 0; font: 600 16px/1 var(--moto-font); cursor: pointer; transition: background-color 120ms ease, transform 120ms ease; }
+.logout-confirmation-dialog__cancel { min-width: 72px; color: var(--moto-primary); background: transparent; }
+.logout-confirmation-dialog__confirm { min-width: 140px; padding: 0 20px; border-radius: var(--moto-radius-pill); color: var(--moto-surface); background: var(--moto-overdue); }
+.logout-confirmation-dialog__cancel:active,
+.logout-confirmation-dialog__confirm:active { transform: scale(.98); }
+.logout-confirmation-dialog__cancel:focus-visible,
+.logout-confirmation-dialog__confirm:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 2px; }
+.logout-confirmation-dialog__confirm:disabled { opacity: .65; cursor: wait; }
+body.logout-confirmation-open { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+    .logout-confirmation-backdrop,
+    .logout-confirmation-dialog,
+    .logout-confirmation-dialog__cancel,
+    .logout-confirmation-dialog__confirm { transition: none; }
+}

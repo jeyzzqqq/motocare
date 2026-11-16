@@ -3,55 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoCare - Dashboard</title>
+    <meta name="theme-color" content="#F6F7F5">
+    <title>MotoCare - Home</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="./css/shared-layout.css?v=2">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
     <style>
-        :root { --moto-purple: #8b5cf6; }
-        body { font-family: sans-serif; }
-        .dashboard-list-row { min-height: 62px; }
-        .dashboard-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
-        .insight-ai-badge { width: 34px; height: 34px; color: #8b5cf6; background: #f3f0ff; }
-        .insight-ai-badge svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-        .streak-badge { display: flex; align-items: center; gap: 8px; width: fit-content; padding: 9px 14px; border-radius: 9px; background: rgba(255, 255, 255, 0.18); }
-        .streak-badge__icon { color: #ffd166; font-size: 14px; }
-        .streak-badge__count { color: #fff; font-weight: 700; }
-        .streak-badge__supporting { color: rgba(255, 255, 255, 0.72); font-weight: 400; }
+        * { box-sizing: border-box; }
+        html { background: var(--moto-bg); }
+        body { min-width: 320px; min-height: 100dvh; margin: 0; overflow-x: hidden; color: var(--moto-text); background: var(--moto-bg); font-family: var(--moto-font); -webkit-font-smoothing: antialiased; }
+        a, button { -webkit-tap-highlight-color: transparent; }
+        button:active, a:active { transform: scale(.97); }
+        .home-frame { width: min(100%, 480px); min-height: 100dvh; margin: 0 auto; background: var(--moto-bg); }
+        .home-scroll { min-height: 100dvh; padding-bottom: 90px; overflow-y: auto; scrollbar-width: none; }
+        .home-scroll::-webkit-scrollbar { display: none; }
+        .home-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 28px 12px 0; }
+        .home-greeting { margin: 0; color: var(--moto-muted); font-size: 9px; line-height: 1.2; }
+        .home-name { margin: 2px 0 0; font-size: 20px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+        .home-streak { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; padding: 0; border: 0; color: var(--moto-muted); background: transparent; font-size: 9px; cursor: pointer; }
+        .home-streak svg { width: 24px; height: 24px; flex: 0 0 24px; color: var(--moto-due-soon); fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+        .home-streak.is-animated svg { animation: streak-wiggle 600ms ease-out; }
+        .home-actions { display: flex; gap: 5px; padding-top: 0; }
+        .home-action { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; color: var(--moto-primary); background: transparent; cursor: pointer; }
+        .home-action:first-child { width: 48px; height: 48px; border-radius: 16px; background: var(--moto-surface); }
+        .home-action:active { background: var(--moto-icon-tile); }
+        .home-action svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+        .notification-badge { position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; padding: 0; border: 1px solid var(--moto-surface); border-radius: 50%; color: transparent; background: var(--moto-primary); font-size: 0; }
+        .home-hero { margin: 24px 12px 0; padding: 18px; overflow: hidden; border-radius: 18px; color: var(--moto-surface); background: var(--moto-deep); box-shadow: 0 4px 12px rgba(27, 94, 32, .12); }
+        .home-hero.is-animated { animation: hero-rise 500ms ease-out both; }
+        .eyebrow, .section-label { margin: 0; font-size: 7px; font-weight: 500; letter-spacing: .08em; line-height: 1.2; text-transform: uppercase; }
+        .home-hero .eyebrow { color: rgba(255,255,255,.7); }
+        .hero-days { display: flex; align-items: baseline; gap: 6px; margin-top: 16px; }
+        .hero-days strong { font-size: 40px; font-weight: 400; letter-spacing: -.04em; line-height: .8; }
+        .hero-days span { color: rgba(255,255,255,.7); font-size: 10px; }
+        .hero-service { overflow: hidden; margin: 14px 0 0; color: var(--moto-surface); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+        .hero-progress { height: 3px; margin-top: 13px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.25); }
+        .hero-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--moto-surface); transition: width 800ms cubic-bezier(.22, 1, .36, 1); }
+        .hero-dates { display: flex; justify-content: space-between; margin-top: 7px; color: rgba(255,255,255,.7); font-size: 7px; }
+        .hero-insight { margin-top: 14px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.2); }
+        .hero-insight__heading { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.7); }
+        .hero-insight__heading i { font-size: 15px; }
+        .hero-insight__text { max-width: 280px; margin: 9px 0 0; color: var(--moto-surface); font-size: 8px; line-height: 1.45; }
+        .hero-link { display: none; }
+        .home-content { padding: 0 12px; }
+        .stats-card { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 12px; padding: 12px 0; border: 1px solid rgba(17, 22, 19, .03); border-radius: 14px; background: var(--moto-surface); box-shadow: 0 2px 8px rgba(17, 22, 19, .025); }
+        .stat-cell { display: flex; align-items: center; flex-direction: column; gap: 4px; min-width: 0; color: inherit; text-decoration: none; }
+        .stat-cell + .stat-cell { border-left: 1px solid var(--moto-border); }
+        .stat-value { font-size: 15px; font-weight: 600; line-height: 1.1; }
+        .stat-label { color: var(--moto-muted); font-size: 7px; }
+        .home-section { margin-top: 23px; }
+        .section-head { display: flex; align-items: center; justify-content: space-between; padding: 0 3px 9px; }
+        .section-label { color: var(--moto-muted); }
+        .section-action { color: var(--moto-primary); font-size: 8px; font-weight: 500; text-decoration: none; }
+        .list-card { overflow: hidden; border-radius: 13px; }
+        .maintenance-row { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 61px; padding: 9px 12px; color: inherit; background: var(--moto-surface); text-decoration: none; }
+        .maintenance-row + .maintenance-row { margin-top: 7px; border-radius: 13px; }
+        .row-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; color: var(--moto-muted); background: var(--moto-icon-tile); }
+        .row-icon i { font-size: 17px; }
+        .row-main { min-width: 0; flex: 1; }
+        .row-title { display: block; overflow: hidden; font-size: 9px; font-weight: 500; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+        .row-subtitle { display: block; overflow: hidden; margin-top: 4px; color: var(--moto-muted); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+        .row-meta { display: flex; align-items: flex-end; flex-direction: column; flex: 0 0 auto; gap: 5px; }
+        .status { display: inline-flex; align-items: center; gap: 4px; font-size: 7px; font-weight: 500; white-space: nowrap; }
+        .status::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+        .status--overdue { color: var(--moto-overdue); }
+        .status--due-soon { color: var(--moto-due-soon); }
+        .row-date { color: var(--moto-muted); font-size: 7px; white-space: nowrap; }
+        .empty-state { display: flex; align-items: center; flex-direction: column; gap: 5px; padding: 18px 12px; border-radius: 13px; color: var(--moto-muted); background: var(--moto-surface); text-align: center; }
+        .empty-state i { color: var(--moto-primary); font-size: 20px; }
+        .empty-state strong { color: var(--moto-text); font-size: 9px; font-weight: 500; }
+        .empty-state span { font-size: 8px; }
+        .dashboard-hidden-hook { display: none; }
+        .needs-list.is-animated .maintenance-row { opacity: 0; transform: translateY(8px); }
+        .needs-list.is-animated.is-visible .maintenance-row { animation: need-rise 350ms ease-out forwards; animation-delay: calc(var(--row-index) * 60ms); }
+        @keyframes hero-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes need-rise { to { opacity: 1; transform: translateY(0); } }
+        @keyframes streak-wiggle { 0%, 100% { transform: scale(1) rotate(0); } 45% { transform: scale(1.15) rotate(-8deg); } 75% { transform: scale(1.05) rotate(5deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .home-hero.is-animated, .home-streak.is-animated i, .needs-list.is-animated .maintenance-row { animation: none; opacity: 1; transform: none; }
+            .hero-progress span { transition: none; }
+        }
+        @media (min-width: 768px) {
+            .home-header { padding-top: 36px; }
+            .home-content { padding-right: 12px; padding-left: 12px; }
+        }
     </style>
 </head>
-<body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
-    <header class="app-header dashboard-header">
-        <div class="app-header__inner">
-            <div class="app-header__top">
-            <div class="app-header__title"><p id="greeting" class="text-xs font-medium text-green-100">Good morning,</p><h1 id="userName" class="mt-1 text-xl font-bold">Rider</h1></div>
-            <div class="app-header__actions">
-                <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge hidden"></span></button>
-                <button id="logoutBtn" type="button" aria-label="Log out" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M12 12h9M17 8l4 4-4 4" /></svg></button>
-            </div>
-            </div>
-            <div class="app-header__second"><div class="streak-badge text-xs" aria-label="Current streak"><i class="streak-badge__icon lucide lucide-flame" aria-hidden="true"></i><span id="streakCount" class="streak-badge__count">0-Day Streak</span><span class="streak-badge__supporting">Keep it up</span></div></div>
+<body>
+    <div class="home-frame">
+        <div class="home-scroll">
+            <header class="home-header">
+                <div>
+                    <p id="greeting" class="home-greeting">Good morning</p>
+                    <h1 id="userName" class="home-name">Rider</h1>
+                    <button id="streakButton" class="home-streak" type="button" aria-label="Open streak details">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                        </svg>
+                        <span id="streakCount">3-day streak</span>
+                    </button>
+                </div>
+                <div class="home-actions">
+                    <button id="notificationBtn" type="button" aria-label="Notifications" class="home-action">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+                        </svg>
+                        <span id="notificationBadge" class="notification-badge hidden"></span>
+                    </button>
+                    <button id="logoutBtn" type="button" aria-label="Log out" class="home-action">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" x2="9" y1="12" y2="12"/>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <main>
+                <section id="homeHero" class="home-hero" aria-label="Next service">
+                    <p class="eyebrow">Next service</p>
+                    <div class="hero-days"><strong id="heroDays">0</strong><span>days</span></div>
+                    <p id="heroService" class="hero-service">No service scheduled</p>
+                    <div class="hero-progress" aria-label="Service progress"><span id="heroProgress"></span></div>
+                    <div class="hero-dates"><span id="heroLast">Last not set</span><span id="heroDue">Due not set</span></div>
+                    <div class="hero-insight">
+                        <div class="hero-insight__heading"><i class="lucide lucide-sparkles" aria-hidden="true"></i><p class="eyebrow">MotoAI insight</p></div>
+                        <p id="aiInsight" class="hero-insight__text">Add a motorcycle to receive a maintenance insight based on your real mileage.</p>
+                        <a id="askMotoAi" class="hero-link" href="motoai.html">Ask MotoAI</a>
+                    </div>
+                </section>
+
+                <div class="home-content">
+                    <section class="stats-card" aria-label="Dashboard statistics">
+                        <a href="motorcycles.html" class="stat-cell"><span id="totalBikes" class="stat-value">0</span><span class="stat-label">Bikes</span></a>
+                        <a href="history.html" class="stat-cell"><span id="totalRecords" class="stat-value">0</span><span class="stat-label">Records</span></a>
+                        <a href="expenses.html" class="stat-cell"><span id="monthTotal" class="stat-value">₱0</span><span class="stat-label">This month</span></a>
+                    </section>
+
+                    <section class="home-section" aria-labelledby="urgentTitle">
+                        <div class="section-head"><h2 id="urgentTitle" class="section-label">Needs attention</h2><a href="schedule.html" class="section-action">View all</a></div>
+                        <div id="urgentMaintenanceList" class="list-card needs-list"><div class="empty-state"><i class="lucide lucide-circle-check" aria-hidden="true"></i><strong>All caught up</strong><span>No urgent maintenance needed</span></div></div>
+                    </section>
+
+                    <section class="dashboard-hidden-hook" aria-hidden="true"><div id="recentRecordsList"></div></section>
+                    <section class="dashboard-hidden-hook" aria-hidden="true"><div id="motorcyclesList"></div></section>
+                </div>
+            </main>
         </div>
-    </header>
-
-    <main class="page-content">
-        <section class="dashboard-stat grid grid-cols-3 gap-2" aria-label="Dashboard statistics">
-            <a href="motorcycles.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-green-50 text-green-700"><span aria-hidden="true">&#127949;</span></div><p id="totalBikes" class="mt-2 text-sm font-bold">0</p><p class="text-[9px] text-gray-500">Total Bikes</p></a>
-            <a href="schedule.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-yellow-100 text-orange-500"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3 2"></path></svg></div><p id="nextDue" class="mt-2 text-sm font-bold text-yellow-700">--</p><p class="text-[9px] text-gray-500">Next Due</p></a>
-            <a href="expenses.html" class="rounded-xl bg-white p-3 text-center shadow-md"><div class="dashboard-icon mx-auto bg-blue-50 text-blue-600"><span aria-hidden="true">&#8369;</span></div><p id="monthTotal" class="mt-2 text-sm font-bold">&#8369;0</p><p class="text-[9px] text-gray-500">This Month</p></a>
-        </section>
-
-        <section class="mt-4 rounded-xl border border-purple-200 bg-[#F3F0FF] p-4" aria-labelledby="insightTitle">
-            <div class="flex items-center gap-2"><div class="dashboard-icon insight-ai-badge rounded-full"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg></div><h2 id="insightTitle" class="text-xs font-bold text-purple-900">AI Maintenance Insight</h2><span class="rounded-full bg-purple-100 px-2 py-0.5 text-[8px] font-bold text-purple-700">AI</span></div>
-            <p id="aiInsight" class="mt-2 text-xs leading-relaxed text-purple-900">Loading your motorcycle data...</p><a id="askMotoAi" href="motoai.html" class="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-purple-700">Ask MotoAI for details <span aria-hidden="true">&#8594;</span></a>
-        </section>
-
-        <section class="mt-5" aria-labelledby="urgentTitle"><div class="mb-2 flex items-center justify-between"><h2 id="urgentTitle" class="text-xs font-bold">Urgent Maintenance</h2><a href="schedule.html" class="text-[10px] font-semibold text-green-700">View all <span aria-hidden="true">&#8250;</span></a></div><div id="urgentMaintenanceList" class="space-y-2"><p class="py-3 text-xs text-gray-500">Loading...</p></div></section>
-        <section class="mt-5" aria-labelledby="recentTitle"><div class="mb-2 flex items-center justify-between"><h2 id="recentTitle" class="text-xs font-bold">Recent Records</h2><a href="history.html" class="text-[10px] font-semibold text-green-700">View all <span aria-hidden="true">&#8250;</span></a></div><div id="recentRecordsList" class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"><p class="p-4 text-xs text-gray-500">Loading...</p></div></section>
-    </main>
-
-    <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
-    <script type="module" src="./js/firebase-config.js"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=4"></script><script type="module" src="./js/notification-panel.js?v=6"></script><script type="module" src="./js/streak-modal.js?v=2"></script><script type="module" src="./js/dashboard.js?v=8"></script>
+    </div>
+    <div id="mobileNav"></div>
+    <div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
+    <script type="module" src="./js/firebase-config.js?v=2"></script>
+    <script src="./js/utils.js"></script>
+    <script type="module" src="./js/mobile-nav.js?v=5"></script>
+    <script type="module" src="./js/motoai.js?v=3"></script>
+    <script type="module" src="./js/notification-panel.js?v=7"></script>
+    <script type="module" src="./js/logout-confirmation.js"></script>
+    <script type="module" src="./js/streak-modal.js?v=3"></script>
+    <script type="module" src="./js/dashboard.js?v=10"></script>
 </body>
 </html>

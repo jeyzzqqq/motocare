@@ -45,7 +45,6 @@ function getNavMarkup() {
                         </a>
                     `;
                 }).join('')}
-                </div>
             </div>
         </nav>
     `;
@@ -59,22 +58,27 @@ function addNavStyles() {
     style.textContent = `
         .mobile-bottom-nav {
             position: fixed;
-            right: 0;
+            right: 50%;
             bottom: 0;
-            left: 0;
+            left: auto;
             z-index: 40;
-            background: #fff;
-            border-top: 1px solid #e8e8ea;
-            box-shadow: 0 -4px 16px rgba(31, 35, 32, 0.08);
+            width: min(100%, 384px);
+            transform: translateX(50%);
+            background: rgba(255, 255, 255, .85);
+            background: color-mix(in srgb, var(--moto-surface, #fff) 85%, transparent);
+            border-top: 1px solid var(--moto-border, rgba(17, 22, 19, .08));
+            box-shadow: none;
             box-sizing: border-box;
-            height: var(--bottom-nav-height, 72px);
-            padding: 7px 12px max(7px, env(safe-area-inset-bottom));
+            height: 66px;
+            padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
         }
         .mobile-bottom-nav__inner {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            width: min(100%, 480px);
-            min-height: 58px;
+            width: 100%;
+            min-height: 54px;
             margin: 0 auto;
         }
         .mobile-bottom-nav__item {
@@ -85,59 +89,77 @@ function addNavStyles() {
             flex-direction: column;
             min-width: 0;
             gap: 4px;
-            color: #8e8e93;
+            color: rgba(122, 129, 124, .8);
+            color: color-mix(in srgb, var(--moto-muted, #7a817c) 80%, transparent);
             text-decoration: none;
             -webkit-tap-highlight-color: transparent;
         }
         .mobile-bottom-nav__icon {
             display: grid;
             place-items: center;
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
         }
         .mobile-bottom-nav__icon svg {
-            width: 21px;
-            height: 21px;
+            width: 22px;
+            height: 22px;
             fill: none;
             stroke: currentColor;
             stroke-linecap: round;
             stroke-linejoin: round;
-            stroke-width: 1.8;
+            stroke-width: 1.5;
         }
         .mobile-bottom-nav__label {
             max-width: 100%;
             overflow: hidden;
-            font-family: sans-serif;
-            font-size: 11px;
+            font-family: "Geist", Inter, system-ui, sans-serif;
+            font-size: 10px;
             font-weight: 500;
-            line-height: 14px;
+            line-height: 12px;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
         .mobile-bottom-nav__item--center {
-            color: #2e9e4f;
+            color: var(--moto-primary, #2e9e4f);
         }
         .mobile-bottom-nav__icon--center {
-            width: 48px;
-            height: 48px;
-            margin-top: -27px;
-            border: 4px solid #fff;
+            width: 56px;
+            height: 56px;
+            margin-top: -32px;
+            border: 4px solid var(--moto-bg, #f6f7f5);
             border-radius: 50%;
             color: #fff;
-            background: #2e9e4f;
-            box-shadow: 0 3px 8px rgba(46, 158, 79, 0.28);
+            background: var(--moto-primary, #2e9e4f);
+            box-shadow: 0 4px 12px rgba(46, 158, 79, .25);
         }
         .mobile-bottom-nav__icon--center svg {
-            width: 22px;
-            height: 22px;
-            stroke-width: 2;
+            width: 24px;
+            height: 24px;
+            stroke-width: 1.7;
         }
         .mobile-bottom-nav__item--center .mobile-bottom-nav__label {
-            font-weight: 700;
+            font-weight: 500;
         }
         .mobile-bottom-nav__item:not(.mobile-bottom-nav__item--center):active .mobile-bottom-nav__icon,
         .mobile-bottom-nav__item:not(.mobile-bottom-nav__item--center).is-active {
-            color: #2e9e4f;
+            color: var(--moto-primary, #2e9e4f);
+        }
+        @media (min-width: 768px) {
+            .mobile-bottom-nav {
+                width: min(100%, 1180px);
+                height: 74px;
+                padding-right: 40px;
+                padding-left: 40px;
+            }
+            .mobile-bottom-nav__inner {
+                max-width: 720px;
+            }
+        }
+        @media (min-width: 1200px) {
+            .mobile-bottom-nav {
+                padding-right: 0;
+                padding-left: 0;
+            }
         }
     `;
     document.head.appendChild(style);

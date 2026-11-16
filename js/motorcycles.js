@@ -1,4 +1,4 @@
-import { auth } from './firebase-config.js';
+import { auth } from './firebase-config.js?v=2';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, deleteFirestoreDoc } from './firebaseUtils.js';
 import { getOfficialBrands, getModelsForBrand, findBrandMatch, findModelMatch, isOfficialMotorcycleSelection } from './motorcycleCatalog.js';
@@ -176,7 +176,12 @@ function syncMotorcyclesModalState(open) {
         backdrop.classList.toggle('is-open', open);
     }
     if (sheet) {
-        sheet.classList.toggle('is-open', open);
+        sheet.classList.remove('is-open');
+        if (open) {
+            requestAnimationFrame(() => {
+                if (isMotorcyclesModalOpen) sheet.classList.add('is-open');
+            });
+        }
     }
     document.body.classList.toggle('motorcycles-modal-open', open);
 }
@@ -239,7 +244,7 @@ function setupEventListeners() {
     const brand = document.getElementById('brandSelect');
     const model = document.getElementById('modelSelect');
     const form = document.getElementById('motorcycleForm');
-    const plate = document.getElementById('plateInput');
+    const mileage = document.getElementById('mileageInput');
 
     if (brand && model) {
         brand.addEventListener('change', () => {
@@ -273,8 +278,11 @@ function setupEventListeners() {
         });
     }
 
-    if (plate) {
-        plate.addEventListener('input', function () { this.value = this.value.toUpperCase(); });
+    if (mileage) {
+        mileage.addEventListener('input', () => {
+            const digits = mileage.value.replace(/[^\d]/g, '');
+            mileage.value = digits ? Number(digits).toLocaleString('en-US') : '';
+        });
     }
 }
 
@@ -296,11 +304,21 @@ function getBikeBadgeColor(moto) {
     return palette[Math.abs(hash) % palette.length];
 }
 
+function bikeIconSvg(size = 22) {
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`;
+}
+
+function updateMotorcyclesCount() {
+    const count = document.getElementById('motorcyclesModalCount');
+    if (count) count.textContent = `${motorcycles.length} motorcycle${motorcycles.length === 1 ? '' : 's'}`;
+}
+
 function renderMotorcycles() {
     const list = document.getElementById('motorcyclesList');
     const emptyState = document.getElementById('emptyState');
     const addAnother = document.getElementById('addAnotherBtn');
     if (!list || !emptyState || !addAnother) return;
+    updateMotorcyclesCount();
 
     if (motorcycles.length === 0) {
         list.innerHTML = '';
@@ -317,7 +335,7 @@ function renderMotorcycles() {
         const badgeColor = getBikeBadgeColor(moto);
         const initials = getBikeInitials(moto);
         const bikeName = `${moto.brand || ''} ${moto.model || ''}`.trim();
-        const subtitle = `${moto.year || ''} · ${moto.plate || moto.plateNumber || 'N/A'}`;
+        const subtitle = `${moto.year || ''} · ${Number(moto.mileage || 0).toLocaleString()} km`;
         const isEditing = editingId === moto.id;
 
         if (isEditing) {
@@ -325,7 +343,7 @@ function renderMotorcycles() {
                 <div class="rounded-[18px] border border-gray-200 bg-[#f9fafb] p-3 shadow-sm" style="animation: fadeIn 0.2s ease-out ${idx * 0.08}s both">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-start gap-3">
-                            <div class="flex h-10 w-10 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm" style="background-color: ${badgeColor};">${escapeHtml(initials)}</div>
+                            <div class="motorcycle-card__icon">${bikeIconSvg()}</div>
                             <div>
                                 <h3 class="text-[15px] font-bold text-[#111827]">${escapeHtml(bikeName)}</h3>
                                 <p class="text-[11px] text-gray-500">${escapeHtml(subtitle)}</p>
@@ -333,10 +351,10 @@ function renderMotorcycles() {
                         </div>
                         <div class="flex gap-2">
                             <button type="button" aria-label="Save mileage" onclick="saveInlineMileage('${moto.id}')" class="grid h-8 w-8 place-items-center rounded-full bg-green-600 text-white transition hover:bg-green-700">
-                                <i class="fa-solid fa-check text-xs"></i>
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
                             </button>
                             <button type="button" aria-label="Cancel edit" onclick="cancelInlineEdit()" class="grid h-8 w-8 place-items-center rounded-full bg-gray-200 text-gray-600 transition hover:bg-gray-300">
-                                <i class="fa-solid fa-xmark text-xs"></i>
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M6 18 18 6"/></svg>
                             </button>
                         </div>
                     </div>
@@ -359,7 +377,7 @@ function renderMotorcycles() {
             <div class="rounded-[16px] border border-gray-200 bg-white p-3 shadow-[0_2px_8px_rgba(17,24,39,0.04)] transition hover:shadow-[0_4px_12px_rgba(17,24,39,0.06)]" style="animation: fadeIn 0.2s ease-out ${idx * 0.08}s both">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-start gap-3">
-                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm" style="background-color: ${badgeColor};">${escapeHtml(initials)}</div>
+                        <div class="motorcycle-card__icon">${bikeIconSvg()}</div>
                         <div class="min-w-0">
                             <h3 class="truncate text-[15px] font-bold text-[#111827]">${escapeHtml(bikeName)}</h3>
                             <p class="text-[11px] text-gray-500">${escapeHtml(subtitle)}</p>
@@ -367,10 +385,10 @@ function renderMotorcycles() {
                     </div>
                     <div class="flex gap-2">
                         <button type="button" aria-label="Edit motorcycle" onclick="startInlineEdit('${moto.id}')" class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200">
-                            <i class="fa-solid fa-pen text-[10px]"></i>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16  -1 5 5-1L19 9l-4-4L4 16Z"/><path d="m13 6 4 4"/></svg>
                         </button>
-                        <button type="button" aria-label="Delete motorcycle" onclick='openDeleteMotorcycleModal(${JSON.stringify(moto.id)}, ${JSON.stringify(bikeName)}, ${JSON.stringify(moto.plate || moto.plateNumber || "")})' class="grid h-7 w-7 place-items-center rounded-full bg-red-50 text-red-600 transition hover:bg-red-100">
-                            <i class="fa-solid fa-trash text-[10px]"></i>
+                        <button type="button" aria-label="Delete motorcycle" onclick='openDeleteMotorcycleModal(${JSON.stringify(moto.id)}, ${JSON.stringify(bikeName)})' class="grid h-7 w-7 place-items-center rounded-full bg-red-50 text-red-600 transition hover:bg-red-100">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>
                         </button>
                     </div>
                 </div>
@@ -459,7 +477,14 @@ function openAddModal() {
     
     const submitBtnText = document.getElementById('submitBtnText');
     if (submitBtnText) {
-        submitBtnText.textContent = 'Add Motorcycle';
+        submitBtnText.textContent = 'Add motorcycle';
+    }
+    const modalTitle = document.getElementById('modalTitle');
+    if (modalTitle) modalTitle.textContent = 'Add motorcycle';
+    const mileageUpdated = document.getElementById('mileageUpdated');
+    if (mileageUpdated) {
+        mileageUpdated.textContent = '';
+        mileageUpdated.classList.add('hidden');
     }
     
     modal.classList.remove('hidden');
@@ -482,11 +507,10 @@ window.addEventListener('keydown', (event) => {
     }
 });
 
-function openDeleteMotorcycleModal(id, label = '', plate = '') {
+function openDeleteMotorcycleModal(id, label = '') {
     pendingDeleteId = id;
     pendingDeleteLabel = label;
     window.pendingDeleteMotorcycleLabel = label;
-    window.pendingDeleteMotorcyclePlate = plate;
 
     const modal = document.getElementById('deleteMotorcycleModal');
     const backdrop = document.getElementById('deleteMotorcycleBackdrop');
@@ -529,7 +553,7 @@ function editMotorcycle(id) {
     if (!moto) return;
     editingId = id;
     const modal = document.getElementById('motorcycleModal');
-    const backdrop = document.querySelector('.modal-backdrop');
+    const backdrop = modal.querySelector('.modal-backdrop, .absolute.inset-0');
     if (!modal || !backdrop) return;
 
     const brandSelect = document.getElementById('brandSelect');
@@ -551,9 +575,18 @@ function editMotorcycle(id) {
             if (yearEl) yearEl.value = moto.year;
         }
     }, 0);
-    document.getElementById('plateInput').value = moto.plate || moto.plateNumber;
-    document.getElementById('colorInput').value = moto.color;
-    document.getElementById('mileageInput').value = moto.mileage;
+    document.getElementById('mileageInput').value = Number(moto.mileage || 0).toLocaleString('en-US');
+    const mileageUpdated = document.getElementById('mileageUpdated');
+    const updatedAt = moto.mileageUpdatedAt || moto.updatedAt || moto.createdAt;
+    if (mileageUpdated && updatedAt) {
+        const updatedDate = updatedAt && typeof updatedAt.toDate === 'function' ? updatedAt.toDate() : new Date(updatedAt);
+        if (!Number.isNaN(updatedDate.getTime())) {
+            mileageUpdated.textContent = `Updated ${updatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+            mileageUpdated.classList.remove('hidden');
+        }
+    }
+    const modalTitle = document.getElementById('modalTitle');
+    if (modalTitle) modalTitle.textContent = 'Edit motorcycle';
     document.getElementById('submitBtnText').textContent = 'Save Changes';
 
     modal.classList.remove('hidden');
@@ -576,28 +609,20 @@ async function saveMotorcycle() {
     const brandInput = document.getElementById('brandSelect').value;
     const modelInput = document.getElementById('modelSelect').value;
     const year = document.getElementById('yearSelect').value;
-    const plate = document.getElementById('plateInput').value.trim().toUpperCase();
-    const color = document.getElementById('colorInput').value.trim();
-    const mileage = document.getElementById('mileageInput').value.trim();
+    const mileage = document.getElementById('mileageInput').value.replace(/,/g, '').trim();
 
     const brand = findBrandMatch(brandInput);
     const model = findModelMatch(brand, modelInput);
 
-    console.log('Saving motorcycle:', { brand, model, year, plate, color, mileage });
+    console.log('Saving motorcycle:', { brand, model, year, mileage });
 
-    if (!brand || !model || !year || !plate || !color || !mileage) {
+    if (!brand || !model || !year || !mileage) {
         showToast('Please fill all fields', 'error');
         return;
     }
 
     if (!isOfficialMotorcycleSelection(brand, model)) {
         showToast('Invalid motorcycle model. Please choose from the official list.', 'error');
-        return;
-    }
-
-    // Validate plate format
-    if (!/^[A-Z0-9\-]{4,}$/.test(plate)) {
-        showToast('Plate number format invalid (format: ABC-1234)', 'error');
         return;
     }
 
@@ -622,8 +647,6 @@ async function saveMotorcycle() {
                 brand,
                 model,
                 year,
-                plate,
-                color,
                 mileage,
                 motorcycleName: `${brand} ${model}`
             });
@@ -631,7 +654,7 @@ async function saveMotorcycle() {
             // Update local array
             const idx = motorcycles.findIndex(m => m.id === editingId);
             if (idx > -1) {
-                motorcycles[idx] = { ...motorcycles[idx], brand, model, year, plate, color, mileage, motorcycleName: `${brand} ${model}` };
+                motorcycles[idx] = { ...motorcycles[idx], brand, model, year, mileage, motorcycleName: `${brand} ${model}` };
             }
             
             showToast('Motorcycle updated', 'success');
@@ -642,8 +665,6 @@ async function saveMotorcycle() {
                 brand,
                 model,
                 year,
-                plate,
-                color,
                 mileage,
                 motorcycleName: `${brand} ${model}`
             });
@@ -666,6 +687,7 @@ function renderEmptyState() {
     const emptyState = document.getElementById('emptyState');
     const addAnother = document.getElementById('addAnotherBtn');
     if (!list || !emptyState || !addAnother) return;
+    updateMotorcyclesCount();
     
     list.innerHTML = '';
     emptyState.classList.remove('hidden');
@@ -677,7 +699,7 @@ function showToast(message, type = 'info') {
     if (!container) return;
     const el = document.createElement('div');
     el.className = 'rounded-xl px-4 py-3 shadow-xl flex items-center gap-3 bg-white';
-    el.innerHTML = `<i class="fa-solid fa-circle-check text-green-600"></i><p class="flex-1 text-sm font-medium">${escapeHtml(message)}</p><button class="hover:bg-gray-100 rounded-full p-1"><i class="fa-solid fa-xmark"></i></button>`;
+    el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><p class="flex-1 text-sm font-medium">${escapeHtml(message)}</p><button class="hover:bg-gray-100 rounded-full p-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M6 18 18 6"/></svg></button>`;
     const btn = el.querySelector('button');
     btn.addEventListener('click', () => el.remove());
     container.appendChild(el);

@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from './firebase-config.js?v=2';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
@@ -20,6 +20,10 @@ function getMotorcycleMileage(motorcycle) {
     const raw = motorcycle.mileage ?? motorcycle.odo ?? motorcycle.currentOdo ?? motorcycle.odometer ?? 0;
     const numeric = Number(raw);
     return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+}
+
+function getAddRecordParams() {
+    return new URLSearchParams(window.__addRecordQuery || window.location.search);
 }
 
 function populateTitleSelect(motorcycleId) {
@@ -50,6 +54,11 @@ function populateTitleSelect(motorcycleId) {
         select.appendChild(optGroup);
     });
 
+    if (!select.value) {
+        const firstOption = select.querySelector('option[value]');
+        if (firstOption) select.value = firstOption.value;
+    }
+
     if (customGroup) customGroup.classList.add('hidden');
     if (customLabel) customLabel.textContent = 'Describe the other service/repair';
     if (customInput) customInput.value = '';
@@ -73,6 +82,9 @@ function syncTitleFieldVisibility() {
         customGroup.classList.remove('hidden');
         customLabel.textContent = kind === 'upgrade' ? 'Describe the upgrade/accessory' : 'Describe the other service/repair';
         customInput.required = true;
+        if (!customInput.value) {
+            customInput.value = select.selectedOptions?.[0]?.textContent?.trim() || 'Other Service / Repair';
+        }
     } else {
         customGroup.classList.add('hidden');
         customInput.required = false;
@@ -140,6 +152,15 @@ async function loadMotorcyclesFromFirestore(user) {
         }
     }
 
+    if (motorcycles.length === 1 && !dropdown.value) {
+        dropdown.value = motorcycles[0].id;
+    }
+
+    const dateInput = document.getElementById('date');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().slice(0, 10);
+    }
+
     syncMileageField(dropdown.value);
     populateTitleSelect(dropdown.value);
     // Apply URL prefill parameters (used when coming from Schedule -> Mark as Complete)
@@ -151,7 +172,7 @@ async function loadMotorcyclesFromFirestore(user) {
 }
 
 function applyPrefillFromUrl() {
-    const params = new URLSearchParams(window.location.search);
+    const params = getAddRecordParams();
     if (!params.toString()) return;
 
     const motorcycleId = params.get('motorcycleId');
@@ -226,7 +247,6 @@ function applyPrefillFromUrl() {
     if (category && categoryInput) categoryInput.value = category;
     if (notes && notesInput) notesInput.value = notes;
 
-    showToast('Prefilled from schedule — confirm details and Save.', 'info');
 }
 
 function syncUpdateModeVisibility() {
@@ -260,12 +280,14 @@ function syncUpdateModeVisibility() {
 function syncMileageField(motorcycleId) {
     const mileageInput = document.getElementById('mileage');
     const mileageHint = document.getElementById('mileageHint');
+    const mileageUpdated = document.getElementById('mileageUpdated');
     if (!mileageInput || !mileageHint) return;
 
     const selectedMotorcycle = motorcycles.find((m) => m.id === motorcycleId);
     if (!selectedMotorcycle) {
         mileageInput.min = '0';
-        mileageHint.textContent = 'Select a motorcycle first to lock the minimum mileage.';
+        mileageHint.textContent = 'Odometer changes help keep service reminders accurate.';
+        if (mileageUpdated) mileageUpdated.textContent = '';
         return;
     }
 
@@ -274,7 +296,15 @@ function syncMileageField(motorcycleId) {
     if (!mileageInput.value || Number(mileageInput.value) < currentMileage) {
         mileageInput.value = String(currentMileage);
     }
-    mileageHint.textContent = `Current motorcycle ODO: ${currentMileage.toLocaleString()} km. Enter the new reading, not lower than this.`;
+    mileageHint.textContent = 'Odometer changes help keep service reminders accurate.';
+
+    if (mileageUpdated) {
+        const rawDate = selectedMotorcycle.mileageUpdatedAt || selectedMotorcycle.updatedAt || selectedMotorcycle.createdAt;
+        const updatedDate = rawDate && typeof rawDate.toDate === 'function' ? rawDate.toDate() : new Date(rawDate);
+        mileageUpdated.textContent = !Number.isNaN(updatedDate.getTime())
+            ? `Updated ${updatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+            : '';
+    }
 }
 
 document.getElementById('motorcycle')?.addEventListener('change', (e) => {
@@ -283,6 +313,30 @@ document.getElementById('motorcycle')?.addEventListener('change', (e) => {
 });
 
 document.getElementById('titleSelect')?.addEventListener('change', (e) => { syncTitleFieldVisibility(e); syncUpdateModeVisibility(); });
+
+document.querySelectorAll('[data-record-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+        document.querySelectorAll('[data-record-mode]').forEach((option) => {
+            const isActive = option === button;
+            option.classList.toggle('is-active', isActive);
+            option.setAttribute('aria-selected', String(isActive));
+        });
+        document.body.dataset.recordMode = button.dataset.recordMode || 'maintenance';
+    });
+});
+
+const recordForm = document.getElementById('addRecordForm');
+if (recordForm) {
+    [...recordForm.children].forEach((child, index) => {
+        child.style.setProperty('--record-index', String(index));
+    });
+    requestAnimationFrame(() => recordForm.classList.add('is-ready'));
+    recordForm.querySelectorAll('input, select, textarea').forEach((field) => {
+        field.addEventListener('focus', () => {
+            window.setTimeout(() => field.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+        });
+    });
+}
 
 // Form submission
 // Toast notification system
@@ -421,11 +475,15 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         showToast('Service record added successfully!', 'success');
 
         // If the form was opened from the Schedule (mark as complete), return to Schedule
-        const paramsAfter = new URLSearchParams(window.location.search);
+        const paramsAfter = getAddRecordParams();
         const fromSource = paramsAfter.get('source');
         setTimeout(() => {
-            if (fromSource === 'schedule') {
+            if (window.closeAddRecordSheet && document.getElementById('addRecordBackdrop')) {
+                window.dispatchEvent(new CustomEvent('addrecord:saved', { detail: { source: fromSource } }));
+            } else if (fromSource === 'schedule') {
                 window.location.href = 'schedule.html';
+            } else if (fromSource === 'expenses') {
+                window.location.href = 'expenses.html';
             } else {
                 window.location.href = 'history.html';
             }

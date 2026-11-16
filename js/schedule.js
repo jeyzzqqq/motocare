@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from './firebase-config.js?v=2';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, getFirestoreDocById } from './firebaseUtils.js';
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -25,7 +25,7 @@ function bindScheduleControls() {
     drawerButton?.addEventListener('click', openMotorcycleDrawer);
     drawerBackdrop?.addEventListener('click', closeMotorcycleDrawer);
     closeButton?.addEventListener('click', closeMotorcycleDrawer);
-    document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
+    document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => signOut(auth)));
     document.querySelectorAll('[data-schedule-filter]').forEach((button) => {
         button.addEventListener('click', () => {
             currentScheduleFilter = button.dataset.scheduleFilter || 'all';
@@ -389,13 +389,9 @@ function closeMotorcycleDrawer() {
 
 function renderMotorcycleDrawer() {
     const list = document.getElementById('motorcycleDrawerList');
-    const selectedLabel = document.getElementById('selectedMotorcycleLabel');
     if (!list) return;
 
     const selectedMotorcycle = getSelectedMotorcycle();
-    if (selectedLabel) {
-        selectedLabel.textContent = selectedMotorcycle ? selectedMotorcycle.motorcycleName : 'Select a motorcycle';
-    }
 
     if (!motorcycles.length) {
         list.innerHTML = '<div class="text-sm text-gray-500">No motorcycles found in your profile.</div>';
@@ -567,9 +563,9 @@ function getDisplayStatus(item) {
         return { label: 'Overdue', className: 'schedule-status--overdue', filter: 'overdue' };
     }
     if (item.status.key === 'upcoming') {
-        return { label: 'Due Soon', className: 'schedule-status--due', filter: 'due-soon' };
+        return { label: 'Due soon', className: 'schedule-status--due', filter: 'due-soon' };
     }
-    return { label: item.status.key === 'completed' ? 'OK' : 'Upcoming', className: item.status.key === 'completed' ? 'schedule-status--ok' : 'schedule-status--scheduled', filter: 'upcoming' };
+    return { label: 'On track', className: 'schedule-status--scheduled', filter: 'upcoming' };
 }
 
 function filterScheduleItems(items) {
@@ -603,7 +599,7 @@ function displaySchedule(items) {
     const currentThreshold = selectedMotorcycle ? getReminderThreshold(selectedMotorcycle.id) : getReminderThreshold();
 
     container.innerHTML = `
-        <div class="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+        <div class="schedule-controls">
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <p class="text-sm font-bold text-gray-900">${escapeHtml(motorcycleName)}</p>
@@ -629,24 +625,23 @@ function displaySchedule(items) {
         </div>
 
         ${visibleItems.map((item) => { const displayStatus = getDisplayStatus(item); return `
-            <article class="schedule-card p-4">
-                <div class="flex items-start gap-3">
+            <article class="schedule-card">
+                <div class="schedule-card__top">
                     <div class="schedule-icon"><i class="lucide lucide-${escapeHtml(item.icon || item.overall.icon)} text-lg" aria-hidden="true"></i></div>
-                    <div class="min-w-0 flex-1">
+                    <div class="schedule-card__identity">
                         <div class="flex items-start justify-between gap-2">
-                            <h2 class="truncate text-sm font-bold text-gray-900">${escapeHtml(item.task)}</h2>
+                            <h2 class="schedule-card__name">${escapeHtml(item.task)}</h2>
                             <span class="schedule-status ${displayStatus.className}">${displayStatus.label}</span>
                         </div>
-                        <p class="mt-1 truncate text-xs text-gray-500">${escapeHtml(item.motorcycleName)}</p>
+                        <p class="schedule-card__bike">${escapeHtml(item.motorcycleName)}</p>
                     </div>
                 </div>
-                <div class="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
-                    <div><p class="schedule-label">DUE DATE</p><p class="mt-1 text-xs font-bold text-gray-800">At ${formatMileage(item.dueMileage)} km</p></div>
-                    <div><p class="schedule-label">LAST DONE</p><p class="mt-1 text-xs font-bold text-gray-800">${formatServiceDate(item.lastCompletedDate)}</p></div>
+                <div class="schedule-card__details">
+                    <div><p class="schedule-label">DUE</p><p class="schedule-value">At ${formatMileage(item.dueMileage)} km</p></div>
+                    <div><p class="schedule-label">LAST DONE</p><p class="schedule-value">${formatServiceDate(item.lastCompletedDate)}</p></div>
                 </div>
-                <div class="mt-3 border-t border-gray-100 pt-3"><p class="schedule-label">INTERVAL</p><p class="mt-1 text-xs font-semibold text-gray-700">Every ${formatMileage(item.threshold)} km</p></div>
-                <p class="mt-3 text-[11px] leading-relaxed text-gray-500">${escapeHtml(item.reminder)}</p>
-                <button onclick="markComplete('${item.id}'); return false;" class="mt-3 w-full rounded-lg bg-green-700 py-2.5 text-xs font-bold text-white transition-colors hover:bg-green-800">Mark as Complete</button>
+                <p class="schedule-interval">Every ${formatMileage(item.threshold)} km</p>
+                <button class="schedule-complete-button" onclick="markComplete('${item.id}'); return false;">Mark as Complete</button>
             </article>
         `; }).join('')}
     `;
@@ -747,6 +742,11 @@ function updateCounts(items) {
         const overdue = items.filter((item) => item.status.key === 'overdue' || item.status.key === 'due').length;
         overdueSubtitle.textContent = `${overdue} overdue`;
     }
+    const scheduleSubtitle = document.getElementById('scheduleSubtitle');
+    if (scheduleSubtitle) {
+        const overdue = items.filter((item) => item.status.key === 'overdue' || item.status.key === 'due').length;
+        scheduleSubtitle.textContent = `${overdue} overdue · ${items.length} total`;
+    }
 }
 
 window.markComplete = async function(id) {
@@ -778,7 +778,11 @@ window.markComplete = async function(id) {
         if (item.categoryLabel) params.set('category', String(item.categoryLabel || ''));
         params.set('notes', 'Prefilled from Schedule — confirm details and Save.');
 
-        window.location.href = `add-record.html?${params.toString()}`;
+        if (window.openAddRecordSheet) {
+            window.openAddRecordSheet(`?${params.toString()}`);
+        } else {
+            window.location.href = `add-record.html?${params.toString()}`;
+        }
     } catch (error) {
         console.error('Error redirecting to add-record:', error);
         alert('Could not open Add Record form. Please try again.');

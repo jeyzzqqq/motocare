@@ -1,4 +1,4 @@
-import { auth, db, storage, onAuthStateChanged } from "./firebase-config.js";
+import { auth, db, storage, onAuthStateChanged } from "./firebase-config.js?v=2";
 import { updateProfile, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -46,13 +46,15 @@ function renderProfile(user, bikeCount) {
     const name = user.displayName || user.email?.split('@')[0] || 'Rider';
     document.getElementById('profileName').textContent = name;
     document.getElementById('profileEmail').textContent = user.email || '';
-    document.getElementById('bikeCount').textContent = `${bikeCount} bike${bikeCount === 1 ? '' : 's'} registered`;
+    document.getElementById('bikeCount').textContent = `${bikeCount} motorcycle${bikeCount === 1 ? '' : 's'}`;
     if (user.photoURL) {
         const avatar = document.getElementById('profileAvatar');
         const image = document.createElement('img');
         image.src = user.photoURL;
         image.alt = `${name} profile photo`;
         avatar.replaceChildren(image);
+    } else {
+        document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
     }
 
     const state = getStreakState(user.uid);

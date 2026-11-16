@@ -1,7 +1,8 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from './firebase-config.js?v=2';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { collection, query, where, getDocs, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getFirestoreDocs, deleteFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
+import './logout-confirmation.js';
 
 let cachedRepairs = [];
 let currentEditingRepair = null;
@@ -25,7 +26,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // LOGOUT HANDLER
-logoutButton?.addEventListener('click', async () => {
+async function logoutFromRepairs() {
     try {
         await signOut(auth);
         showToast('Logged out successfully', 'success');
@@ -36,7 +37,9 @@ logoutButton?.addEventListener('click', async () => {
         console.error('Logout error:', error);
         showToast('Error logging out', 'error');
     }
-});
+}
+
+logoutButton?.addEventListener('click', () => window.openLogoutConfirmation?.(logoutFromRepairs));
 
 function showRepairsSkeleton() {
     if (listTarget) {

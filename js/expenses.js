@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from './firebase-config.js?v=2';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
@@ -8,6 +8,7 @@ let expenses = [];
 let registeredMotorcycles = [];
 let pendingUserId = null;
 let isDomReady = document.readyState !== 'loading';
+let hasRenderedExpenseAnimations = false;
 
 function getExpenseAmount(expense = {}) {
     const value = expense.amount ?? expense.cost ?? expense.total ?? 0;
@@ -122,6 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+window.addEventListener('addrecord:saved', () => {
+    if (auth.currentUser) startExpensesLoad(auth.currentUser.uid);
+});
+
 function renderEmptyState() {
     expenses = [];
     if (!canRenderExpenses()) return;
@@ -132,20 +137,10 @@ function renderEmptyState() {
     setText('thisMonthExpense', formatCurrency(0));
     setText('currentMonth', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
-    const recentList = document.getElementById('recentExpensesList');
-    if (recentList) {
-        recentList.innerHTML = '<div class="px-4 py-5 text-center text-xs text-gray-500">No expenses logged</div>';
-    }
-
-    const monthlyChart = document.getElementById('monthlySpendingChart');
-    if (monthlyChart) {
-        monthlyChart.innerHTML = '<div class="flex h-36 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-500">No expenses logged</div>';
-    }
-
-    const bikeList = document.getElementById('bikeSpendingList');
-    if (bikeList) {
-        displayBikeSpending(0);
-    }
+    displayMonthlySpending();
+    displayBikeSpending(0);
+    displayRecentExpenses();
+    hasRenderedExpenseAnimations = true;
 }
 
 function displayExpenses() {
@@ -168,15 +163,28 @@ function displayExpenses() {
 
     const dates = expenses.map(getExpenseDate).filter(Boolean).sort((a, b) => a - b);
     const rangeText = dates.length ? formatDateRange(dates[0], dates[dates.length - 1]) : 'No expenses logged';
-    setText('expenseDateRange', `${rangeText} · Total ${formatPeso(total)}`);
+    setText('expenseDateRange', rangeText);
+    setText('expenseDateRangeHeader', rangeText);
     setText('totalExpenses', formatPeso(total));
     setText('totalDateRange', rangeText);
     setText('thisMonthExpense', formatPeso(thisMonthTotal));
     setText('currentMonth', now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
-    displayMonthlySpending();
-    displayBikeSpending(total);
-    displayRecentExpenses();
+    const shouldAnimate = !hasRenderedExpenseAnimations;
+    animateCurrencyValue(document.getElementById('totalExpenses'), total, shouldAnimate);
+    const thisMonthElement = document.getElementById('thisMonthExpense');
+    if (thisMonthElement) {
+        thisMonthElement.classList.toggle('is-animated-value', shouldAnimate);
+        if (shouldAnimate) {
+            thisMonthElement.style.opacity = '0';
+            setTimeout(() => { thisMonthElement.style.opacity = '1'; }, 900);
+        }
+    }
+
+    displayMonthlySpending(shouldAnimate);
+    displayBikeSpending(total, shouldAnimate);
+    displayRecentExpenses(shouldAnimate);
+    hasRenderedExpenseAnimations = true;
 }
 
 function getExpenseDate(expense = {}) {
@@ -200,7 +208,38 @@ function monthKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function displayMonthlySpending() {
+function observeOnce(element, callback) {
+    if (!('IntersectionObserver' in window)) {
+        callback();
+        return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        callback();
+    }, { threshold: 0.15 });
+    observer.observe(element);
+}
+
+function animateCurrencyValue(element, value, shouldAnimate) {
+    if (!element || !shouldAnimate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (element) element.textContent = formatPeso(value);
+        return;
+    }
+
+    const startedAt = performance.now();
+    const duration = 900;
+    const tick = (now) => {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - ((1 - progress) ** 3);
+        element.textContent = formatPeso(value * eased);
+        if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+}
+
+function displayMonthlySpending(shouldAnimate = false) {
     const container = document.getElementById('monthlySpendingChart');
     if (!container) return;
 
@@ -220,23 +259,21 @@ function displayMonthlySpending() {
     }
 
     const maxValue = Math.max(...months.map((month) => month.value), 0);
-    const axisMax = maxValue ? Math.ceil(maxValue / 4) * 4 : 4;
-    const axisLabels = [axisMax, axisMax * .75, axisMax * .5, axisMax * .25, 0];
     container.innerHTML = `
-        <div class="flex gap-2">
-            <div class="flex h-36 flex-col justify-between py-0.5 text-[8px] text-gray-400">
-                ${axisLabels.map((value) => `<span>${formatCompactPeso(value)}</span>`).join('')}
-            </div>
-            <div class="relative flex min-w-0 flex-1 flex-col">
-                <div class="pointer-events-none absolute inset-x-0 top-0 flex h-28 flex-col justify-between">
-                    ${axisLabels.slice(0, -1).map(() => '<span class="border-t border-dashed border-gray-100"></span>').join('')}
-                </div>
-                <div class="relative z-10 flex h-28 items-end justify-around gap-2">
-                    ${months.map((month, index) => `<div class="flex h-full flex-1 items-end justify-center"><span class="month-bar ${index === months.length - 1 ? 'is-latest' : ''}" style="height: ${month.value ? Math.max(3, (month.value / axisMax) * 100) : 3}%" title="${month.label}: ${formatPeso(month.value)}"></span></div>`).join('')}
-                </div>
-                <div class="mt-2 flex justify-around gap-2 text-[9px] text-gray-400">${months.map((month) => `<span class="flex-1 text-center">${month.label}</span>`).join('')}</div>
-            </div>
-        </div>`;
+        <div class="expense-chart-bars">
+            ${months.map((month, index) => {
+                const height = maxValue ? Math.max(8, (month.value / maxValue) * 100) : 8;
+                return `<div class="expense-chart-column"><span class="month-bar ${index === months.length - 1 ? 'is-latest' : ''}" style="--bar-height:${height}%;--bar-index:${index}" title="${month.label}: ${formatPeso(month.value)}"></span></div>`;
+            }).join('')}
+        </div>
+        <div class="expense-month-labels">${months.map((month) => `<span>${month.label}</span>`).join('')}</div>`;
+    container.classList.toggle('is-animated', shouldAnimate);
+    container.classList.remove('is-visible');
+    if (shouldAnimate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        observeOnce(container, () => container.classList.add('is-visible'));
+    } else {
+        container.classList.add('is-visible');
+    }
 }
 
 function formatCompactPeso(value) {
@@ -244,7 +281,7 @@ function formatCompactPeso(value) {
     return `P${Math.round(value).toLocaleString('en-US')}`;
 }
 
-function displayBikeSpending(total) {
+function displayBikeSpending(total, shouldAnimate = false) {
     const container = document.getElementById('bikeSpendingList');
     if (!container) return;
 
@@ -258,14 +295,22 @@ function displayBikeSpending(total) {
         bikeTotals.set(name, (bikeTotals.get(name) || 0) + getExpenseAmount(expense));
     });
 
-    const colors = ['#e33434', '#1976d2', '#e68a1e', '#7c4dca', '#2e9e4f'];
     container.innerHTML = Array.from(bikeTotals.entries()).map(([name, amount], index) => {
         const percentage = total ? (amount / total) * 100 : 0;
-        const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'BK';
-        const color = colors[index % colors.length];
-        const emptyLabel = amount === 0 ? '<span class="ml-8 mt-1 block text-[9px] text-gray-400">No expenses logged</span>' : `<div class="progress-track ml-8 mt-1"><div class="progress-fill" style="width:${percentage}%;background:${color}"></div></div>`;
-        return `<div class="mb-3 last:mb-0"><div class="flex items-center gap-2"><span class="grid h-6 w-6 place-items-center rounded-full text-[8px] font-bold text-white" style="background:${color}">${initials}</span><span class="min-w-0 flex-1 truncate text-[10px]">${name}</span><span class="text-[10px] font-bold">${formatPeso(amount)}</span><span class="w-7 text-right text-[9px] text-gray-400">${Math.round(percentage)}%</span></div>${emptyLabel}</div>`;
-    }).join('') || '<p class="py-3 text-xs text-gray-500">No expenses logged</p>';
+        return `<div class="bike-spending-row" style="--bike-index:${index}">
+            <div class="bike-spending-head"><span class="bike-spending-name">${name}</span><span class="bike-spending-amount">${formatPeso(amount)} · ${Math.round(percentage)}%</span></div>
+            <div class="progress-track"><div class="progress-fill" data-progress="${percentage}"></div></div>
+        </div>`;
+    }).join('') || '<p class="expense-empty">No motorcycles yet</p>';
+    if (shouldAnimate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        observeOnce(container, () => {
+            container.querySelectorAll('.progress-fill').forEach((fill, index) => {
+                setTimeout(() => { fill.style.width = `${fill.dataset.progress}%`; }, index * 100);
+            });
+        });
+    } else {
+        container.querySelectorAll('.progress-fill').forEach((fill) => { fill.style.width = `${fill.dataset.progress}%`; });
+    }
 }
 
 function calculateDailyAverage(expenses, days = 7) {
@@ -429,7 +474,7 @@ function displayCategoryChart() {
     }
 }
 
-function displayRecentExpenses() {
+function displayRecentExpenses(shouldAnimate = false) {
     const recentList = document.getElementById('recentExpensesList');
     if (!recentList) return;
 
@@ -438,27 +483,29 @@ function displayRecentExpenses() {
         return;
     }
 
-    recentList.innerHTML = expenses.slice(0, 6).map(exp => {
+    recentList.classList.toggle('is-animated', shouldAnimate);
+    recentList.classList.remove('is-visible');
+    recentList.innerHTML = expenses.slice(0, 6).map((exp, index) => {
         const dateValue = getExpenseDate(exp);
         const date = dateValue ? dateValue.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date unavailable';
-        const category = String(exp.category || '').toLowerCase();
-        const icon = category.includes('tire') ? 'circle-dot' : category.includes('oil') ? 'droplets' : category.includes('brake') ? 'disc-3' : 'wrench';
         return `
-            <div class="expense-log-row flex items-center gap-3 border-b border-gray-100 px-3 last:border-b-0">
-                <span class="expense-icon bg-green-50 text-green-700"><i class="lucide lucide-${icon} text-sm"></i></span>
-                <div class="min-w-0 flex-1 py-3">
-                    <p class="truncate text-[10px] font-bold text-gray-800">${exp.title || 'Untitled expense'}</p>
-                    <p class="mt-0.5 truncate text-[9px] text-gray-400">${exp.motorcycleName || 'Unassigned bike'} · ${date}</p>
+            <div class="expense-log-row" style="--row-index:${index}">
+                <span class="expense-icon"><i class="lucide lucide-receipt-text" aria-hidden="true"></i></span>
+                <div class="expense-log-copy">
+                    <p class="expense-log-title">${exp.title || 'Untitled expense'}</p>
+                    <p class="expense-log-subtitle">${exp.motorcycleName || 'Unassigned bike'} · ${date}</p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <p class="whitespace-nowrap text-[10px] font-bold text-gray-900">${formatPeso(getExpenseAmount(exp))}</p>
-                    <button class="delete-expense-btn p-1" data-expense-id="${exp.id}" title="Delete expense" aria-label="Delete expense">
-                        <i class="lucide lucide-trash-2 text-sm text-gray-300"></i>
-                    </button>
-                </div>
+                <p class="expense-log-amount">${formatPeso(getExpenseAmount(exp))}</p>
+                <button class="delete-expense-btn expense-delete-hidden" data-expense-id="${exp.id}" title="Delete expense" aria-label="Delete expense"></button>
             </div>
         `;
     }).join('');
+
+    if (shouldAnimate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        observeOnce(recentList, () => recentList.classList.add('is-visible'));
+    } else {
+        recentList.classList.add('is-visible');
+    }
 
     // Add delete handlers
     document.querySelectorAll('.delete-expense-btn').forEach(btn => {

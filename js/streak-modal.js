@@ -1,4 +1,4 @@
-import { auth, onAuthStateChanged } from './firebase-config.js';
+import { auth, onAuthStateChanged } from './firebase-config.js?v=2';
 
 const STORAGE_PREFIX = 'motocare-streak-v1:';
 const LOGIN_PENDING_KEY = 'motocare-streak-login-pending';
@@ -99,7 +99,7 @@ function getModalMarkup(state) {
         <div class="streak-modal__backdrop" data-streak-dismiss>
             <section class="streak-modal" role="dialog" aria-modal="true" aria-labelledby="streakModalTitle">
                 <button class="streak-modal__close" type="button" aria-label="Close streak modal" data-streak-dismiss>&times;</button>
-                <div class="streak-modal__badge" aria-hidden="true">&#128293;</div>
+                <div class="streak-modal__badge" aria-hidden="true"><i class="lucide lucide-flame"></i></div>
                 <h2 id="streakModalTitle">${headline}</h2>
                 <p class="streak-modal__subtext">${subtext}</p>
                 <div class="streak-modal__week" aria-label="Weekly check-in progress">${completedMarkup}</div>
@@ -162,7 +162,8 @@ function addModalStyles() {
             margin: 0 auto 10px;
             border-radius: 50%;
             background: #fff3d6;
-            font-size: 22px;
+            color: #f59e0b;
+            font-size: 20px;
         }
         .streak-modal h2 {
             margin: 0;
@@ -244,12 +245,12 @@ function dismissModal() {
     document.getElementById('streakModal')?.remove();
 }
 
-function showStreakModal(uid) {
-    if (localStorage.getItem(LOGIN_PENDING_KEY) !== 'true') return;
+function showStreakModal(uid, manual = false) {
+    if (!manual && localStorage.getItem(LOGIN_PENDING_KEY) !== 'true') return;
 
     const state = getStreakState(uid);
-    localStorage.removeItem(LOGIN_PENDING_KEY);
-    if (state.data.completedOn === state.todayKey) return;
+    if (!manual) localStorage.removeItem(LOGIN_PENDING_KEY);
+    if (!manual && state.data.completedOn === state.todayKey) return;
 
     addModalStyles();
 
@@ -258,6 +259,7 @@ function showStreakModal(uid) {
     modal.innerHTML = getModalMarkup(state);
     const backdrop = modal.firstElementChild;
     document.body.appendChild(backdrop);
+    window.lucide?.createIcons?.();
 
     backdrop.querySelector('[data-streak-dismiss]')?.addEventListener('click', (event) => {
         if (event.target === event.currentTarget || event.target.closest('.streak-modal__close')) dismissModal();
@@ -271,6 +273,7 @@ function showStreakModal(uid) {
     });
 }
 
+window.openStreakModal = (uid) => showStreakModal(uid, true);
 onAuthStateChanged(auth, (user) => {
     if (!user) return;
     showStreakModal(user.uid);

@@ -5,107 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MotoCare - MotoAI</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
     <style>
-        :root {
-            --motoai-purple: #8b5cf6;
-            --motoai-purple-dark: #55359b;
-            --motoai-lavender: #f3f0ff;
-        }
-        body { overflow: hidden; }
-        .motoai-context { filter: blur(9px); transform: scale(1.02); }
+        * { box-sizing: border-box; }
+        html { background: var(--moto-bg); }
+        body { min-width: 320px; min-height: 100dvh; margin: 0; overflow: hidden; color: var(--moto-text); background: var(--moto-bg); font-family: var(--moto-font); -webkit-font-smoothing: antialiased; }
+        .motoai-context, #mobileNav { display: none; }
         .motoai-backdrop {
             position: fixed;
             inset: 0;
             z-index: 50;
-            display: flex;
-            align-items: flex-end;
-            background: rgba(27, 25, 36, 0.48);
-            backdrop-filter: blur(9px);
-            -webkit-backdrop-filter: blur(9px);
+            display: block;
+            background: var(--moto-bg);
         }
         .motoai-sheet {
-            width: min(100%, 560px);
-            height: min(760px, calc(100vh - 6px));
-            max-height: none;
+            width: min(100%, 480px);
+            height: 100dvh;
             margin: 0 auto;
             overflow: hidden;
-            border-radius: 22px 22px 0 0;
-            background: #fff;
-            box-shadow: 0 -12px 40px rgba(47, 35, 79, 0.22);
-            animation: motoai-sheet-in 240ms ease-out;
+            border-radius: 0;
+            background: var(--moto-bg);
         }
-        .motoai-sheet__inner { display: flex; flex-direction: column; height: 100%; padding: 10px 10px max(8px, env(safe-area-inset-bottom)); }
-        .motoai-header { display: flex; align-items: flex-start; gap: 9px; padding: 3px 2px 10px; border-bottom: 1px solid #ececf0; }
+        .motoai-sheet__inner { display: flex; flex-direction: column; height: 100%; }
+        .motoai-header { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; padding: 28px 16px 24px; border-radius: 0 0 14px 14px; background: var(--moto-surface); }
         .motoai-header__badge, .motoai-avatar {
             display: grid;
             flex: 0 0 auto;
             place-items: center;
-            color: var(--motoai-purple);
-            background: var(--motoai-lavender);
+            color: #fff;
+            background: var(--moto-primary);
         }
-        .motoai-header__badge { width: 30px; height: 30px; border-radius: 50%; }
-        .motoai-header__badge svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-        .motoai-avatar { width: 22px; height: 22px; border-radius: 50%; }
+        .motoai-header__badge { width: 44px; height: 44px; border-radius: 50%; }
+        .motoai-header__badge svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+        .motoai-avatar { display: none; }
         .motoai-header__content { min-width: 0; flex: 1; }
         .motoai-title-row { display: flex; align-items: center; gap: 7px; }
-        .motoai-title { color: #1f2937; font: 700 12px/1.2 sans-serif; }
-        .motoai-ai-pill { padding: 3px 7px; border-radius: 999px; color: #7044cf; background: #eee8ff; font: 700 9px/1 sans-serif; }
-        .motoai-online { margin-top: 2px; color: #2e9e4f; font: 600 9px/1 sans-serif; }
-        .motoai-close { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 50%; color: #8b93a1; background: #f1f2f4; cursor: pointer; }
-        .motoai-chat { display: flex; align-items: flex-end; gap: 7px; margin-top: 11px; }
-        .motoai-messages { flex: 1; overflow-y: auto; padding: 0 3px; }
-        .motoai-message { max-width: 300px; padding: 9px 10px; border-radius: 4px 12px 12px 12px; color: #36415a; background: #f0f0f3; font: 500 11px/1.45 sans-serif; animation: motoai-message-in 180ms ease-out; }
-        .motoai-quick-label { margin: 13px 0 7px; color: #7b8493; font: 600 10px/1 sans-serif; }
-        .motoai-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
-        .motoai-suggestion { padding: 7px 9px; border: 1px solid #ddd2ff; border-radius: 999px; color: #7044cf; background: #faf9ff; font: 600 10px/1.2 sans-serif; cursor: pointer; transition: background 160ms ease, transform 160ms ease; }
-        .motoai-suggestion:hover { background: var(--motoai-lavender); }
+        .motoai-title { color: var(--moto-text); font-size: 15px; font-weight: 600; line-height: 1.2; }
+        .motoai-ai-pill { display: none; }
+        .motoai-online { margin: 3px 0 0; color: var(--moto-primary); font-size: 9px; font-weight: 500; line-height: 1; }
+        .motoai-close { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; color: var(--moto-muted); background: transparent; cursor: pointer; }
+        .motoai-close:hover, .motoai-close:active { background: var(--moto-icon-tile); }
+        .motoai-close svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+        .motoai-chat { display: flex; align-items: flex-end; gap: 7px; margin-top: 14px; }
+        .motoai-messages { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 8px; scrollbar-width: none; }
+        .motoai-messages::-webkit-scrollbar { display: none; }
+        .motoai-date { margin: 2px 0 14px; color: var(--moto-muted); font-size: 8px; text-align: center; }
+        .motoai-message { max-width: 85%; margin: 0; padding: 12px; border-radius: 4px 20px 20px 20px; color: var(--moto-text); background: var(--moto-icon-tile); font-size: 10px; font-weight: 400; line-height: 1.45; animation: motoai-message-in 180ms ease-out; }
+        .motoai-response { width: fit-content; max-width: 80%; margin: 14px 0 0 auto; padding: 12px; border-radius: 20px 4px 20px 20px; color: #fff; background: var(--moto-primary); font-size: 10px; font-weight: 400; line-height: 1.35; }
+        .motoai-rich-card { margin-top: 18px; padding: 16px; border-radius: var(--moto-radius-card); background: var(--moto-surface); box-shadow: 0 2px 10px rgba(17, 22, 19, .04); }
+        .motoai-rich-card h2 { margin: 0; color: var(--moto-text); font-size: 12px; font-weight: 600; line-height: 1.3; }
+        .motoai-rich-card__subtitle { margin: 8px 0 0; color: var(--moto-primary); font-size: 10px; }
+        .motoai-rich-card__body { margin: 8px 0 0; color: var(--moto-muted); font-size: 10px; line-height: 1.45; }
+        .motoai-rich-card__link { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--moto-border); color: var(--moto-primary); font-size: 9px; font-weight: 500; text-decoration: none; }
+        .motoai-rich-card__link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+        .motoai-disclaimer { flex: 0 0 auto; margin: 0 16px 8px; color: var(--moto-muted); font-size: 8px; }
+        .motoai-quick-label { display: none; }
+        .motoai-suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; flex: 0 0 auto; padding: 8px 16px 8px; }
+        .motoai-suggestion { min-width: 0; min-height: 24px; overflow: hidden; padding: 5px 9px; border: 0; border-radius: 999px; color: var(--moto-muted); background: var(--moto-surface); font-size: 8px; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; transition: background 160ms ease, transform 160ms ease; }
+        .motoai-suggestion:hover { background: var(--moto-icon-tile); }
         .motoai-suggestion:active { transform: scale(0.97); }
-        .motoai-input-bar { display: flex; flex: 0 0 auto; gap: 7px; margin-top: 10px; padding: 4px 4px 4px 12px; border-radius: 999px; background: #f1f2f4; }
-        .motoai-input { min-width: 0; flex: 1; border: 0; outline: 0; color: #374151; background: transparent; font: 500 11px sans-serif; }
-        .motoai-input::placeholder { color: #9aa1ad; }
-        .motoai-send { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; color: #fff; background: var(--motoai-purple); cursor: pointer; }
-        .motoai-send:hover { background: #7c4fea; }
-        .motoai-response { width: fit-content; max-width: 80%; margin: 8px 0 0 auto; padding: 8px 10px; border-radius: 12px 12px 3px 12px; color: #fff; background: #2e8d3d; font: 600 10px/1.3 sans-serif; }
-        @keyframes motoai-sheet-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        .motoai-input-bar { display: flex; flex: 0 0 auto; gap: 8px; margin: 0; padding: 8px 14px max(12px, env(safe-area-inset-bottom)); background: var(--moto-bg); }
+        .motoai-input { min-width: 0; flex: 1; height: 40px; border: 0; outline: 0; padding: 0 14px; border-radius: 999px; color: var(--moto-text); background: var(--moto-icon-tile); font-size: 10px; }
+        .motoai-input::placeholder { color: var(--moto-muted); }
+        .motoai-send { display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 48px; border: 0; border-radius: 50%; color: #fff; background: var(--moto-primary); cursor: pointer; }
+        .motoai-send svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+        .motoai-send:hover { background: var(--moto-deep); }
         @keyframes motoai-message-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @media (min-width: 600px) { .motoai-sheet { margin-bottom: 18px; border-radius: 22px; } }
+        @media (min-width: 600px) { .motoai-sheet { margin: 0 auto; } }
     </style>
 </head>
 <body class="min-h-screen bg-gray-100 pb-32">
-    <main class="motoai-context mx-auto max-w-lg">
-        <div class="space-y-5 p-4">
-            <header class="flex items-center justify-between"><div><p class="text-sm text-gray-500">Welcome back</p><h1 class="text-3xl font-semibold text-gray-800">Dashboard</h1></div><div class="h-10 w-10 rounded-full bg-green-100"></div></header>
-            <div class="grid grid-cols-2 gap-4"><div class="h-28 rounded-2xl bg-green-700"></div><div class="h-28 rounded-2xl bg-white shadow"></div></div>
-            <div class="h-48 rounded-2xl bg-white shadow"></div><div class="h-48 rounded-2xl bg-white shadow"></div>
-        </div>
-    </main>
-
     <div class="motoai-backdrop" id="motoAiBackdrop">
         <section class="motoai-sheet" role="dialog" aria-modal="true" aria-labelledby="motoAiTitle">
             <div class="motoai-sheet__inner">
                 <header class="motoai-header">
-                    <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg></div>
+                    <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z"></path><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"></path></svg></div>
                     <div class="motoai-header__content">
-                        <div class="motoai-title-row"><h1 id="motoAiTitle" class="motoai-title">MotoAI Assistant</h1><span class="motoai-ai-pill">AI</span></div>
+                        <div class="motoai-title-row"><h1 id="motoAiTitle" class="motoai-title">MotoAI</h1><span class="motoai-ai-pill">AI</span></div>
                         <p class="motoai-online">● Online</p>
                     </div>
-                    <button id="motoAiClose" class="motoai-close" type="button" aria-label="Close MotoAI"><i class="lucide lucide-x" aria-hidden="true"></i></button>
+                    <button id="motoAiClose" class="motoai-close" type="button" aria-label="Close MotoAI"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M5 5 L19 19"/><path d="M19 5 L5 19"/></svg></button>
                 </header>
 
                 <div id="motoAiMessages" class="motoai-messages" aria-live="polite">
+                    <p class="motoai-date">TODAY</p>
                     <div class="motoai-chat">
-                        <div class="motoai-avatar"><i class="lucide lucide-message-circle" aria-hidden="true"></i></div>
+                        <div class="motoai-avatar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18.5 4 21l.8-4.1A8 8 0 1 1 7.5 18.5Z"/></svg></div>
                         <p class="motoai-message">Kumusta! I'm MotoAI — your smart maintenance assistant. Ask me anything about your bike's upkeep, schedules, or what to check next.</p>
                     </div>
-                    <p class="motoai-response">Check brake pads?</p>
-                    <div class="motoai-chat">
-                        <div class="motoai-avatar"><i class="lucide lucide-message-circle" aria-hidden="true"></i></div>
-                        <p class="motoai-message">Your brake pads were last checked 49 days ago on your Yamaha NMAX. For city riding, inspect every 6 months or 5,000 km. Kung may naririnig kang squealing sound, immediate na yan. Consider checking this week.</p>
-                    </div>
+                    <p class="motoai-response">What's due for my Honda CBR 150R?</p>
+                    <article class="motoai-rich-card">
+                        <h2>Your next service is coming up.</h2>
+                        <p class="motoai-rich-card__subtitle">Oil change · September 10</p>
+                        <p class="motoai-rich-card__body">You're riding around 45 km a day. Keep an eye on your oil level and check your brake pads within 2 weeks.</p>
+                        <a class="motoai-rich-card__link" href="./schedule.html">View maintenance schedule <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+                    </article>
                 </div>
 
+                <p class="motoai-disclaimer">MotoAI offers guidance, not a mechanic's diagnosis.</p>
                 <p class="motoai-quick-label">Quick questions:</p>
                 <div class="motoai-suggestions">
                     <button type="button" data-motoai-prompt="Kailan palitan ang oil?" class="motoai-suggestion">Kailan palitan ang oil?</button>
@@ -116,8 +117,8 @@
 
                 <form id="motoAiForm" class="motoai-input-bar">
                     <label class="sr-only" for="motoAiPrompt">Ask about your bike</label>
-                    <input id="motoAiPrompt" class="motoai-input" type="text" required maxlength="180" placeholder="Ask about your bike...">
-                    <button class="motoai-send" type="submit" aria-label="Send message"><i class="lucide lucide-send" aria-hidden="true"></i></button>
+                    <input id="motoAiPrompt" class="motoai-input" type="text" required maxlength="180" placeholder="Ask about your bike">
+                    <button class="motoai-send" type="submit" aria-label="Send message"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5 L21 12 L3.5 19.5 L6.5 12 Z"/><path d="M6.5 12 H21"/></svg></button>
                 </form>
             </div>
         </section>
@@ -125,7 +126,7 @@
 
     <div id="mobileNav"></div>
 
-    <script type="module" src="./js/firebase-config.js"></script>
+    <script type="module" src="./js/firebase-config.js?v=2"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=2"></script>
     <script type="module" src="./js/motoai.js?v=2"></script>

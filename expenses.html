@@ -5,80 +5,133 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MotoCare - Expense Tracker</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css?v=3" rel="stylesheet">
-    <link rel="stylesheet" href="./css/shared-layout.css?v=2">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
+    <link rel="stylesheet" href="./css/add-record-overlay.css">
     <style>
-        :root { --moto-green-dark: #237b3c; --moto-green-soft: #dff7e6; }
-        body { font-family: sans-serif; }
-        .expense-card { border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; box-shadow: 0 2px 6px rgba(15, 23, 42, .08); }
-        .expense-log-row { min-height: 62px; }
-        .expense-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: 0 0 auto; }
-        .month-bar { width: 24px; min-height: 3px; border-radius: 5px 5px 2px 2px; background: #9bd3a6; }
-        .month-bar.is-latest { background: var(--moto-green-dark); }
-        .progress-track { height: 4px; border-radius: 999px; background: #eef1f2; overflow: hidden; }
-        .progress-fill { height: 100%; border-radius: inherit; }
+        * { box-sizing: border-box; }
+        html { background: var(--moto-bg); }
+        body { min-width: 320px; min-height: 100dvh; margin: 0; overflow-x: hidden; color: var(--moto-text); background: var(--moto-bg); font-family: var(--moto-font); -webkit-font-smoothing: antialiased; }
+        .expenses-header { min-height: 0; padding: 28px 16px 0; color: var(--moto-text); background: var(--moto-bg); border-radius: 0; }
+        .expenses-header .app-header__inner { width: min(100%, 448px); min-height: 0; }
+        .expenses-header .app-header__title h1 { margin: 0; color: var(--moto-text); font-size: 20px; font-weight: 700; line-height: 1.2; }
+        .expenses-header .app-header__top { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+        .expenses-header .app-header__actions,
+        .expenses-header .app-header__second { display: none; }
+        .expenses-header .app-header__actions { display: flex; align-items: center; justify-content: flex-end; margin-left: auto; }
+        .expense-add-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; margin-right: -10px; border: 0; border-radius: 50%; color: var(--moto-primary); background: transparent; text-decoration: none; transition: background-color 120ms ease; }
+        .expense-add-button:hover,
+        .expense-add-button:active { background: var(--moto-icon-tile); }
+        .expense-add-button:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 2px; }
+        .expense-add-button svg { width: 24px; height: 24px; }
+        .expense-main { width: min(100%, 480px); margin: 0 auto; padding: 0 16px 112px; }
+        .expense-date-range { margin: 6px 0 22px; color: var(--moto-muted); font-size: 9px; }
+        .expense-total-label, .expense-section-label { color: var(--moto-muted); font-size: 8px; font-weight: 500; letter-spacing: .08em; line-height: 1.2; text-transform: uppercase; }
+        .expense-total { margin: 6px 0 0; color: var(--moto-text); font-size: 30px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
+        .expense-this-month { margin: 8px 0 0; color: var(--moto-muted); font-size: 9px; }
+        .expense-this-month strong { color: var(--moto-primary); font-weight: 600; transition: opacity 250ms ease; }
+        .expense-card { border: 1px solid rgba(17, 22, 19, .04); border-radius: var(--moto-radius-card); background: var(--moto-surface); box-shadow: 0 2px 10px rgba(17, 22, 19, .035); }
+        .expense-chart-card { margin-top: 20px; padding: 16px; }
+        .expense-chart { height: 106px; }
+        .expense-chart-bars { display: flex; align-items: flex-end; justify-content: space-around; height: 82px; gap: 8px; }
+        .expense-chart-column { display: flex; align-items: flex-end; justify-content: center; height: 100%; flex: 1; }
+        .month-bar { display: block; width: 14px; min-height: 8px; height: var(--bar-height, 8%); border-radius: 999px; background: var(--moto-chart-muted); transform: scaleY(1); transform-origin: bottom; }
+        .month-bar.is-latest { background: var(--moto-primary); }
+        .expense-chart.is-animated .month-bar { transform: scaleY(0); }
+        .expense-chart.is-animated.is-visible .month-bar { animation: expense-bar-rise 700ms cubic-bezier(.22, 1, .36, 1) forwards; animation-delay: calc(var(--bar-index) * 80ms); }
+        .expense-chart.is-animated.is-visible .month-bar.is-latest { animation: expense-bar-rise 700ms cubic-bezier(.22, 1, .36, 1) forwards, expense-bar-pulse 600ms ease-out 1.18s; }
+        .expense-month-labels { display: flex; justify-content: space-around; gap: 8px; margin-top: 8px; color: var(--moto-muted); font-size: 8px; }
+        .expense-month-labels span { flex: 1; text-align: center; }
+        .expense-section { margin-top: 24px; }
+        .expense-section-label { margin: 0 0 10px; }
+        .bike-spending-card { padding: 12px; }
+        .bike-spending-row { padding: 3px 0 10px; }
+        .bike-spending-row + .bike-spending-row { padding-top: 10px; border-top: 1px solid var(--moto-border); }
+        .bike-spending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 9px; }
+        .bike-spending-name { min-width: 0; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+        .bike-spending-amount { color: var(--moto-muted); font-size: 8px; white-space: nowrap; }
+        .progress-track { height: 6px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: var(--moto-icon-tile); }
+        .progress-fill { width: 0; height: 100%; border-radius: inherit; background: var(--moto-primary); transition: width 800ms cubic-bezier(.22, 1, .36, 1); }
+        .expense-log-card { overflow: hidden; }
+        .expense-log-row { display: flex; align-items: center; gap: 10px; min-height: 62px; padding: 8px 12px; }
+        .expense-log-row + .expense-log-row { border-top: 1px solid var(--moto-border); }
+        .expense-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; border-radius: 10px; color: var(--moto-deep); background: var(--moto-icon-tile); }
+        .expense-icon i { font-size: 17px; }
+        .expense-log-copy { min-width: 0; flex: 1; }
+        .expense-log-title { overflow: hidden; margin: 0; font-size: 9px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+        .expense-log-subtitle { overflow: hidden; margin: 3px 0 0; color: var(--moto-muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+        .expense-log-amount { color: var(--moto-text); font-size: 9px; font-weight: 500; white-space: nowrap; }
+        .expense-delete-hidden { display: none; }
+        .expense-log-card.is-animated .expense-log-row { opacity: 0; transform: translateY(8px); }
+        .expense-log-card.is-animated.is-visible .expense-log-row { animation: expense-row-rise 350ms ease-out forwards; animation-delay: calc(var(--row-index) * 50ms); }
+        .expense-empty { padding: 24px 12px; color: var(--moto-muted); font-size: 9px; text-align: center; }
+        .expense-hidden-hook { display: none; }
+        @keyframes expense-bar-rise { to { transform: scaleY(1); } }
+        @keyframes expense-bar-pulse { 50% { opacity: .7; transform: scaleY(1.04); } }
+        @keyframes expense-row-rise { to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) {
+            .expense-chart.is-animated .month-bar,
+            .expense-log-card.is-animated .expense-log-row { animation: none !important; opacity: 1; transform: none; }
+            .progress-fill { transition: none; }
+        }
     </style>
 </head>
-<body class="min-h-screen bg-gray-50 pb-32 text-gray-800">
+<body>
     <header class="app-header expenses-header">
         <div class="app-header__inner">
             <div class="app-header__top">
-                <div class="app-header__title"><h1 class="text-xl font-bold">Expenses</h1></div>
-                <div class="app-header__actions app-header__actions--reserved" aria-hidden="true"></div>
+                <div class="app-header__title"><h1>Expenses</h1></div>
+                <div class="app-header__actions">
+                    <a id="expenseAddButton" class="expense-add-button" href="add-record.html?source=expenses" aria-label="Add record">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14"></path>
+                            <path d="M12 5v14"></path>
+                        </svg>
+                    </a>
+                </div>
             </div>
-            <div class="app-header__second"><div><p id="expenseDateRange" class="text-xs text-green-100">Loading...</p><p id="totalExpensesHeader" class="mt-1 text-xs text-green-50">Total spent</p></div></div>
+            <div class="app-header__second"><div><p id="expenseDateRangeHeader">Loading...</p><p id="totalExpensesHeader">Total spent</p></div></div>
         </div>
     </header>
 
-    <main class="page-content">
-        <section class="expense-stat grid grid-cols-2 gap-2" aria-label="Expense summary">
-            <div class="expense-card p-3">
-                <p class="text-[9px] font-medium uppercase tracking-wide text-gray-500">Total Spent</p>
-                <p id="totalExpenses" class="mt-1 text-lg font-bold text-gray-900">Loading...</p>
-                <p id="totalDateRange" class="mt-1 text-[10px] text-gray-400">Loading...</p>
-            </div>
-            <div class="expense-card p-3">
-                <p class="text-[9px] font-medium uppercase tracking-wide text-gray-500">This Month</p>
-                <p id="thisMonthExpense" class="mt-1 text-lg font-bold text-green-700">Loading...</p>
-                <p id="currentMonth" class="mt-1 text-[10px] text-gray-400">Loading...</p>
-            </div>
+    <main class="expense-main">
+        <p id="expenseDateRange" class="expense-date-range">Loading...</p>
+        <section aria-label="Expense summary">
+            <p class="expense-total-label">Total spent</p>
+            <p id="totalExpenses" class="expense-total">Loading...</p>
+            <p class="expense-this-month"><strong id="thisMonthExpense">Loading...</strong><span> this month</span></p>
+            <p id="totalDateRange" class="expense-hidden-hook">Loading...</p>
+            <p id="currentMonth" class="expense-hidden-hook">Loading...</p>
         </section>
 
-        <section class="expense-card mt-4 p-4" aria-labelledby="monthlySpendingTitle">
-            <h2 id="monthlySpendingTitle" class="text-xs font-bold">Monthly Spending</h2>
-            <div id="monthlySpendingChart" class="mt-4"></div>
+        <section class="expense-card expense-chart-card" aria-labelledby="monthlySpendingTitle">
+            <h2 id="monthlySpendingTitle" class="expense-hidden-hook">Monthly spending</h2>
+            <div id="monthlySpendingChart" class="expense-chart"></div>
         </section>
 
-        <section class="expense-card mt-3 p-4" aria-labelledby="spendingByBikeTitle">
-            <h2 id="spendingByBikeTitle" class="text-xs font-bold">Spending by Bike</h2>
-            <div id="bikeSpendingList" class="mt-3"></div>
+        <section class="expense-section" aria-labelledby="spendingByBikeTitle">
+            <h2 id="spendingByBikeTitle" class="expense-section-label">By motorcycle</h2>
+            <div id="bikeSpendingList" class="expense-card bike-spending-card"></div>
         </section>
 
-        <section class="mt-3" aria-labelledby="expenseLogTitle">
-            <div class="mb-2 flex items-center justify-between">
-                <h2 id="expenseLogTitle" class="text-xs font-bold">Expense Log</h2>
-            </div>
-            <div id="recentExpensesList" class="expense-card overflow-hidden"></div>
+        <section class="expense-section" aria-labelledby="expenseLogTitle">
+            <h2 id="expenseLogTitle" class="expense-section-label">Expense log</h2>
+            <div id="recentExpensesList" class="expense-card expense-log-card"></div>
         </section>
     </main>
 
     <div id="mobileNav"></div>
-
-    <!-- Floating Action Button -->
-    <a href="add-record.html" aria-label="Add record" class="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-green-700 text-white shadow-xl transition-all hover:scale-110 hover:bg-green-800 active:scale-95">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-    </a>
-
-    <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
 
-    <script type="module" src="./js/firebase-config.js"></script>
+    <script type="module" src="./js/firebase-config.js?v=2"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=4"></script>
+    <script type="module" src="./js/motoai.js?v=3"></script>
+    <script type="module" src="./js/add-record-overlay.js"></script>
     <script type="module" src="./js/expenses.js?v=4"></script>
 </body>
 </html>

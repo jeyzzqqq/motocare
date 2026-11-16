@@ -1,5 +1,25 @@
 :root {
+    /* MotoCare UI kit */
     --moto-green: #2e9e4f;
+    --moto-primary: #2e9e4f;
+    --moto-deep: #1b5e20;
+    --moto-mint: #ddf3de;
+    --moto-bg: #f6f7f5;
+    --moto-surface: #ffffff;
+    --moto-icon-tile: #eff1ee;
+    --moto-chart-muted: #e3e6e2;
+    --moto-accent-tint: #eaf3ea;
+    --moto-text: #111613;
+    --moto-muted: #7a817c;
+    --moto-border: rgba(17, 22, 19, .08);
+    --moto-overdue: #ef4444;
+    --moto-overdue-text: #dc2626;
+    --moto-due-soon: #f59e0b;
+    --moto-due-soon-text: #d97706;
+    --moto-upcoming: #d1d5db;
+    --moto-radius-card: 16px;
+    --moto-radius-pill: 999px;
+    --moto-font: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
     --header-min-height: 168px;
     --header-pad-x: 20px;
     --header-pad-top: calc(env(safe-area-inset-top, 0px) + 16px);
