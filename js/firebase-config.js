@@ -1,9 +1,10 @@
 // Firebase v9+ modular SDK
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-analytics.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-storage.js";
+import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app-check.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDh8x7yRqZCiDKeGezlHoPEn4OBKidw3ys",
@@ -15,10 +16,38 @@ const firebaseConfig = {
   measurementId: "G-ZC8E92M3M9"
 };
 
+export const firebaseAppCheckSiteKey = "6LfPJiQuAAAAAIGYjYdqVnoT2vBR49rs3Byq1eGk";
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+if (isLocalhost) {
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
+let appCheck = null;
+try {
+  appCheck = initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(firebaseAppCheckSiteKey),
+    isTokenAutoRefreshEnabled: true
+  });
+
+  if (isLocalhost) {
+    getToken(appCheck, true)
+      .then(() => console.log("[Firebase App Check] token obtained: true"))
+      .catch((error) => console.warn("[Firebase App Check] token obtained: false", {
+        name: error?.name,
+        code: error?.code
+      }));
+  }
+} catch (error) {
+  console.error("Firebase App Check initialization failed:", error);
+}
+
 // Services
+export { app };
+export { appCheck };
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);

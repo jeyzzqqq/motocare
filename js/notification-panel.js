@@ -1,5 +1,5 @@
 import { auth, db, onAuthStateChanged } from './firebase-config.js?v=2';
-import { collection, getDoc, onSnapshot, query, updateDoc, where, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { collection, getDoc, onSnapshot, query, updateDoc, where, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 
 const GREEN = '#2E7D32';
 let unsubscribe = null;

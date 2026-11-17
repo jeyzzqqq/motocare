@@ -1,4 +1,13 @@
-import { auth, onAuthStateChanged } from './firebase-config.js?v=2';
+import { app, auth, onAuthStateChanged } from './firebase-config.js?v=2';
+
+const motoAiModelName = 'gemini-3.8-flash';
+const motoAiSystemInstruction = `You are MotoAI, a motorcycle maintenance assistant for MotoCare.
+Give concise, practical answers in Taglish when appropriate.
+Do not claim to diagnose a dangerous mechanical problem.
+For safety-critical issues, advise the user to stop riding and consult a qualified mechanic.
+Use only the information in the user's question and do not invent motorcycle records.`;
+
+const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 
 const responses = [
     {
@@ -35,7 +44,7 @@ function addMessage(text, type) {
         message.textContent = text;
         messages.appendChild(message);
         messages.scrollTop = messages.scrollHeight;
-        return;
+        return message;
     }
 
     const chat = document.createElement('div');
@@ -47,14 +56,47 @@ function addMessage(text, type) {
     chat.appendChild(message);
     messages.appendChild(chat);
     messages.scrollTop = messages.scrollHeight;
+    return message;
 }
 
-function submitPrompt(prompt) {
+async function getAiResponse(prompt) {
+    const { getAI, getGenerativeModel, GoogleAIBackend } =
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-ai.js');
+    const ai = getAI(app, { backend: new GoogleAIBackend() });
+    const model = getGenerativeModel(ai, {
+        model: motoAiModelName,
+        systemInstruction: motoAiSystemInstruction,
+        generationConfig: {
+            maxOutputTokens: 300,
+            temperature: 0.4
+        }
+    });
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    if (!text) throw new Error('MotoAI returned an empty response.');
+    return text;
+}
+
+async function submitPrompt(prompt) {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) return;
 
     addMessage(trimmedPrompt, 'user');
-    addMessage(getResponse(trimmedPrompt), 'assistant');
+    const assistantMessage = addMessage('Thinking...', 'assistant');
+
+    try {
+        assistantMessage.textContent = await getAiResponse(trimmedPrompt);
+        if (isDevelopment) console.log('[MotoAI] reply source: AI');
+    } catch (error) {
+        console.warn('[MotoAI] AI request failed; using local fallback.', {
+            name: error?.name,
+            code: error?.code,
+            message: error?.message
+        });
+        assistantMessage.textContent = getResponse(trimmedPrompt);
+        if (isDevelopment) console.log('[MotoAI] reply source: fallback');
+    }
 }
 
 const motoAiMarkup = `

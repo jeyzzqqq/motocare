@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js?v=2';
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+import { collection, query, where, getDocs, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { getFirestoreDocs, deleteFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
 import './logout-confirmation.js';
 

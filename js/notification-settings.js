@@ -1,5 +1,5 @@
 import { auth, db, onAuthStateChanged } from './firebase-config.js?v=2';
-import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 
 const GREEN = '#2e9e4f';
 const DEFAULTS = {

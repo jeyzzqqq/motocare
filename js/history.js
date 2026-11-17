@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js?v=2';
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
 import { normalizeRecord } from './utils-module.js';
 
