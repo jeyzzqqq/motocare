@@ -1,6 +1,6 @@
 import { app, auth, onAuthStateChanged } from './firebase-config.js?v=2';
 
-const motoAiModelName = 'gemini-3.8-flash';
+const motoAiModelName = 'gemini-3.1-flash-lite';
 const motoAiSystemInstruction = `You are MotoAI, a motorcycle maintenance assistant for MotoCare.
 Give concise, practical answers in Taglish when appropriate.
 Do not claim to diagnose a dangerous mechanical problem.
@@ -8,6 +8,9 @@ For safety-critical issues, advise the user to stop riding and consult a qualifi
 Use only the information in the user's question and do not invent motorcycle records.`;
 
 const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+const retryDelayMs = 1500;
+const requestTimeoutMs = 20000;
+let isSubmittingMotoAi = false;
 
 const responses = [
     {
@@ -67,20 +70,90 @@ async function getAiResponse(prompt) {
         model: motoAiModelName,
         systemInstruction: motoAiSystemInstruction,
         generationConfig: {
-            maxOutputTokens: 300,
-            temperature: 0.4
+            maxOutputTokens: 2048,
+            thinkingConfig: {
+                thinkingLevel: 'LOW'
+            }
         }
+    }, {
+        timeout: requestTimeoutMs
     });
 
-    const result = await model.generateContent(prompt);
+    let result;
+    const startedAt = Date.now();
+    try {
+        result = await model.generateContent(prompt);
+    } catch (error) {
+        const failureElapsedMs = Date.now() - startedAt;
+        if (!isDeadlineExpiredError(error) && isFastRetryableAiError(error, failureElapsedMs)) {
+            await new Promise((resolve) => window.setTimeout(resolve, retryDelayMs));
+            result = await model.generateContent(prompt);
+        } else {
+            throw error;
+        }
+    }
+
     const text = result.response.text().trim();
     if (!text) throw new Error('MotoAI returned an empty response.');
     return text;
 }
 
+function isDeadlineExpiredError(error) {
+    const message = String(
+        error?.message
+        || error?.response?.data?.error?.message
+        || error?.response?.data?.message
+        || ''
+    ).toLowerCase();
+    const code = String(error?.code || '').toLowerCase();
+    return message.includes('deadline expired')
+        || message.includes('deadline exceeded')
+        || code.includes('deadline');
+}
+
+function isFastRetryableAiError(error, elapsedMs) {
+    const httpStatus = getHttpStatus(error);
+    const code = String(error?.code || '').toUpperCase();
+    if (elapsedMs >= requestTimeoutMs) return false;
+    if (httpStatus === 429 || code.includes('429') || code.includes('RESOURCE_EXHAUSTED')) return true;
+    if (httpStatus === 503 || code.includes('503') || code.includes('UNAVAILABLE')) {
+        return elapsedMs < 3000;
+    }
+    return false;
+}
+
+function getHttpStatus(error) {
+    const candidates = [
+        error?.status,
+        error?.statusCode,
+        error?.response?.status,
+        error?.response?.statusCode
+    ];
+    for (const candidate of candidates) {
+        const status = Number(candidate);
+        if (Number.isFinite(status)) return status;
+    }
+    return null;
+}
+
+function getResponseMessage(error) {
+    return error?.response?.statusText
+        || error?.response?.data?.error?.message
+        || error?.response?.data?.message
+        || error?.message
+        || null;
+}
+
 async function submitPrompt(prompt) {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) return;
+    if (isSubmittingMotoAi) return;
+
+    isSubmittingMotoAi = true;
+    const sendButton = document.querySelector('.motoai-send');
+    const input = document.getElementById('motoAiPrompt');
+    if (sendButton) sendButton.disabled = true;
+    if (input) input.disabled = true;
 
     addMessage(trimmedPrompt, 'user');
     const assistantMessage = addMessage('Thinking...', 'assistant');
@@ -89,13 +162,23 @@ async function submitPrompt(prompt) {
         assistantMessage.textContent = await getAiResponse(trimmedPrompt);
         if (isDevelopment) console.log('[MotoAI] reply source: AI');
     } catch (error) {
-        console.warn('[MotoAI] AI request failed; using local fallback.', {
+        const diagnostic = {
             name: error?.name,
             code: error?.code,
             message: error?.message
-        });
+        };
+        if (isDevelopment) {
+            diagnostic.httpStatus = getHttpStatus(error);
+            diagnostic.responseMessage = getResponseMessage(error);
+        }
+        console.warn('[MotoAI] AI request failed; using local fallback.', diagnostic);
         assistantMessage.textContent = getResponse(trimmedPrompt);
         if (isDevelopment) console.log('[MotoAI] reply source: fallback');
+    } finally {
+        if (sendButton) sendButton.disabled = false;
+        if (input) input.disabled = false;
+        isSubmittingMotoAi = false;
+        input?.focus();
     }
 }
 
