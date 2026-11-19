@@ -1,4 +1,4 @@
-import { auth, onAuthStateChanged } from './firebase-config.js?v=2';
+import { auth, onAuthStateChanged } from './firebase-config.js?v=3';
 
 const STORAGE_PREFIX = 'motocare-streak-v1:';
 const LOGIN_PENDING_KEY = 'motocare-streak-login-pending';

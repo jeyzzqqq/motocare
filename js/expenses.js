@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js?v=2';
+import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';

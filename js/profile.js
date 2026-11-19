@@ -1,4 +1,4 @@
-import { auth, db, storage, onAuthStateChanged } from "./firebase-config.js?v=2";
+import { auth, db, storage, onAuthStateChanged } from "./firebase-config.js?v=3";
 import { updateProfile, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-storage.js";

@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js?v=2';
+import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, getFirestoreDocById } from './firebaseUtils.js';
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";

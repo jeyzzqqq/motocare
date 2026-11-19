@@ -1,4 +1,4 @@
-import { auth, db, onAuthStateChanged } from './firebase-config.js?v=2';
+import { auth, db, onAuthStateChanged } from './firebase-config.js?v=3';
 import { collection, getDoc, onSnapshot, query, updateDoc, where, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 
 const GREEN = '#2E7D32';

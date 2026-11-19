@@ -16,7 +16,7 @@ const firebaseConfig = {
   measurementId: "G-ZC8E92M3M9"
 };
 
-export const firebaseAppCheckSiteKey = "6LfPJiQuAAAAAIGYjYdqVnoT2vBR49rs3Byq1eGk";
+export const firebaseAppCheckSiteKey = "6LdWySguAAAAADmM4fcp3kMKgfTiTXeG6vChTzri";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

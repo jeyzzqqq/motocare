@@ -1,4 +1,4 @@
-import { app, auth, onAuthStateChanged } from './firebase-config.js?v=2';
+import { app, auth, onAuthStateChanged } from './firebase-config.js?v=3';
 import { getFirestoreDocs } from './firebaseUtils.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 import { normalizeRecord } from './utils-module.js';
