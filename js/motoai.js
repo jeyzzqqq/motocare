@@ -91,12 +91,7 @@ function formatMotoContext(motorcycles, repairs, maintenance) {
             .sort((left, right) => (contextDate(contextRecordDate(right))?.getTime() || 0)
                 - (contextDate(contextRecordDate(left))?.getTime() || 0));
         const recentRecords = bikeRecords.slice(0, 10);
-        const latestByTask = new Map();
-        bikeRecords.forEach((record) => {
-            const title = contextRecordTitle(record);
-            if (!latestByTask.has(title)) latestByTask.set(title, record);
-            if (record.taskKey && !latestByTask.has(record.taskKey)) latestByTask.set(record.taskKey, record);
-        });
+        const currentMileage = contextMileage(bike);
         const category = classifyMotorcycleCategory(bike);
         const dueItems = (MAINTENANCE_RULES[category.key] || []).map((rule) => {
             const taskStatus = getMaintenanceTaskStatus(bike, rule, bikeRecords);
