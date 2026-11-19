@@ -23,7 +23,8 @@ const app = initializeApp(firebaseConfig);
 
 const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 if (isLocalhost) {
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  const storedDebugToken = localStorage.getItem("MOTOCARE_APPCHECK_DEBUG_TOKEN");
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = storedDebugToken || true;
 }
 
 let appCheck = null;

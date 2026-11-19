@@ -4,6 +4,11 @@ import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, getFirestoreDocB
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { normalizeRecord } from './utils-module.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+import {
+    getMaintenanceTaskStatus,
+    getCompletionMileage,
+    getReminderThreshold
+} from './maintenanceStatus.js';
 import { initEmailJS, sendMaintenanceReminder } from './emailjs.js';
 
 let currentUserId = null;
@@ -109,61 +114,6 @@ function getCategoryIndicator(categoryKey, odo) {
     return list.find((entry) => odo >= entry.min) || { label: 'OK', icon: 'check-circle-2', className: 'bg-green-100 text-green-700' };
 }
 
-function getTaskStatus(odo, dueMileage, hasCompletion, threshold = 500) {
-    // Determine status purely from current ODO vs due mileage so the schedule shows the next due
-    // after a completion is logged. The completion is stored in `maintenance` (and History),
-    // but the schedule should represent the next target rather than remaining 'Logged'.
-    if (odo > dueMileage) {
-        return { key: 'overdue', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
-    }
-
-    if (odo === dueMileage) {
-        return { key: 'due', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
-    }
-
-    // Use configurable threshold (in km) to decide when a task moves to "upcoming"
-    if ((dueMileage - odo) <= Number(threshold || 500)) {
-        return { key: 'upcoming', label: 'Coming up', className: 'bg-amber-100 text-amber-700', dotClass: 'bg-amber-500' };
-    }
-
-    return { key: 'scheduled', label: 'Scheduled', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };
-}
-
-// Read reminder threshold for a motorcycle. Priority: per-motorcycle localStorage -> global localStorage -> default 500km
-// Read reminder threshold for a motorcycle. Priority: per-motorcycle localStorage -> global localStorage -> default 500km
-function getReminderThreshold(motorcycleId) {
-    try {
-        if (motorcycleId) {
-            const perKey = `motocare.reminderThreshold.${motorcycleId}`;
-            const perVal = localStorage.getItem(perKey);
-            if (perVal !== null && perVal !== undefined && perVal !== '') return Number(perVal);
-        }
-
-        const globalVal = localStorage.getItem('motocare.reminderThreshold.default');
-        if (globalVal !== null && globalVal !== undefined && globalVal !== '') return Number(globalVal);
-    } catch (e) {
-        // ignore storage errors
-    }
-    return 500;
-}
-
-function getNextMileageTarget(currentMileage, interval) {
-    const mileage = Number(currentMileage || 0);
-    const step = Number(interval || 0);
-
-    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!Number.isFinite(mileage) || mileage < 0) return step;
-
-    // If mileage is exactly on an interval boundary, the next due should be the next interval
-    // e.g., mileage=10000 and step=1000 => next due = 11000 (not 10000)
-    try {
-        const remainder = mileage % step;
-        if (remainder === 0) return mileage + step;
-    } catch (e) {}
-
-    return Math.ceil(mileage / step) * step || step;
-}
-
 function buildReminderSignature(item = {}) {
     const moto = String(item.motorcycleId || '').trim();
     const key = String(item.ruleKey || '').trim();
@@ -174,80 +124,6 @@ function buildReminderSignature(item = {}) {
     return `${moto}::${idPart}::${due}`;
 }
 
-function getNextMileageAfterCompletion(completedMileage, interval) {
-    const mileage = Number(completedMileage || 0);
-    const step = Number(interval || 0);
-
-    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!Number.isFinite(mileage) || mileage < 0) return step;
-
-    return mileage + step;
-}
-
-function getCompletionMileage(item = {}) {
-    const value = item.completedMileage ?? item.mileage ?? item.dueMileage ?? 0;
-    const normalized = typeof value === 'string' ? value.replace(/[^0-9.-]/g, '') : value;
-    const numeric = Number(normalized);
-    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
-}
-
-function getCompletionTimestamp(item = {}) {
-    const raw = item.completedAt ?? item.date ?? item.createdAt ?? item.updatedAt ?? null;
-    if (raw && typeof raw.toDate === 'function') {
-        const dateValue = raw.toDate();
-        return dateValue instanceof Date && !Number.isNaN(dateValue.getTime()) ? dateValue.getTime() : 0;
-    }
-    const parsed = raw instanceof Date ? raw : new Date(raw);
-    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-}
-
-function isCompletionRecord(item = {}) {
-    const status = String(item.status || '').toLowerCase().trim();
-    const hasCompletionStatus = status === 'completed' || status === 'complete' || status === 'done' || status === 'logged';
-    const hasCompletionMileage = getCompletionMileage(item) > 0;
-    const hasCompletionTimestamp = getCompletionTimestamp(item) > 0;
-    return item.deleted !== true && (hasCompletionStatus || hasCompletionMileage || hasCompletionTimestamp);
-}
-
-function findCompletedMaintenanceRecord(maintenanceItems, motorcycleId, rule) {
-    const ruleName = normalizeText(rule.task);
-
-    const matches = maintenanceItems.filter((item) => {
-        if (String(item.motorcycleId || '') !== String(motorcycleId)) {
-            return false;
-        }
-
-        const itemTaskKey = String(item.taskKey || '').trim();
-        const matchesTaskKey = itemTaskKey === rule.key;
-
-        if (matchesTaskKey) {
-            return isCompletionRecord(item);
-        }
-
-        if (itemTaskKey) {
-            return false;
-        }
-
-        const itemName = normalizeText(item.task || item.title || item.name || '');
-        const matchesTaskName = itemName && (itemName === ruleName || itemName.includes(ruleName) || ruleName.includes(itemName));
-        return matchesTaskName && isCompletionRecord(item);
-    });
-
-    if (!matches.length) {
-        return null;
-    }
-
-    return matches.sort((a, b) => {
-        const timeDiff = getCompletionTimestamp(b) - getCompletionTimestamp(a);
-        if (timeDiff !== 0) return timeDiff;
-
-        const mileageDiff = getCompletionMileage(b) - getCompletionMileage(a);
-        if (mileageDiff !== 0) return mileageDiff;
-
-        return String(b.id || '').localeCompare(String(a.id || ''));
-    })[0] || null;
-}
-
 function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
     const category = classifyMotorcycleCategory(motorcycle);
     const odo = getMileageValue(motorcycle);
@@ -255,17 +131,13 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
     const overall = getCategoryIndicator(category.key, odo);
 
     return MAINTENANCE_RULES[category.key].map((rule) => {
-        const completedRecord = findCompletedMaintenanceRecord(maintenanceItems, motorcycle.id, rule);
-        const hasCompletion = !!completedRecord;
-        const anchorMileage = completedRecord
-            ? getCompletionMileage(completedRecord)
-            : odo;
+        const taskStatus = getMaintenanceTaskStatus(motorcycle, rule, maintenanceItems);
+        const completedRecord = taskStatus.completedRecord;
+        const hasCompletion = taskStatus.hasCompletion;
+        const anchorMileage = completedRecord ? getCompletionMileage(completedRecord) : odo;
         const anchorSource = completedRecord ? 'last completed service' : 'current odometer';
-        const dueMileage = hasCompletion
-            ? getNextMileageAfterCompletion(anchorMileage, rule.interval)
-            : getNextMileageTarget(anchorMileage, rule.interval);
-        const threshold = getReminderThreshold(motorcycle.id);
-        const status = getTaskStatus(odo, dueMileage, hasCompletion, threshold);
+        const dueMileage = taskStatus.dueMileage;
+        const status = taskStatus.status;
         const remaining = Math.max(0, dueMileage - odo);
         const overdueBy = Math.max(0, odo - dueMileage);
         const reminder = status.key === 'overdue'

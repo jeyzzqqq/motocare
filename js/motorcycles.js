@@ -674,6 +674,7 @@ async function saveMotorcycle() {
             showToast('Motorcycle added successfully', 'success');
         }
         
+        window.dispatchEvent(new CustomEvent('motocare:motorcycle-changed'));
         renderMotorcycles();
         closeModal();
     } catch (error) {
