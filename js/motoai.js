@@ -14,7 +14,8 @@ Answer only from the provided data and the user's question.
 Never invent records, mileage, or dates.
 If data is missing, say so and suggest logging it in the app.
 If there are no bikes, suggest adding one in My Motorcycles.
-If the user names a bike, answer for that bike.`;
+If the user names a bike, answer for that bike.
+Reply in plain text only. Do not use markdown symbols such as ** or #.`;
 
 const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 const retryDelayMs = 1500;
@@ -26,6 +27,10 @@ let motoContextPromise = null;
 let motoContextAccountUid = '';
 let motoContextGeneration = 0;
 const motoContextMaxAgeMs = 60000;
+let motoContextKey = '';
+let motoContextPromiseKey = '';
+let resolveMotoAuthReady;
+const motoAuthReadyPromise = new Promise((resolve) => { resolveMotoAuthReady = resolve; });
 
 const responses = [
     {
@@ -81,49 +86,128 @@ function contextRecordMileage(record) {
     return Number.isFinite(value) ? value : 0;
 }
 
-function formatMotoContext(motorcycles, repairs, maintenance) {
-    const bikes = motorcycles.slice(0, 5);
+function todayContextText() {
+    return `Today: ${new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+    }).replace(/,/g, '')}`;
+}
+
+function contextUpdateTime(item) {
+    return contextDate(item.updatedAt || item.createdAt || item.date)?.getTime() || 0;
+}
+
+function bikeDisplayName(bike) {
+    return [bike.brand, bike.model].filter(Boolean).join(' ').trim() || 'Motorcycle';
+}
+
+function selectMotoContextBikes(motorcycles, prompt = '') {
+    const activeBikes = motorcycles.filter((bike) => bike.deleted !== true);
+    const normalizedPrompt = String(prompt || '').toLowerCase();
+    const matchedBike = activeBikes.find((bike) => {
+        const brand = String(bike.brand || '').toLowerCase().trim();
+        const model = String(bike.model || '').toLowerCase().trim();
+        const name = bikeDisplayName(bike).toLowerCase();
+        return (name && normalizedPrompt.includes(name))
+            || (brand && normalizedPrompt.includes(brand))
+            || (model && normalizedPrompt.includes(model));
+    });
+    const sortedBikes = [...activeBikes].sort((left, right) => contextUpdateTime(right) - contextUpdateTime(left));
+    const orderedBikes = matchedBike
+        ? [matchedBike, ...sortedBikes.filter((bike) => bike.id !== matchedBike.id)]
+        : sortedBikes;
+    return orderedBikes.slice(0, 5);
+}
+
+function truncateContextText(value, maxLength) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(1, maxLength - 3)).trim()}...`;
+}
+
+function formatMotoContext(motorcycles, repairs, maintenance, prompt = '') {
+    const bikes = selectMotoContextBikes(motorcycles, prompt);
+    const deletedMotorcycleCount = motorcycles.filter((bike) => bike.deleted === true).length;
+    const activeMotorcycleCount = motorcycles.filter((bike) => bike.deleted !== true).length;
     if (!bikes.length) return 'No motorcycles are registered. Suggest adding one in My Motorcycles.';
 
-    return bikes.map((bike) => {
+    let bikeLimit = bikes.length;
+    let text = '';
+
+    while (bikeLimit > 0) {
+        text = bikes.slice(0, bikeLimit).map((bike) => {
         const bikeRecords = repairs.concat(maintenance)
-            .filter((record) => String(record.motorcycleId || '') === String(bike.id))
+            .filter((record) => record.deleted !== true)
+            .filter((record) => String(record.motorcycleId || record.motorbikeId || '') === String(bike.id))
             .sort((left, right) => (contextDate(contextRecordDate(right))?.getTime() || 0)
                 - (contextDate(contextRecordDate(left))?.getTime() || 0));
-        const recentRecords = bikeRecords.slice(0, 10);
+        const recentRecords = bikeRecords.slice(0, 3);
         const currentMileage = contextMileage(bike);
         const category = classifyMotorcycleCategory(bike);
         const dueItems = (MAINTENANCE_RULES[category.key] || []).map((rule) => {
             const taskStatus = getMaintenanceTaskStatus(bike, rule, bikeRecords);
             const statusKey = taskStatus.status.key;
-            if (statusKey === 'scheduled') return null;
+            if (statusKey !== 'overdue' && statusKey !== 'due') return null;
             const dueText = taskStatus.dueDate
                 ? contextDateText(taskStatus.dueDate)
                 : `${taskStatus.dueMileage.toLocaleString()} km`;
             const statusLabel = statusKey === 'overdue' || statusKey === 'due' ? 'overdue' : 'due soon';
-            return `${rule.task}: ${statusLabel}, due ${dueText}`;
-        }).filter(Boolean).slice(0, 4);
+            return {
+                text: `${truncateContextText(rule.task, 70)}: ${statusLabel}, due ${dueText}`,
+                dueMileage: taskStatus.dueMileage,
+                statusKey
+            };
+        }).filter(Boolean).sort((left, right) => {
+            const statusRank = { overdue: 0, due: 1 };
+            const rankDiff = statusRank[left.statusKey] - statusRank[right.statusKey];
+            return rankDiff !== 0 ? rankDiff : left.dueMileage - right.dueMileage;
+        }).slice(0, 3).map((item) => item.text);
         const recordsText = recentRecords.map((record) =>
-            `${contextRecordTitle(record)} on ${contextDateText(contextRecordDate(record))} at ${contextRecordMileage(record).toLocaleString()} km`
+            `${truncateContextText(contextRecordTitle(record), 80)} on ${contextDateText(contextRecordDate(record))} at ${contextRecordMileage(record).toLocaleString()} km`
         );
+
         return [
-            `${bike.brand || ''} ${bike.model || ''} (${bike.year || 'year not recorded'}), current mileage ${currentMileage.toLocaleString()} km`,
+            `${truncateContextText(bikeDisplayName(bike), 80)} (${bike.year || 'year not recorded'}), current mileage ${currentMileage.toLocaleString()} km`,
             `Last service records: ${recordsText.length ? recordsText.join('; ') : 'not recorded'}`,
             `Upcoming or overdue: ${dueItems.length ? dueItems.join('; ') : 'none identified'}`
         ].join('\n');
-    }).join('\n');
+        }).join('\n');
+
+        if (text.length <= 2000) break;
+        bikeLimit -= 1;
+    }
+
+    if (isDevelopment) {
+        const skippedBikeCount = deletedMotorcycleCount + Math.max(0, activeMotorcycleCount - bikeLimit);
+        bikes.slice(0, bikeLimit).forEach((bike) => {
+            const bikeRecords = repairs.concat(maintenance)
+                .filter((record) => record.deleted !== true)
+                .filter((record) => String(record.motorcycleId || record.motorbikeId || '') === String(bike.id));
+            console.log('[MotoAI] bike context', {
+                bike: bikeDisplayName(bike),
+                matchedRecords: bikeRecords.length,
+                skippedBikes: skippedBikeCount
+            });
+        });
+    }
+    return text;
 }
 
-async function loadMotoContext() {
+async function loadMotoContext(prompt = '') {
     try {
+        await motoAuthReadyPromise;
+        if (!auth.currentUser) return null;
         const [motorcycles, repairs, maintenance] = await Promise.all([
             getFirestoreDocs('motorcycles'),
             getFirestoreDocs('repairs'),
             getFirestoreDocs('maintenance')
         ]);
         const normalizedMotorcycles = motorcycles.map((item) => normalizeRecord(item));
-        const normalizedRepairs = repairs.map((item) => normalizeRecord(item));
-        const normalizedMaintenance = maintenance.map((item) => normalizeRecord(item));
+        const normalizedRepairs = repairs.map((item) => normalizeRecord(item)).filter((item) => item.deleted !== true);
+        const normalizedMaintenance = maintenance.map((item) => normalizeRecord(item)).filter((item) => item.deleted !== true);
+        const activeMotorcycles = normalizedMotorcycles.filter((item) => item.deleted !== true);
+        if (!activeMotorcycles.length) return null;
         const now = new Date();
         const monthlySpend = normalizedRepairs
             .filter((record) => {
@@ -131,36 +215,42 @@ async function loadMotoContext() {
                 return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
             })
             .reduce((sum, record) => sum + Number(record.cost ?? record.amount ?? record.total ?? 0), 0);
-        let context = `${formatMotoContext(normalizedMotorcycles, normalizedRepairs, normalizedMaintenance)}\nMonthly spending: ₱${monthlySpend.toLocaleString('en-PH')}`;
-        if (context.length > 2000) {
-            context = `${formatMotoContext(normalizedMotorcycles.slice(0, 3), [], [])}\nRecent records summarized because the context limit was reached.\nMonthly spending: ₱${monthlySpend.toLocaleString('en-PH')}`;
-        }
+        const context = `${todayContextText()}\n${formatMotoContext(normalizedMotorcycles, normalizedRepairs, normalizedMaintenance, prompt)}\nMonthly spending: ₱${monthlySpend.toLocaleString('en-PH')}`;
         return context;
     } catch (error) {
         console.warn('[MotoAI] Personal context unavailable; sending without user data.', {
             name: error?.name, code: error?.code, message: error?.message
         });
-        return 'No motorcycle or maintenance data is available. Suggest adding a motorcycle or logging a service record in the app.';
+        return null;
     }
 }
 
-function getMotoContext() {
-    if (motoContext && Date.now() - motoContextLoadedAt < motoContextMaxAgeMs) return Promise.resolve(motoContext);
-    if (!motoContextPromise) {
-        const accountUid = auth.currentUser?.uid || '';
+async function getMotoContext(prompt = '') {
+    await motoAuthReadyPromise;
+    const accountUid = auth.currentUser?.uid || '';
+    if (!accountUid) return Promise.resolve(null);
+    const key = `${accountUid}:${String(prompt || '').trim().toLowerCase()}`;
+    if (motoContext && motoContextKey === key && Date.now() - motoContextLoadedAt < motoContextMaxAgeMs) return Promise.resolve(motoContext);
+    if (!motoContextPromise || motoContextPromiseKey !== key) {
+        motoContextPromiseKey = key;
         const generation = motoContextGeneration;
-        motoContextPromise = loadMotoContext().then((context) => {
+        motoContextPromise = loadMotoContext(prompt).then((context) => {
             if (generation !== motoContextGeneration || accountUid !== (auth.currentUser?.uid || '')) {
                 return '';
             }
+            if (!context) return null;
             motoContext = context;
             motoContextLoadedAt = Date.now();
+            motoContextKey = key;
             if (isDevelopment) {
                 console.log('[MotoAI] context loaded', { length: context.length });
                 console.log('[MotoAI] full context', context);
             }
             return context;
-        }).finally(() => { motoContextPromise = null; });
+        }).finally(() => {
+            motoContextPromise = null;
+            motoContextPromiseKey = '';
+        });
     }
     return motoContextPromise;
 }
@@ -170,6 +260,8 @@ function refreshMotoContext() {
     motoContext = '';
     motoContextLoadedAt = 0;
     motoContextPromise = null;
+    motoContextKey = '';
+    motoContextPromiseKey = '';
 }
 
 function addMessage(text, type) {
@@ -198,7 +290,7 @@ function addMessage(text, type) {
 }
 
 async function getAiResponse(prompt) {
-    const context = await getMotoContext();
+    const context = await getMotoContext(prompt);
     const { getAI, getGenerativeModel, GoogleAIBackend } =
         await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-ai.js');
     const ai = getAI(app, { backend: new GoogleAIBackend() });
@@ -217,8 +309,9 @@ async function getAiResponse(prompt) {
 
     let result;
     const startedAt = Date.now();
+    const safeContext = context || `${todayContextText()}\nNo motorcycle or maintenance data is available. Suggest adding a motorcycle or logging a service record in the app.`;
     const userTurn = `<user_data>
-${context}
+${safeContext}
 </user_data>
 
 ${prompt}`;
@@ -434,6 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 onAuthStateChanged(auth, (user) => {
     const nextUid = user?.uid || '';
+    resolveMotoAuthReady();
     if (motoContextAccountUid !== nextUid) {
         motoContextAccountUid = nextUid;
         refreshMotoContext();
