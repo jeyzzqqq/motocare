@@ -3,8 +3,10 @@ import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/
 import { collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 import { normalizeRecord } from './utils-module.js';
+import { getMaintenanceTaskStatus } from './maintenanceStatus.js';
 
 const STREAK_PREFIX = 'motocare-streak-v1:';
+const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 let dashboardHasRendered = false;
 
 function dateValue(value) {
@@ -29,7 +31,15 @@ function formatShortDate(date) {
 }
 
 function formatDashboardCurrency(value) {
-    return formatCurrency(Number(value) || 0).replace(/\.00$/, '');
+    if (typeof window.formatCurrency === 'function') {
+        return window.formatCurrency(Number(value) || 0).replace(/\.00$/, '');
+    }
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(Number(value) || 0).replace(/\.00$/, '');
 }
 
 function escapeHtml(value) {
@@ -45,53 +55,50 @@ function mileage(motorcycle = {}) {
     return Number.isFinite(value) ? value : 0;
 }
 
-function completion(record = {}) {
-    const status = String(record.status || '').toLowerCase();
-    return status === 'completed' || status === 'complete' || status === 'done' || Boolean(record.completedAt || record.completedMileage || record.date);
-}
-
-function latestCompletion(records, motorcycleId, rule) {
-    return records.filter((record) => {
-        if (String(record.motorcycleId || '') !== String(motorcycleId) || !completion(record)) return false;
-        const task = String(record.task || record.title || record.name || '').toLowerCase();
-        return record.taskKey === rule.key || task.includes(String(rule.task).toLowerCase()) || String(rule.task).toLowerCase().includes(task);
-    }).sort((a, b) => (dateValue(b.completedAt || b.date || b.createdAt)?.getTime() || 0) - (dateValue(a.completedAt || a.date || a.createdAt)?.getTime() || 0))[0];
-}
-
-function buildMaintenanceItems(motorcycles, records) {
-    return motorcycles.flatMap((motorcycle) => {
+function buildMaintenanceItems(motorcycles, records, now = new Date()) {
+    const activeRecords = records.filter((record) => record.deleted !== true);
+    return motorcycles.filter((motorcycle) => motorcycle.deleted !== true).flatMap((motorcycle) => {
         const category = classifyMotorcycleCategory(motorcycle);
         const rules = MAINTENANCE_RULES[category.key] || [];
         const currentMileage = mileage(motorcycle);
         return rules.map((rule) => {
-            const record = latestCompletion(records, motorcycle.id, rule);
-            const anchor = Number(record?.completedMileage ?? record?.mileage ?? currentMileage);
-            const interval = Number(rule.interval || 0);
-            const dueMileage = record ? anchor + interval : Math.ceil(currentMileage / Math.max(1, interval)) * interval;
-            const explicitDate = dateValue(record?.nextDueDate || record?.dueDate);
-            const lastDoneDate = dateValue(record?.completedAt || record?.date || record?.createdAt);
-            const daysUntil = explicitDate
-                ? Math.ceil((explicitDate - new Date()) / 86400000)
-                : Math.ceil((dueMileage - currentMileage) / Math.max(1, currentMileage / 30));
-            const status = daysUntil < 0 ? 'overdue' : daysUntil <= 14 ? 'due-soon' : 'scheduled';
-            const mileageProgress = dueMileage > anchor ? ((currentMileage - anchor) / (dueMileage - anchor)) * 100 : 0;
-            const dateProgress = explicitDate && lastDoneDate
-                ? ((Date.now() - lastDoneDate.getTime()) / Math.max(1, explicitDate.getTime() - lastDoneDate.getTime())) * 100
-                : mileageProgress;
+            const taskStatus = getMaintenanceTaskStatus(motorcycle, rule, activeRecords, now);
+            const statusKey = taskStatus.status.key;
+            const dueMileage = taskStatus.dueMileage;
+            const remaining = Math.max(0, dueMileage - currentMileage);
+            const overdueBy = Math.max(0, currentMileage - dueMileage);
+            const text = statusKey === 'overdue'
+                ? `Overdue by ${overdueBy.toLocaleString()} km (target ${dueMileage.toLocaleString()} km)`
+                : statusKey === 'due'
+                    ? `Due now at ${dueMileage.toLocaleString()} km`
+                    : `${remaining.toLocaleString()} km left until ${dueMileage.toLocaleString()} km`;
+            const completedRecord = taskStatus.completedRecord;
+            const lastDoneDate = completedRecord
+                ? dateValue(completedRecord.completedAt || completedRecord.date || completedRecord.createdAt)
+                : null;
+            const progress = dueMileage > 0
+                ? Math.max(0, Math.min(100, (currentMileage / dueMileage) * 100))
+                : 0;
             return {
-                id: `${motorcycle.id}-${rule.key}`,
+                motorcycleId: motorcycle.id,
+                bikeName: motorcycleName(motorcycle),
                 task: rule.task,
-                icon: rule.icon || 'wrench',
-                motorcycleName: motorcycleName(motorcycle),
-                dueDate: explicitDate,
-                lastDoneDate,
+                statusKey,
                 dueMileage,
-                daysUntil,
-                progress: Math.max(0, Math.min(100, dateProgress)),
-                status
+                dueDate: taskStatus.dueDate,
+                text,
+                icon: rule.icon || 'wrench',
+                lastDoneDate,
+                progress
             };
         });
-    }).sort((a, b) => a.daysUntil - b.daysUntil);
+    }).sort((a, b) => {
+        const priority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3 };
+        const statusDiff = priority[a.statusKey] - priority[b.statusKey];
+        if (statusDiff !== 0) return statusDiff;
+        if (a.dueMileage !== b.dueMileage) return a.dueMileage - b.dueMileage;
+        return String(a.bikeName).localeCompare(String(b.bikeName));
+    });
 }
 
 function renderStreak(uid) {
@@ -135,8 +142,8 @@ function renderUrgent(items, shouldAnimate = false) {
     }
     container.innerHTML = items.map((item, index) => `<a href="schedule.html" class="maintenance-row" style="--row-index:${index}">
         <span class="row-icon"><i class="lucide lucide-${maintenanceIcon(item)}" aria-hidden="true"></i></span>
-        <span class="row-main"><strong class="row-title">${escapeHtml(item.task)}</strong><small class="row-subtitle">${escapeHtml(item.motorcycleName)}</small></span>
-        <span class="row-meta"><span class="status status--${item.status}">${item.status === 'overdue' ? 'Overdue' : 'Due soon'}</span><small class="row-date">${item.dueDate ? formatShortDate(item.dueDate) : `${Math.max(1, item.dueMileage).toLocaleString()} km`}</small></span>
+        <span class="row-main"><strong class="row-title">${escapeHtml(item.task)}</strong><small class="row-subtitle">${escapeHtml(item.bikeName)}</small></span>
+        <span class="row-meta"><span class="status status--${item.statusKey === 'overdue' ? 'overdue' : 'due-soon'}">${item.statusKey === 'overdue' ? 'Overdue' : 'Due soon'}</span><small class="row-date">${escapeHtml(item.text)}</small></span>
     </a>`).join('');
     if (shouldAnimate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         requestAnimationFrame(() => container.classList.add('is-visible'));
@@ -168,7 +175,7 @@ function animateNumber(element, target, formatter, shouldAnimate) {
         element.textContent = formatter(target);
         return;
     }
-    const startedAt = performance.now();
+    const startedAt = Date.now();
     const tick = (now) => {
         const progress = Math.min(1, (now - startedAt) / 700);
         const eased = 1 - ((1 - progress) ** 3);
@@ -183,10 +190,10 @@ function renderHero(nextItem, motorcycles, shouldAnimate = false) {
     const daysElement = document.getElementById('heroDays');
     const progressElement = document.getElementById('heroProgress');
     const item = nextItem || null;
-    const days = Math.max(0, item?.daysUntil ?? 0);
+    const days = 0;
     if (hero) hero.classList.toggle('is-animated', shouldAnimate);
     if (daysElement) animateNumber(daysElement, days, (value) => String(Math.round(value)), shouldAnimate);
-    document.getElementById('heroService').textContent = item ? `${item.task} · ${item.motorcycleName}` : 'No service scheduled';
+    document.getElementById('heroService').textContent = item ? `${item.task} · ${item.bikeName}` : 'No service scheduled';
     document.getElementById('heroLast').textContent = item?.lastDoneDate ? `Last ${formatShortDate(item.lastDoneDate)}` : 'Last not set';
     document.getElementById('heroDue').textContent = item?.dueDate ? `Due ${formatShortDate(item.dueDate)}` : item ? `Due ${item.dueMileage.toLocaleString()} km` : 'Due not set';
     if (progressElement) {
@@ -227,17 +234,18 @@ async function loadDashboard(user) {
     const maintenance = maintenanceSnapshot.docs.map((entry) => normalizeRecord({ id: entry.id, ...entry.data() })).filter((item) => item.deleted !== true);
     const repairs = repairsSnapshot.docs.map((entry) => normalizeRecord({ id: entry.id, ...entry.data() })).filter((item) => item.deleted !== true);
     const now = new Date();
-    const monthTotal = repairs.filter((item) => {
-        const date = dateValue(item.date || item.createdAt);
-        return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    }).reduce((sum, item) => sum + Number(item.cost ?? item.amount ?? item.total ?? 0), 0);
-    const scheduleItems = buildMaintenanceItems(motorcycles, maintenance);
-    const urgent = scheduleItems.filter((item) => item.status !== 'scheduled').slice(0, 3);
+    const scheduleItems = buildMaintenanceItems(motorcycles, maintenance, now);
+    const alerts = scheduleItems.filter((item) => item.statusKey !== 'scheduled');
+    const urgent = alerts.slice(0, 3);
+    if (isDevelopment) {
+        console.log('[Dashboard] maintenance alerts', alerts.map((item) => ({
+            task: item.task,
+            statusKey: item.statusKey,
+            dueMileage: item.dueMileage
+        })));
+    }
     const nextItem = scheduleItems[0];
     const shouldAnimate = !dashboardHasRendered;
-    animateNumber(document.getElementById('totalBikes'), motorcycles.length, (value) => String(Math.round(value)), shouldAnimate);
-    animateNumber(document.getElementById('totalRecords'), repairs.length, (value) => String(Math.round(value)), shouldAnimate);
-    animateNumber(document.getElementById('monthTotal'), monthTotal, formatDashboardCurrency, shouldAnimate);
     renderStreak(uid);
     renderInsight(motorcycles);
     renderHero(nextItem, motorcycles, shouldAnimate);

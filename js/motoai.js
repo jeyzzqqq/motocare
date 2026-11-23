@@ -15,20 +15,21 @@ Never invent records, mileage, or dates.
 If data is missing, say so and suggest logging it in the app.
 If there are no bikes, suggest adding one in My Motorcycles.
 If the user names a bike, answer for that bike.
-Reply in plain text only. Do not use markdown symbols such as ** or #.`;
+Reply in plain text only. Do not use markdown symbols such as ** or #.
+If you give general maintenance guidance that is not in <user_data>, say clearly that it is general guidance and not from the user's records.`;
 
 const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 const retryDelayMs = 1500;
 const requestTimeoutMs = 20000;
 let isSubmittingMotoAi = false;
-let motoContext = '';
-let motoContextLoadedAt = 0;
-let motoContextPromise = null;
 let motoContextAccountUid = '';
 let motoContextGeneration = 0;
 const motoContextMaxAgeMs = 60000;
-let motoContextKey = '';
-let motoContextPromiseKey = '';
+let rawMotoData = null;
+let rawMotoDataUid = '';
+let rawMotoDataLoadedAt = 0;
+let rawMotoDataPromise = null;
+let rawMotoDataPromiseUid = '';
 let resolveMotoAuthReady;
 const motoAuthReadyPromise = new Promise((resolve) => { resolveMotoAuthReady = resolve; });
 
@@ -128,8 +129,6 @@ function truncateContextText(value, maxLength) {
 
 function formatMotoContext(motorcycles, repairs, maintenance, prompt = '') {
     const bikes = selectMotoContextBikes(motorcycles, prompt);
-    const deletedMotorcycleCount = motorcycles.filter((bike) => bike.deleted === true).length;
-    const activeMotorcycleCount = motorcycles.filter((bike) => bike.deleted !== true).length;
     if (!bikes.length) return 'No motorcycles are registered. Suggest adding one in My Motorcycles.';
 
     let bikeLimit = bikes.length;
@@ -148,18 +147,24 @@ function formatMotoContext(motorcycles, repairs, maintenance, prompt = '') {
         const dueItems = (MAINTENANCE_RULES[category.key] || []).map((rule) => {
             const taskStatus = getMaintenanceTaskStatus(bike, rule, bikeRecords);
             const statusKey = taskStatus.status.key;
-            if (statusKey !== 'overdue' && statusKey !== 'due') return null;
+            if (statusKey === 'scheduled') return null;
             const dueText = taskStatus.dueDate
                 ? contextDateText(taskStatus.dueDate)
                 : `${taskStatus.dueMileage.toLocaleString()} km`;
-            const statusLabel = statusKey === 'overdue' || statusKey === 'due' ? 'overdue' : 'due soon';
+            const statusLabels = {
+                overdue: 'overdue',
+                due: 'due now',
+                upcoming: 'coming up'
+            };
+            const statusLabel = statusLabels[statusKey];
+            if (!statusLabel) return null;
             return {
                 text: `${truncateContextText(rule.task, 70)}: ${statusLabel}, due ${dueText}`,
                 dueMileage: taskStatus.dueMileage,
                 statusKey
             };
         }).filter(Boolean).sort((left, right) => {
-            const statusRank = { overdue: 0, due: 1 };
+            const statusRank = { overdue: 0, due: 1, upcoming: 2 };
             const rankDiff = statusRank[left.statusKey] - statusRank[right.statusKey];
             return rankDiff !== 0 ? rankDiff : left.dueMileage - right.dueMileage;
         }).slice(0, 3).map((item) => item.text);
@@ -177,32 +182,92 @@ function formatMotoContext(motorcycles, repairs, maintenance, prompt = '') {
         if (text.length <= 2000) break;
         bikeLimit -= 1;
     }
+    return text;
+}
 
-    if (isDevelopment) {
-        const skippedBikeCount = deletedMotorcycleCount + Math.max(0, activeMotorcycleCount - bikeLimit);
-        bikes.slice(0, bikeLimit).forEach((bike) => {
-            const bikeRecords = repairs.concat(maintenance)
-                .filter((record) => record.deleted !== true)
-                .filter((record) => String(record.motorcycleId || record.motorbikeId || '') === String(bike.id));
-            console.log('[MotoAI] bike context', {
-                bike: bikeDisplayName(bike),
-                matchedRecords: bikeRecords.length,
-                skippedBikes: skippedBikeCount
+function logMotoContextDiagnostics(rawMotorcycles, rawMaintenance, rawRepairs) {
+    if (!isDevelopment) return;
+    const activeMotorcycles = rawMotorcycles.filter((bike) => bike.deleted !== true);
+    const deletedMotorcycles = rawMotorcycles.length - activeMotorcycles.length;
+    const deletedMaintenance = rawMaintenance.filter((record) => record.deleted === true).length;
+    const deletedRepairs = rawRepairs.filter((record) => record.deleted === true).length;
+    const activeMaintenance = rawMaintenance.filter((record) => record.deleted !== true);
+    const activeRepairs = rawRepairs.filter((record) => record.deleted !== true);
+    const activeBikeIds = new Set(activeMotorcycles.map((bike) => String(bike.id || '')));
+    const motorcycleDiagnostics = activeMotorcycles.map((bike) => {
+        const bikeId = String(bike.id || '');
+        return {
+            name: bikeDisplayName(bike),
+            idLast4: bikeId.slice(-4),
+            maintenanceMatches: activeMaintenance.filter((record) => String(record.motorcycleId || '') === bikeId).length,
+            repairMatches: activeRepairs.filter((record) => String(record.motorcycleId || '') === bikeId).length
+        };
+    });
+    const unmatchedMaintenance = activeMaintenance.filter((record) =>
+        !activeBikeIds.has(String(record.motorcycleId || ''))
+    ).length;
+    const unmatchedRepairs = activeRepairs.filter((record) =>
+        !activeBikeIds.has(String(record.motorcycleId || ''))
+    ).length;
+
+    console.log('[MotoAI] data diagnostics', {
+        totalMotorcycles: rawMotorcycles.length,
+        deletedMotorcycles,
+        activeMotorcycles: activeMotorcycles.length,
+        totalMaintenance: rawMaintenance.length,
+        deletedMaintenance,
+        totalRepairs: rawRepairs.length,
+        deletedRepairs,
+        bikes: motorcycleDiagnostics,
+        unmatchedMaintenance,
+        unmatchedRepairs
+    });
+}
+
+async function fetchRawMotoData(accountUid) {
+    if (rawMotoData && rawMotoDataUid === accountUid && Date.now() - rawMotoDataLoadedAt < motoContextMaxAgeMs) {
+        return rawMotoData;
+    }
+    if (!rawMotoDataPromise || rawMotoDataPromiseUid !== accountUid) {
+        rawMotoDataPromiseUid = accountUid;
+        const generation = motoContextGeneration;
+        rawMotoDataPromise = Promise.all([
+            getFirestoreDocs('motorcycles'),
+            getFirestoreDocs('repairs'),
+            getFirestoreDocs('maintenance')
+        ]).then(([motorcycles, repairs, maintenance]) => {
+            if (generation !== motoContextGeneration || accountUid !== (auth.currentUser?.uid || '')) {
+                return null;
+            }
+            const rawData = { motorcycles, repairs, maintenance };
+            rawMotoData = rawData;
+            rawMotoDataUid = accountUid;
+            rawMotoDataLoadedAt = Date.now();
+            logMotoContextDiagnostics(motorcycles, maintenance, repairs);
+            return rawData;
+        }).catch((error) => {
+            console.warn('[MotoAI] Personal context unavailable; sending without user data.', {
+                name: error?.name, code: error?.code, message: error?.message
             });
+            return null;
+        }).finally(() => {
+            rawMotoDataPromise = null;
+            rawMotoDataPromiseUid = '';
         });
     }
-    return text;
+    return rawMotoDataPromise;
 }
 
 async function loadMotoContext(prompt = '') {
     try {
         await motoAuthReadyPromise;
-        if (!auth.currentUser) return null;
-        const [motorcycles, repairs, maintenance] = await Promise.all([
-            getFirestoreDocs('motorcycles'),
-            getFirestoreDocs('repairs'),
-            getFirestoreDocs('maintenance')
-        ]);
+        const accountUid = auth.currentUser?.uid || '';
+        if (!accountUid) return null;
+        const rawData = await fetchRawMotoData(accountUid);
+        if (!rawData) return null;
+        const motorcycles = rawData.motorcycles;
+        const repairs = rawData.repairs;
+        const maintenance = rawData.maintenance;
         const normalizedMotorcycles = motorcycles.map((item) => normalizeRecord(item));
         const normalizedRepairs = repairs.map((item) => normalizeRecord(item)).filter((item) => item.deleted !== true);
         const normalizedMaintenance = maintenance.map((item) => normalizeRecord(item)).filter((item) => item.deleted !== true);
@@ -228,40 +293,17 @@ async function loadMotoContext(prompt = '') {
 async function getMotoContext(prompt = '') {
     await motoAuthReadyPromise;
     const accountUid = auth.currentUser?.uid || '';
-    if (!accountUid) return Promise.resolve(null);
-    const key = `${accountUid}:${String(prompt || '').trim().toLowerCase()}`;
-    if (motoContext && motoContextKey === key && Date.now() - motoContextLoadedAt < motoContextMaxAgeMs) return Promise.resolve(motoContext);
-    if (!motoContextPromise || motoContextPromiseKey !== key) {
-        motoContextPromiseKey = key;
-        const generation = motoContextGeneration;
-        motoContextPromise = loadMotoContext(prompt).then((context) => {
-            if (generation !== motoContextGeneration || accountUid !== (auth.currentUser?.uid || '')) {
-                return '';
-            }
-            if (!context) return null;
-            motoContext = context;
-            motoContextLoadedAt = Date.now();
-            motoContextKey = key;
-            if (isDevelopment) {
-                console.log('[MotoAI] context loaded', { length: context.length });
-                console.log('[MotoAI] full context', context);
-            }
-            return context;
-        }).finally(() => {
-            motoContextPromise = null;
-            motoContextPromiseKey = '';
-        });
-    }
-    return motoContextPromise;
+    if (!accountUid) return null;
+    return loadMotoContext(prompt);
 }
 
 function refreshMotoContext() {
     motoContextGeneration += 1;
-    motoContext = '';
-    motoContextLoadedAt = 0;
-    motoContextPromise = null;
-    motoContextKey = '';
-    motoContextPromiseKey = '';
+    rawMotoData = null;
+    rawMotoDataUid = '';
+    rawMotoDataLoadedAt = 0;
+    rawMotoDataPromise = null;
+    rawMotoDataPromiseUid = '';
 }
 
 function addMessage(text, type) {
