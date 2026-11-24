@@ -69,6 +69,7 @@
         .expense-log-card.is-animated .expense-log-row { opacity: 0; transform: translateY(8px); }
         .expense-log-card.is-animated.is-visible .expense-log-row { animation: expense-row-rise 350ms ease-out forwards; animation-delay: calc(var(--row-index) * 50ms); }
         .expense-empty { padding: 24px 12px; color: var(--moto-muted); font-size: 9px; text-align: center; }
+        .expense-empty a { color: var(--moto-primary); font-weight: 600; }
         .expense-hidden-hook { display: none; }
         @keyframes expense-bar-rise { to { transform: scaleY(1); } }
         @keyframes expense-bar-pulse { 50% { opacity: .7; transform: scaleY(1.04); } }
@@ -132,6 +133,6 @@
     <script type="module" src="./js/mobile-nav.js?v=4"></script>
     <script type="module" src="./js/motoai.js?v=4"></script>
     <script type="module" src="./js/add-record-overlay.js"></script>
-    <script type="module" src="./js/expenses.js?v=4"></script>
+    <script type="module" src="./js/expenses.js?v=5"></script>
 </body>
 </html>

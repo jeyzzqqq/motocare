@@ -86,7 +86,9 @@ async function loadExpenses(userId) {
             where('uid', '==', userId)
         ));
 
-        registeredMotorcycles = motorcyclesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        registeredMotorcycles = motorcyclesSnapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((motorcycle) => motorcycle.deleted !== true);
         await cleanupOrphanedMotorcycleRecords(motorcyclesSnapshot.docs);
 
         const querySnapshot = await getDocs(query(
@@ -138,7 +140,7 @@ function renderEmptyState() {
     setText('currentMonth', new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
     displayMonthlySpending();
-    displayBikeSpending(0);
+    displayBikeSpending();
     displayRecentExpenses();
     hasRenderedExpenseAnimations = true;
 }
@@ -182,7 +184,7 @@ function displayExpenses() {
     }
 
     displayMonthlySpending(shouldAnimate);
-    displayBikeSpending(total, shouldAnimate);
+    displayBikeSpending(shouldAnimate);
     displayRecentExpenses(shouldAnimate);
     hasRenderedExpenseAnimations = true;
 }
@@ -281,35 +283,77 @@ function formatCompactPeso(value) {
     return `P${Math.round(value).toLocaleString('en-US')}`;
 }
 
-function displayBikeSpending(total, shouldAnimate = false) {
+function displayBikeSpending(shouldAnimate = false) {
     const container = document.getElementById('bikeSpendingList');
     if (!container) return;
 
-    const bikeTotals = new Map();
-    registeredMotorcycles.forEach((motorcycle) => {
-        const name = motorcycle.motorcycleName || `${motorcycle.brand || ''} ${motorcycle.model || ''}`.trim() || 'Unnamed bike';
-        bikeTotals.set(name, 0);
-    });
+    if (!registeredMotorcycles.length) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'expense-empty';
+        emptyState.append(document.createTextNode("You don't have any motorcycles yet. "));
+
+        const motorcyclesLink = document.createElement('a');
+        motorcyclesLink.href = 'motorcycles.html';
+        motorcyclesLink.textContent = 'Go to the Motorcycles page';
+        emptyState.append(motorcyclesLink);
+        container.replaceChildren(emptyState);
+        return;
+    }
+
+    const bikeTotals = new Map(registeredMotorcycles.map((motorcycle) => [
+        String(motorcycle.id),
+        { motorcycle, amount: 0 }
+    ]));
     expenses.forEach((expense) => {
-        const name = expense.motorcycleName || 'Unassigned bike';
-        bikeTotals.set(name, (bikeTotals.get(name) || 0) + getExpenseAmount(expense));
+        const bikeTotal = bikeTotals.get(String(expense.motorcycleId || ''));
+        if (bikeTotal) bikeTotal.amount += getExpenseAmount(expense);
     });
 
-    container.innerHTML = Array.from(bikeTotals.entries()).map(([name, amount], index) => {
-        const percentage = total ? (amount / total) * 100 : 0;
-        return `<div class="bike-spending-row" style="--bike-index:${index}">
-            <div class="bike-spending-head"><span class="bike-spending-name">${name}</span><span class="bike-spending-amount">${formatPeso(amount)} · ${Math.round(percentage)}%</span></div>
-            <div class="progress-track"><div class="progress-fill" data-progress="${percentage}"></div></div>
-        </div>`;
-    }).join('') || '<p class="expense-empty">No motorcycles yet</p>';
+    const bikeSpending = Array.from(bikeTotals.values()).sort((left, right) => right.amount - left.amount);
+    const grandTotal = bikeSpending.reduce((sum, bike) => sum + bike.amount, 0);
+    container.replaceChildren();
+
+    bikeSpending.forEach(({ motorcycle, amount }, index) => {
+        const name = motorcycle.motorcycleName
+            || `${motorcycle.brand || ''} ${motorcycle.model || ''}`.trim()
+            || 'Unnamed bike';
+        const percentage = grandTotal ? (amount / grandTotal) * 100 : 0;
+        const row = document.createElement('div');
+        row.className = 'bike-spending-row';
+        row.style.setProperty('--bike-index', index);
+
+        const head = document.createElement('div');
+        head.className = 'bike-spending-head';
+        const bikeName = document.createElement('span');
+        bikeName.className = 'bike-spending-name';
+        bikeName.textContent = name;
+        const spendingAmount = document.createElement('span');
+        spendingAmount.className = 'bike-spending-amount';
+        spendingAmount.textContent = `${formatPeso(amount)} · ${Math.round(percentage)}%`;
+        head.append(bikeName, spendingAmount);
+
+        const progressTrack = document.createElement('div');
+        progressTrack.className = 'progress-track';
+        const progressFill = document.createElement('div');
+        progressFill.className = 'progress-fill';
+        progressFill.dataset.progress = String(percentage);
+        progressTrack.append(progressFill);
+        row.append(head, progressTrack);
+        container.append(row);
+    });
+
     if (shouldAnimate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         observeOnce(container, () => {
             container.querySelectorAll('.progress-fill').forEach((fill, index) => {
-                setTimeout(() => { fill.style.width = `${fill.dataset.progress}%`; }, index * 100);
+                const progress = Math.max(0, Math.min(100, Number(fill.dataset.progress) || 0));
+                setTimeout(() => { fill.style.width = `${progress}%`; }, index * 100);
             });
         });
     } else {
-        container.querySelectorAll('.progress-fill').forEach((fill) => { fill.style.width = `${fill.dataset.progress}%`; });
+        container.querySelectorAll('.progress-fill').forEach((fill) => {
+            const progress = Math.max(0, Math.min(100, Number(fill.dataset.progress) || 0));
+            fill.style.width = `${progress}%`;
+        });
     }
 }
 

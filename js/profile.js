@@ -1,12 +1,11 @@
-import { auth, db, storage, onAuthStateChanged } from "./firebase-config.js?v=3";
-import { updateProfile, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
-import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-storage.js";
+import { auth, onAuthStateChanged } from "./firebase-config.js?v=3";
+import { updateProfile } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { getFirestoreDocs } from './firebaseUtils.js';
 
 let currentUser = null;
-let accountSettings = { language: 'English', currency: 'PHP' };
 let currentBikeCount = 0;
+let isEditingProfile = false;
+let isSavingProfile = false;
 
 const STREAK_PREFIX = 'motocare-streak-v1:';
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -43,19 +42,11 @@ function getStreakState(uid) {
 }
 
 function renderProfile(user, bikeCount) {
-    const name = user.displayName || user.email?.split('@')[0] || 'Rider';
+    const name = user.displayName?.trim() || user.email?.split('@')[0] || 'Rider';
     document.getElementById('profileName').textContent = name;
     document.getElementById('profileEmail').textContent = user.email || '';
     document.getElementById('bikeCount').textContent = `${bikeCount} motorcycle${bikeCount === 1 ? '' : 's'}`;
-    if (user.photoURL) {
-        const avatar = document.getElementById('profileAvatar');
-        const image = document.createElement('img');
-        image.src = user.photoURL;
-        image.alt = `${name} profile photo`;
-        avatar.replaceChildren(image);
-    } else {
-        document.getElementById('profileAvatar').textContent = name.charAt(0).toUpperCase();
-    }
+    document.getElementById('profileAvatar').textContent = getUserInitial(user);
 
     const state = getStreakState(user.uid);
     document.getElementById('profileStreak').textContent = `${state.streak}-Day Streak`;
@@ -63,112 +54,331 @@ function renderProfile(user, bikeCount) {
     document.getElementById('profileProgress').textContent = state.remaining ? `${state.remaining} more day${state.remaining === 1 ? '' : 's'} to complete your week.` : 'You completed your week. Keep it going!';
 }
 
+function getUserInitial(user) {
+    return (user.displayName || '').trim().charAt(0).toUpperCase()
+        || (user.email || '').trim().charAt(0).toUpperCase()
+        || 'U';
+}
+
 function ensureAccountSettingsMarkup() {
     if (document.getElementById('accountSettingsBackdrop')) return;
     const root = document.createElement('div');
     root.innerHTML = `<div id="accountSettingsBackdrop" class="motorcycles-modal-backdrop">
         <section class="motorcycles-modal-sheet account-settings" role="dialog" aria-modal="true" aria-labelledby="accountSettingsTitle">
-            <div class="account-settings__handle"></div>
-            <header class="account-settings__header"><div class="flex items-center gap-3"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 1.72l-.16 1.15a8 8 0 0 0-1.73 1l-.96-.5a2 2 0 0 0-2.5.62l-.22.38a2 2 0 0 0 .5 2.53l.9.73a8 8 0 0 0 0 2l-.9.73a2 2 0 0 0-.5 2.53l.22.38a2 2 0 0 0 2.5.62l.96-.5a8 8 0 0 0 1.73 1l.16 1.15a2 2 0 0 0 2 1.72h.44a2 2 0 0 0 2-1.72l.16-1.15a8 8 0 0 0 1.73-1l.96.5a2 2 0 0 0 2.5-.62l.22-.38a2 2 0 0 0-.5-2.53l-.9-.73a8 8 0 0 0 0-2l.9-.73a2 2 0 0 0 .5-2.53l-.22-.38a2 2 0 0 0-2.5-.62l-.96.5a8 8 0 0 0-1.73-1l-.16-1.15a2 2 0 0 0-2-1.72z"></path><circle cx="12" cy="12" r="3"></circle></svg></span><h2 id="accountSettingsTitle">Account Settings</h2></div><button id="accountSettingsClose" class="account-settings__close" type="button" aria-label="Close account settings"><i class="lucide lucide-x"></i></button></header>
-            <div class="account-settings__body">
-                <div class="account-settings__photo"><button id="accountPhotoButton" class="account-settings__avatar" type="button" aria-label="Change profile photo"><i class="lucide lucide-user-round"></i><img id="accountPhoto" alt="" hidden><span><i class="lucide lucide-camera"></i></span></button><input id="accountPhotoInput" type="file" accept="image/*" hidden><p>Tap to change photo</p></div>
-                <section class="account-settings__card"><div class="account-settings__row"><div class="account-settings__field"><small>FULL NAME</small><strong id="accountName">Loading...</strong><input id="accountNameInput" type="text" maxlength="80" hidden></div><button id="accountNameEdit" class="account-settings__link" type="button">Edit</button></div><div class="account-settings__divider"></div><div class="account-settings__row"><div class="account-settings__field"><small>EMAIL ADDRESS</small><strong id="accountEmail">Loading...</strong></div><span id="accountVerification" class="account-settings__verified"></span></div><div class="account-settings__divider"></div><button id="accountPasswordButton" class="account-settings__password" type="button"><span class="account-settings__icon"><i class="lucide lucide-lock-keyhole"></i></span><span class="account-settings__field"><strong>Change Password</strong><small id="accountPasswordChanged">Not changed yet</small></span><i class="lucide lucide-chevron-right"></i></button><form id="accountPasswordForm" class="account-settings__password-form" hidden><label for="accountNewPassword">New password</label><input id="accountNewPassword" type="password" minlength="6" autocomplete="new-password" required><button type="submit">Update Password</button></form></section>
-                <section class="account-settings__card"><h3>PREFERENCES</h3><div class="account-settings__preference"><small>LANGUAGE</small><div class="account-settings__toggles"><button type="button" data-account-language="Filipino">Filipino</button><button type="button" data-account-language="English">English</button></div></div><div class="account-settings__divider"></div><div class="account-settings__preference"><small>CURRENCY</small><div class="account-settings__toggles"><button type="button" data-account-currency="PHP">PHP (₱)</button><button type="button" data-account-currency="USD">USD ($)</button></div></div></section>
-                <section class="account-settings__danger"><div><i class="lucide lucide-shield-alert"></i><span><strong>Danger Zone</strong><small>These actions are permanent and cannot be undone.</small></span></div><button id="accountDeleteButton" type="button">Delete Account</button></section>
+            <div class="account-settings__content">
+                <a class="account-settings__back" href="#" aria-label="Back to Account">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Account</span>
+                </a>
+                <main class="account-settings__main">
+                    <h2 id="accountSettingsTitle">Personal information</h2>
+                    <div id="accountPersonalAvatar" class="account-settings__avatar" aria-label="Profile avatar">U</div>
+                    <p class="account-settings__section-label">PROFILE DETAILS</p>
+                    <div class="account-settings__fields">
+                        <div class="account-settings__field">
+                            <label for="accountNameInput">Full name</label>
+                            <input id="accountNameInput" type="text" maxlength="80" autocomplete="name" readonly tabindex="-1" aria-describedby="accountNameError">
+                            <small id="accountNameError" class="account-settings__error" aria-live="polite"></small>
+                        </div>
+                        <div class="account-settings__field">
+                            <label for="accountEmail">Email address</label>
+                            <input id="accountEmail" type="email" readonly tabindex="-1" aria-readonly="true" autocomplete="email">
+                        </div>
+                        <div class="account-settings__field">
+                            <label for="accountMemberSince">Member since</label>
+                            <input id="accountMemberSince" class="account-settings__readonly" type="text" readonly tabindex="-1" aria-readonly="true">
+                        </div>
+                    </div>
+                    <div class="account-settings__divider" aria-hidden="true"></div>
+                </main>
+                <footer class="account-settings__footer">
+                    <button id="accountNameEdit" class="account-settings__save" type="button">Edit profile</button>
+                </footer>
             </div>
         </section>
     </div>`;
     document.body.appendChild(root.firstElementChild);
     const backdrop = document.getElementById('accountSettingsBackdrop');
-    backdrop.addEventListener('click', (event) => { if (event.target === backdrop) closeAccountSettings(); const button = event.target.closest('[data-account-language], [data-account-currency]'); if (button) updatePreference(button); });
-    document.getElementById('accountSettingsClose').addEventListener('click', closeAccountSettings);
-    document.getElementById('accountPhotoButton').addEventListener('click', () => document.getElementById('accountPhotoInput').click());
-    document.getElementById('accountPhotoInput').addEventListener('change', changePhoto);
+    backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) closeAccountSettings();
+    });
+    document.querySelector('.account-settings__back').addEventListener('click', (event) => {
+        event.preventDefault();
+        closeAccountSettings();
+    });
     document.getElementById('accountNameEdit').addEventListener('click', toggleNameEdit);
-    document.getElementById('accountPasswordButton').addEventListener('click', () => { document.getElementById('accountPasswordForm').hidden = false; document.getElementById('accountNewPassword').focus(); });
-    document.getElementById('accountPasswordForm').addEventListener('submit', changePassword);
-    document.getElementById('accountDeleteButton').addEventListener('click', deleteAccount);
-}
-
-function relativeTime(value) {
-    if (!value) return 'Not changed yet';
-    const date = value?.toDate ? value.toDate() : new Date(value);
-    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
-    return Number.isNaN(date.getTime()) ? 'Not changed yet' : days < 1 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+    document.getElementById('accountNameInput').addEventListener('input', (event) => {
+        document.getElementById('accountNameError').textContent = '';
+        event.target.removeAttribute('aria-invalid');
+    });
+    document.getElementById('accountNameInput').addEventListener('focus', (event) => {
+        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        window.setTimeout(() => event.target.scrollIntoView({ block: 'center', behavior }), 250);
+    });
 }
 
 function renderAccountSettings() {
-    const name = currentUser.displayName || currentUser.email?.split('@')[0] || 'Rider';
-    document.getElementById('accountName').textContent = name;
-    document.getElementById('accountEmail').textContent = currentUser.email || '';
-    document.getElementById('accountVerification').innerHTML = currentUser.emailVerified ? '<i class="lucide lucide-check"></i> Verified' : '<i class="lucide lucide-circle-alert"></i> Unverified';
-    document.getElementById('accountPasswordChanged').textContent = relativeTime(accountSettings.passwordChangedAt);
-    const photo = document.getElementById('accountPhoto');
-    if (currentUser.photoURL) { photo.src = currentUser.photoURL; photo.hidden = false; photo.previousElementSibling.hidden = true; }
-    document.querySelectorAll('[data-account-language]').forEach((button) => button.classList.toggle('is-selected', button.dataset.accountLanguage === accountSettings.language));
-    document.querySelectorAll('[data-account-currency]').forEach((button) => button.classList.toggle('is-selected', button.dataset.accountCurrency === accountSettings.currency));
+    const name = currentUser.displayName?.trim() || currentUser.email?.split('@')[0] || 'Rider';
+    const nameInput = document.getElementById('accountNameInput');
+    if (document.activeElement !== nameInput) nameInput.value = name;
+    document.getElementById('accountEmail').value = currentUser.email || '';
+    document.getElementById('accountMemberSince').value = formatMemberSince(currentUser.metadata?.creationTime);
+    document.getElementById('accountPersonalAvatar').textContent = getUserInitial(currentUser);
 }
 
-async function loadAccountSettings() {
-    const snapshot = await getDoc(doc(db, 'userSettings', currentUser.uid));
-    accountSettings = { language: 'English', currency: 'PHP', ...(snapshot.exists() ? snapshot.data() : {}) };
-    localStorage.setItem('motocare.currency', accountSettings.currency);
+function formatMemberSince(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 }
 
-async function saveAccountSettings() {
-    await setDoc(doc(db, 'userSettings', currentUser.uid), { language: accountSettings.language, currency: accountSettings.currency, updatedAt: serverTimestamp() }, { merge: true });
+function setEditMode(editing) {
+    isEditingProfile = editing;
+    const sheet = document.querySelector('#accountSettingsBackdrop .account-settings');
+    const nameInput = document.getElementById('accountNameInput');
+    const actionButton = document.getElementById('accountNameEdit');
+
+    sheet?.classList.toggle('is-editing', editing);
+    nameInput.readOnly = !editing;
+    nameInput.tabIndex = editing ? 0 : -1;
+    actionButton.textContent = editing ? 'Save changes' : 'Edit profile';
 }
 
-function updatePreference(button) {
-    const key = button.dataset.accountLanguage ? 'language' : 'currency';
-    accountSettings[key] = button.dataset.accountLanguage || button.dataset.accountCurrency;
-    if (key === 'currency') localStorage.setItem('motocare.currency', accountSettings.currency);
-    renderAccountSettings();
-    saveAccountSettings().then(() => window.showToast?.('Preference updated.', 'success')).catch(() => window.showToast?.('Could not save preference.', 'error'));
+function discardProfileChanges() {
+    document.getElementById('accountNameError').textContent = '';
+    document.getElementById('accountNameInput').removeAttribute('aria-invalid');
+    setEditMode(false);
+    if (currentUser) renderAccountSettings();
 }
 
-function toggleNameEdit() {
+async function toggleNameEdit() {
+    if (!isEditingProfile) {
+        setEditMode(true);
+        return;
+    }
+
     const input = document.getElementById('accountNameInput');
     const button = document.getElementById('accountNameEdit');
-    if (input.hidden) { input.value = document.getElementById('accountName').textContent; input.hidden = false; document.getElementById('accountName').hidden = true; button.textContent = 'Save'; input.focus(); return; }
     const name = input.value.trim();
-    if (!name) return;
-    updateProfile(currentUser, { displayName: name }).then(() => { input.hidden = true; document.getElementById('accountName').hidden = false; button.textContent = 'Edit'; renderProfile(currentUser, currentBikeCount); renderAccountSettings(); window.showToast?.('Name updated.', 'success'); }).catch(() => window.showToast?.('Could not update your name.', 'error'));
-}
+    if (!name) {
+        input.setAttribute('aria-invalid', 'true');
+        document.getElementById('accountNameError').textContent = 'Please enter your name.';
+        input.focus();
+        return;
+    }
 
-async function changePhoto(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try { const photoRef = ref(storage, `profilePhotos/${currentUser.uid}`); await uploadBytes(photoRef, file); await updateProfile(currentUser, { photoURL: await getDownloadURL(photoRef) }); renderProfile(currentUser, currentBikeCount); renderAccountSettings(); window.showToast?.('Profile photo updated.', 'success'); } catch (error) { console.error(error); window.showToast?.('Could not update your photo.', 'error'); }
-}
-
-async function changePassword(event) {
-    event.preventDefault();
-    try { await updatePassword(currentUser, document.getElementById('accountNewPassword').value); accountSettings.passwordChangedAt = new Date().toISOString(); await setDoc(doc(db, 'userSettings', currentUser.uid), { passwordChangedAt: accountSettings.passwordChangedAt, updatedAt: serverTimestamp() }, { merge: true }); event.target.reset(); event.target.hidden = true; renderAccountSettings(); window.showToast?.('Password updated.', 'success'); } catch (error) { console.error(error); window.showToast?.('Please sign in again before changing your password.', 'error'); }
-}
-
-async function deleteAccount() {
-    if (!currentUser || !window.confirm('Delete your MotoCare account permanently? This cannot be undone.') || !window.confirm('This will permanently remove your account access. Continue?')) return;
-    try { await deleteUser(currentUser); window.location.href = './index.html'; } catch (error) { console.error(error); window.showToast?.('Please sign in again before deleting your account.', 'error'); }
+    button.disabled = true;
+    isSavingProfile = true;
+    try {
+        await updateProfile(currentUser, { displayName: name });
+        renderProfile(currentUser, currentBikeCount);
+        renderAccountSettings();
+        setEditMode(false);
+        window.showToast?.('Name updated.', 'success');
+    } catch (error) {
+        console.error(error);
+        window.showToast?.('Could not save your profile.', 'error');
+    } finally {
+        isSavingProfile = false;
+        button.disabled = false;
+    }
 }
 
 function addAccountSettingsStyles() {
     const style = document.createElement('style');
-    style.textContent = `body.notification-settings-open{overflow:hidden}.account-settings{max-height:88vh;overflow:hidden;padding:10px 14px max(16px,env(safe-area-inset-bottom))}.account-settings__handle{width:48px;height:6px;margin:0 auto 8px;border-radius:999px;background:#d1d5d3}.account-settings__header{display:flex;align-items:center;justify-content:space-between;padding:2px 1px 12px;border-bottom:1px solid #edf0ee}.account-settings__header h2{margin:0;color:#172033;font:700 17px/1.2 sans-serif}.account-settings__close{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;color:#7e8783;background:#f1f3f2}.account-settings__body{max-height:calc(88vh - 58px);overflow-y:auto;padding:14px 0}.account-settings__photo{text-align:center}.account-settings__avatar{position:relative;width:88px;height:88px;border:0;border-radius:50%;color:#2e9e4f;background:#e7f8eb;font-size:34px}.account-settings__avatar img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover}.account-settings__avatar>span{position:absolute;right:-2px;bottom:0;display:grid;place-items:center;width:30px;height:30px;border:3px solid #fff;border-radius:50%;color:#fff;background:#2e9e4f;font-size:13px}.account-settings__photo p{margin:7px 0 14px;color:#737d78;font:500 11px sans-serif}.account-settings__card,.account-settings__danger{margin-top:12px;padding:4px 12px;border:1px solid #e4e9e5;border-radius:14px;background:#fff}.account-settings__row,.account-settings__password,.account-settings__preference{display:flex;align-items:center;gap:10px;min-height:64px}.account-settings__field{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px;text-align:left}.account-settings__field small,.account-settings__preference>small,.account-settings__card>h3{color:#737d78;font:700 10px sans-serif;letter-spacing:.04em}.account-settings__field strong{overflow:hidden;color:#202a27;font:700 13px sans-serif;text-overflow:ellipsis;white-space:nowrap}.account-settings__link{min-width:44px;border:0;color:#2e9e4f;background:transparent;font-weight:700}.account-settings__verified{display:flex;align-items:center;gap:3px;color:#2e9e4f;font-size:11px;font-weight:700;white-space:nowrap}.account-settings__divider{height:1px;background:#f0f2f1}.account-settings__password{width:100%;border:0;background:#fff;text-align:left}.account-settings__password .account-settings__field small{font-weight:500}.account-settings__icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:50%;color:#2e9e4f;background:#e7f8eb}.account-settings__password>i{color:#c3c9c6}.account-settings__card>h3{margin:12px 0 0}.account-settings__preference{justify-content:space-between;min-height:58px}.account-settings__toggles{display:grid;grid-template-columns:1fr 1fr;min-width:170px}.account-settings__toggles button{min-height:44px;padding:6px 8px;border:1px solid #dfe5e1;color:#737d78;background:#fff;font:700 11px sans-serif}.account-settings__toggles button:first-child{border-radius:9px 0 0 9px}.account-settings__toggles button:last-child{border-left:0;border-radius:0 9px 9px 0}.account-settings__toggles button.is-selected{border-color:#2e9e4f;color:#fff;background:#2e9e4f}.account-settings__danger{border-color:#f0b8b8;background:#fff5f5}.account-settings__danger>div{display:flex;align-items:flex-start;gap:10px;padding:12px 0}.account-settings__danger>div>i{color:#dc4b4b;font-size:22px}.account-settings__danger strong,.account-settings__danger small{display:block}.account-settings__danger strong{color:#b42323;font-size:14px}.account-settings__danger small{margin-top:3px;color:#b95b5b;font-size:10px}.account-settings__danger button{width:100%;min-height:44px;margin:2px 0 12px;border:1px solid #dc4b4b;border-radius:10px;color:#c53030;background:#fff;font-weight:700}.account-settings__input,.account-settings__password-form input{width:100%;padding:8px;border:1px solid #dfe5e1;border-radius:8px}.account-settings__password-form{padding:10px 0}.account-settings__password-form label{display:block;margin-bottom:5px;color:#737d78;font-size:11px}.account-settings__password-form button{min-height:44px;margin-top:8px;padding:0 14px;border:0;border-radius:9px;color:#fff;background:#2e9e4f;font-weight:700}@media(min-width:480px){.account-settings{width:min(100%,420px)}}`;
+    style.textContent = `
+        body.notification-settings-open { overflow: hidden; }
+        .account-settings {
+            display: flex;
+            flex-direction: column;
+            width: min(calc(100% - 36px), 480px);
+            height: min(92dvh, 760px);
+            max-height: 92dvh;
+            padding: 0;
+            overflow: hidden;
+            border-radius: 12px;
+            color: var(--moto-text);
+            background: var(--moto-surface);
+        }
+        .account-settings__content {
+            display: flex;
+            min-height: 0;
+            height: 100%;
+            flex-direction: column;
+            padding: max(16px, env(safe-area-inset-top)) 16px 0;
+        }
+        .account-settings__back {
+            display: flex;
+            min-height: 44px;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 7px;
+            color: var(--moto-streak-primary);
+            font-size: 15px;
+            font-weight: 400;
+            text-decoration: none;
+            transition: transform 120ms ease-out;
+        }
+        .account-settings__back:active { transform: scale(.98); }
+        .account-settings__back svg { flex: 0 0 auto; }
+        .account-settings__main {
+            min-height: 0;
+            flex: 1;
+            overflow-y: auto;
+            padding-top: 8px;
+            scrollbar-width: none;
+        }
+        .account-settings__main::-webkit-scrollbar { display: none; }
+        #accountSettingsTitle {
+            overflow: hidden;
+            margin: 0;
+            color: var(--moto-text);
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: -.03em;
+            line-height: 1.15;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            animation: personal-info-enter 360ms ease-out both;
+        }
+        .account-settings__avatar {
+            display: grid;
+            width: 96px;
+            height: 96px;
+            flex: 0 0 96px;
+            place-items: center;
+            margin: 24px auto 0;
+            overflow: hidden;
+            border-radius: 50%;
+            color: var(--moto-surface);
+            background: var(--moto-streak-primary);
+            font: 700 36px var(--moto-font);
+            animation: personal-info-enter 360ms ease-out both;
+        }
+        .account-settings__section-label {
+            margin: 24px 0 18px;
+            color: var(--moto-muted);
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: .08em;
+            line-height: 1.2;
+        }
+        .account-settings__fields { display: grid; gap: 16px; }
+        .account-settings__field {
+            display: grid;
+            min-width: 0;
+            gap: 7px;
+            animation: personal-info-enter 360ms ease-out both;
+        }
+        .account-settings__field:nth-child(2) { animation-delay: 40ms; }
+        .account-settings__field:nth-child(3) { animation-delay: 80ms; }
+        .account-settings__field label {
+            color: var(--moto-text);
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.25;
+        }
+        .account-settings__field input {
+            width: 100%;
+            height: 52px;
+            padding: 0 16px;
+            overflow: hidden;
+            border: 1px solid var(--moto-upcoming);
+            border-radius: 12px;
+            outline: 0;
+            color: var(--moto-text);
+            background: var(--moto-surface);
+            font: 400 15px var(--moto-font);
+            text-overflow: ellipsis;
+            transition: border-color 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
+        }
+        .account-settings__field input:not([readonly]) { color: var(--moto-text); }
+        .account-settings__field input:not([readonly]):focus {
+            border: 1.5px solid var(--moto-streak-primary);
+            color: var(--moto-text);
+        }
+        .account-settings__field input[readonly] { cursor: default; }
+        .account-settings__field input.account-settings__readonly {
+            border-color: transparent;
+            color: var(--moto-muted);
+            background: var(--moto-icon-tile);
+        }
+        .account-settings__field input.account-settings__readonly:focus { border-color: transparent; }
+        .account-settings.is-editing .account-settings__field input:not([readonly]) {
+            border-color: var(--moto-upcoming);
+            background: var(--moto-surface);
+        }
+        .account-settings.is-editing .account-settings__field input:not([readonly]):focus {
+            border-color: var(--moto-streak-primary);
+        }
+        .account-settings__field input[aria-invalid="true"] { border-color: var(--moto-overdue); }
+        .account-settings__error {
+            min-height: 0;
+            color: var(--moto-overdue);
+            font-size: 12px;
+            line-height: 1.3;
+        }
+        .account-settings__error:empty { display: none; }
+        .account-settings__divider {
+            height: 1px;
+            margin-top: 16px;
+            background: var(--moto-border);
+        }
+        .account-settings__footer {
+            flex: 0 0 auto;
+            margin: 0 -16px;
+            padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+            background: var(--moto-surface);
+        }
+        .account-settings__save {
+            width: 100%;
+            min-height: 52px;
+            border: 0;
+            border-radius: 999px;
+            color: var(--moto-surface);
+            background: var(--moto-streak-primary);
+            font: 600 14px var(--moto-font);
+            cursor: pointer;
+            transition: transform 120ms ease-out;
+        }
+        .account-settings__save:active { transform: scale(.98); }
+        .account-settings__save:disabled { opacity: .65; cursor: wait; }
+        .account-settings__save:focus-visible,
+        .account-settings__back:focus-visible { outline: 2px solid var(--moto-streak-primary); outline-offset: 3px; }
+        @keyframes personal-info-enter {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .account-settings__back,
+            .account-settings__field input,
+            .account-settings__save { transition: none; }
+            #accountSettingsTitle,
+            .account-settings__avatar,
+            .account-settings__field { animation: none; }
+        }
+        @media (min-width: 481px) {
+            .account-settings { width: min(calc(100% - 40px), 480px); }
+        }
+    `;
     document.head.appendChild(style);
 }
 
 async function openAccountSettings() {
+    if (!currentUser) return;
     ensureAccountSettingsMarkup();
-    try { await loadAccountSettings(); } catch (error) { console.error('Account settings load failed:', error); }
     renderAccountSettings();
+    setEditMode(false);
     document.getElementById('accountSettingsBackdrop').classList.add('is-open');
     document.querySelector('#accountSettingsBackdrop .account-settings').classList.add('is-open');
     document.body.classList.add('notification-settings-open');
 }
 
 function closeAccountSettings() {
+    if (isSavingProfile) return;
     const backdrop = document.getElementById('accountSettingsBackdrop');
+    if (isEditingProfile) discardProfileChanges();
     backdrop?.classList.remove('is-open');
     backdrop?.querySelector('.account-settings')?.classList.remove('is-open');
     document.body.classList.remove('notification-settings-open');
@@ -223,16 +433,6 @@ async function loadUserStats() {
 // Edit toggle - simple for now (no email editing)
 window.toggleEdit = function() {
     openAccountSettings();
-};
-
-// Save profile - no-op for now
-window.saveProfile = async function() {
-    console.log('Save clicked');
-};
-
-// Cancel edit - no-op for now
-window.cancelEdit = function() {
-    console.log('Cancel clicked');
 };
 
 // Logout
