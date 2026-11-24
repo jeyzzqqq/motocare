@@ -8,6 +8,7 @@ let isEditingProfile = false;
 let isSavingProfile = false;
 let draftAppearanceTheme = 'light';
 let appearanceSettingsOpener = null;
+let termsSettingsOpener = null;
 
 const STREAK_PREFIX = 'motocare-streak-v1:';
 const THEME_STORAGE_KEY = 'motocare.theme';
@@ -484,6 +485,207 @@ function closeAppearanceSettings() {
     appearanceSettingsOpener = null;
 }
 
+function ensureTermsSettingsMarkup() {
+    if (document.getElementById('termsSettingsBackdrop')) return;
+
+    const root = document.createElement('div');
+    root.innerHTML = `<div id="termsSettingsBackdrop" class="motorcycles-modal-backdrop terms-settings-backdrop">
+        <section class="motorcycles-modal-sheet terms-settings" role="dialog" aria-modal="true" aria-labelledby="termsSettingsTitle" tabindex="-1">
+            <div class="terms-settings__content">
+                <a class="terms-settings__back" href="#" aria-label="Back to Account">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Account</span>
+                </a>
+                <div class="terms-settings__main">
+                    <h2 id="termsSettingsTitle">Terms and Conditions</h2>
+                    <p class="terms-settings__intro">Please read these terms before using MotoCare.</p>
+                    <p class="terms-settings__label">TERMS OF USE · DRAFT FOR REVIEW</p>
+                    <section class="terms-settings__section">
+                        <h3>1. Use of MotoCare</h3>
+                        <p>MotoCare helps you track your motorcycle's maintenance, repairs, and expenses. Reminders are estimates based on what you enter, so keep your records and odometer readings accurate.</p>
+                    </section>
+                    <section class="terms-settings__section">
+                        <h3>2. Your account</h3>
+                        <p>Use accurate details and keep your log-in credentials private.</p>
+                    </section>
+                    <section class="terms-settings__section">
+                        <h3>3. MotoAI and maintenance guidance</h3>
+                        <p>MotoAI is an AI assistant and it can be wrong. Treat its answers and suggested schedules as general guidance. For anything involving safety, ask a qualified mechanic.</p>
+                    </section>
+                    <section class="terms-settings__section">
+                        <h3>4. Your data</h3>
+                        <p>We collect your name, email, and motorcycle records only to run MotoCare. MotoAI sends a summary of your records (without your name or email) to generate replies.</p>
+                    </section>
+                    <section class="terms-settings__section">
+                        <h3>5. Availability</h3>
+                        <p>We may change features or pause the app at times, and suspend accounts that misuse it.</p>
+                    </section>
+                </div>
+                <footer class="terms-settings__footer">
+                    <p>Questions? Visit <a href="#helpAndSupportRow" class="terms-settings__help-link">Help and Support</a>.</p>
+                </footer>
+            </div>
+        </section>
+    </div>`;
+    document.body.appendChild(root.firstElementChild);
+
+    const backdrop = document.getElementById('termsSettingsBackdrop');
+    backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) closeTermsSettings();
+    });
+    backdrop.querySelector('.terms-settings__back').addEventListener('click', (event) => {
+        event.preventDefault();
+        closeTermsSettings();
+    });
+    backdrop.querySelector('.terms-settings__help-link').addEventListener('click', (event) => {
+        event.preventDefault();
+        closeTermsSettings(false);
+        document.getElementById('helpAndSupportRow')?.focus({ preventScroll: true });
+    });
+}
+
+function openTermsSettings() {
+    ensureTermsSettingsMarkup();
+    termsSettingsOpener = document.getElementById('termsAndConditionsRow');
+    const backdrop = document.getElementById('termsSettingsBackdrop');
+    const dialog = backdrop.querySelector('.terms-settings');
+    backdrop.classList.add('is-open');
+    dialog.classList.add('is-open');
+    document.body.classList.add('notification-settings-open');
+    dialog.focus({ preventScroll: true });
+}
+
+function closeTermsSettings(returnFocus = true) {
+    const backdrop = document.getElementById('termsSettingsBackdrop');
+    backdrop?.classList.remove('is-open');
+    backdrop?.querySelector('.terms-settings')?.classList.remove('is-open');
+    document.body.classList.remove('notification-settings-open');
+    if (returnFocus && termsSettingsOpener?.isConnected) termsSettingsOpener.focus({ preventScroll: true });
+    termsSettingsOpener = null;
+}
+
+function addTermsSettingsStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .terms-settings {
+            width: min(calc(100% - 14px), 480px);
+            height: calc(100dvh - 5px);
+            max-height: calc(100dvh - 5px);
+            margin-bottom: 2px;
+            border-radius: 12px;
+            background: var(--moto-surface);
+        }
+        .terms-settings__content {
+            display: flex;
+            min-height: 0;
+            height: 100%;
+            flex-direction: column;
+            padding: max(12px, env(safe-area-inset-top)) 16px 0;
+        }
+        .terms-settings__back {
+            display: flex;
+            min-height: 38px;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 7px;
+            color: var(--moto-primary);
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .terms-settings__back svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.75;
+        }
+        .terms-settings__main {
+            min-height: 0;
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 0 12px;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+        }
+        .terms-settings__main::-webkit-scrollbar { display: none; }
+        #termsSettingsTitle {
+            margin: 0;
+            color: var(--moto-text);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .terms-settings__intro {
+            margin: 12px 0 20px;
+            color: var(--moto-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .terms-settings__label {
+            margin: 0 0 14px;
+            color: var(--moto-muted);
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: .04em;
+            line-height: 1.3;
+        }
+        .terms-settings__section + .terms-settings__section { margin-top: 16px; }
+        .terms-settings__section h3 {
+            margin: 0;
+            color: var(--moto-text);
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        .terms-settings__section p {
+            margin: 4px 0 0;
+            color: var(--moto-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .terms-settings__footer {
+            flex: 0 0 auto;
+            margin: 0;
+            padding: 10px 0 max(14px, env(safe-area-inset-bottom));
+            border-top: 1px solid var(--moto-border);
+            color: var(--moto-muted);
+            font-size: 11px;
+            line-height: 1.4;
+            text-align: center;
+        }
+        .terms-settings__footer p { margin: 0; }
+        .terms-settings__help-link {
+            color: var(--moto-muted);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .terms-settings__back:focus-visible,
+        .terms-settings__help-link:focus-visible {
+            outline: 2px solid var(--moto-primary);
+            outline-offset: 3px;
+        }
+        @media (min-width: 481px) {
+            .terms-settings {
+                width: min(calc(100% - 40px), 480px);
+                height: min(85dvh, 720px);
+                max-height: 85dvh;
+                margin-bottom: 0;
+                border-radius: 24px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+document.getElementById('termsAndConditionsRow')?.addEventListener('click', openTermsSettings);
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.getElementById('termsSettingsBackdrop')?.classList.contains('is-open')) {
+        closeTermsSettings();
+    }
+});
+
 function saveAppearanceTheme() {
     try {
         localStorage.setItem(THEME_STORAGE_KEY, draftAppearanceTheme);
@@ -504,6 +706,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 addAccountSettingsStyles();
+addTermsSettingsStyles();
 
 // Auth State Listener - redirect ONLY if explicitly checked and no user
 onAuthStateChanged(auth, async (user) => {
