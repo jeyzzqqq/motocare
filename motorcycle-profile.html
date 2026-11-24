@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f6f7f5">
+    <script src="./js/theme-init.js?v=1"></script>
+    <title>MotoCare - Motorcycle profile</title>
+    <link rel="icon" href="assets/images/logo.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
+    <link rel="stylesheet" href="./css/motorcycle-profile.css?v=1">
+    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
+</head>
+<body>
+    <main class="motorcycle-profile-page">
+        <header class="motorcycle-profile-header">
+            <a class="motorcycle-profile-back" href="profile.html" aria-label="Back to Profile">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            </a>
+            <h1>Motorcycle profile</h1>
+            <button id="motorcycleProfileEdit" type="button" class="motorcycle-profile-edit" aria-label="Edit motorcycle" disabled>Edit</button>
+        </header>
+
+        <p id="motorcycleProfileLoading" class="motorcycle-profile-state" role="status">Loading motorcycle…</p>
+        <section id="motorcycleProfileError" class="motorcycle-profile-state" role="alert" hidden>
+            <p>Couldn't load this motorcycle profile. Check your connection and try again.</p>
+            <button id="motorcyclesRetry" type="button" class="motorcycle-profile-retry">Retry</button>
+        </section>
+        <section id="motorcycleProfileInvalid" class="motorcycle-profile-state" hidden>
+            <p id="motorcycleProfileInvalidMessage">Motorcycle profile not found.</p>
+            <a href="profile.html">Back to Profile</a>
+        </section>
+
+        <div id="motorcycleProfileContent" hidden>
+            <section class="motorcycle-profile-hero" aria-labelledby="motorcycleProfileName">
+                <div class="motorcycle-profile-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+                </div>
+                <h2 id="motorcycleProfileName"></h2>
+                <p id="motorcycleProfileDetails" class="motorcycle-profile-details" hidden></p>
+                <div class="motorcycle-profile-odo">
+                    <div>
+                        <p class="motorcycle-profile-eyebrow">Current odometer</p>
+                        <p class="motorcycle-profile-odo-value">
+                            <span id="motorcycleProfileMileage">—</span>
+                            <span id="motorcycleProfileMileageUnit" class="motorcycle-profile-odo-unit">km</span>
+                        </p>
+                    </div>
+                    <button id="motorcycleProfileUpdateOdo" type="button" aria-label="Update odometer">Update <span aria-hidden="true">↗</span></button>
+                </div>
+                <div id="motorcycleProfileOdoEditor" class="motorcycle-profile-odo-editor" hidden></div>
+            </section>
+
+            <section class="motorcycle-profile-stats" aria-label="Motorcycle statistics">
+                <div class="motorcycle-profile-stat">
+                    <strong id="motorcycleProfileServiceCount">0</strong>
+                    <span>Services logged</span>
+                </div>
+                <div class="motorcycle-profile-stat">
+                    <strong id="motorcycleProfileTotalSpent">₱0</strong>
+                    <span>Total spent</span>
+                </div>
+            </section>
+
+            <section class="motorcycle-profile-next" aria-labelledby="motorcycleProfileNextTitle">
+                <h2 id="motorcycleProfileNextTitle" class="motorcycle-profile-section-label">Next service</h2>
+                <div id="motorcycleProfileNextService"></div>
+            </section>
+
+            <section class="motorcycle-profile-history" aria-labelledby="motorcycleProfileHistoryTitle">
+                <h2 id="motorcycleProfileHistoryTitle" class="motorcycle-profile-section-label">History &amp; details</h2>
+                <div id="motorcycleProfileHistoryRows" class="motorcycle-profile-history-rows"></div>
+            </section>
+        </div>
+    </main>
+
+    <div id="motorcycleModal" class="motorcycle-profile-modal hidden">
+        <button type="button" class="motorcycle-profile-modal-backdrop modal-backdrop" aria-label="Close edit form" onclick="closeModal()"></button>
+        <section class="motorcycle-profile-form" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <header class="motorcycle-profile-form-header">
+                <h2 id="modalTitle">Edit motorcycle</h2>
+                <button type="button" aria-label="Close" onclick="closeModal()">×</button>
+            </header>
+            <form id="motorcycleForm" class="motorcycle-profile-form-fields">
+                <label for="brandSelect">Brand</label>
+                <select id="brandSelect" required><option value="">Select Brand</option></select>
+                <label for="modelSelect">Model</label>
+                <select id="modelSelect" required disabled><option value="">Select Brand First</option></select>
+                <label for="yearSelect">Year</label>
+                <select id="yearSelect" required><option value="">Select Year</option></select>
+                <label for="mileageInput">Current mileage</label>
+                <input id="mileageInput" type="text" inputmode="numeric" autocomplete="off" required>
+                <p id="mileageUpdated" class="motorcycle-profile-mileage-updated hidden"></p>
+                <div class="motorcycle-profile-form-actions">
+                    <button type="button" class="motorcycle-profile-cancel" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="motorcycle-profile-save"><span id="submitBtnText">Save Changes</span></button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <div id="toastContainer" class="motorcycle-profile-toasts" aria-live="polite"></div>
+
+    <script type="module" src="./js/firebase-config.js?v=3"></script>
+    <script type="module" src="./js/theme-auth.js?v=1"></script>
+    <script src="./js/utils.js"></script>
+    <script type="module" src="./js/motorcycles.js?v=9"></script>
+</body>
+</html>

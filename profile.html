@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#F6F7F5">
+    <script src="./js/theme-init.js?v=1"></script>
     <title>MotoCare - Profile</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,6 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="./css/shared-layout.css?v=3">
+    <link id="motoai-overlay-styles" rel="stylesheet" href="./css/motoai-overlay.css?v=4">
+    <link rel="stylesheet" href="./css/motorcycles-sheet.css?v=1">
     <style>
         * { box-sizing: border-box; }
         html { background: var(--moto-bg); }
@@ -120,6 +124,7 @@
         @media (min-width: 481px) { #motorcycleModal > .motorcycle-form-sheet { inset: 50% auto auto 50%; max-height: 85dvh; border-radius: 24px; transform: translate(-50%, -50%); } .motorcycle-form-sheet__inner { max-height: 85dvh; } }
         @media (prefers-reduced-motion: reduce) { .motorcycle-field select, .motorcycle-field input, .motorcycle-form-submit { transition: none; } }
     </style>
+    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
 </head>
 <body>
     <div class="profile-shell">
@@ -198,23 +203,43 @@
         </div>
     </div>
 
-    <div id="motorcyclesBackdrop" class="motorcycles-modal-backdrop" data-motorcycles-dismiss onclick="closeMotorcyclesModal()"></div>
-    <div id="motorcyclesBottomSheet" class="motorcycles-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="motorcyclesModalTitle">
-        <div class="motorcycles-modal-handle" aria-hidden="true"></div>
-        <header class="motorcycles-modal-header">
-            <button type="button" aria-label="Back to profile" onclick="closeMotorcyclesModal()" class="motorcycles-modal-back"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-            <div class="motorcycles-modal-title-wrap"><h2 id="motorcyclesModalTitle" class="motorcycles-modal-title">My motorcycles</h2><p id="motorcyclesModalCount" class="motorcycles-modal-count">0 motorcycles</p></div>
-        </header>
-        <div class="motorcycles-modal-content">
-            <div id="emptyState" class="motorcycles-empty hidden">
-                <div class="motorcycles-empty__icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div>
-                <h3>No motorcycles yet</h3>
-                <p>Add your first motorcycle to track services, set maintenance reminders, and keep your expenses in one place.</p>
-                <button type="button" onclick="openAddModal()" class="motorcycles-primary-action">Add your first motorcycle</button>
+    <div id="motorcyclesBackdrop" class="motoai-backdrop" hidden>
+        <section id="motorcyclesBottomSheet" class="motoai-sheet motorcycles-sheet" role="dialog" aria-modal="true" aria-labelledby="motorcyclesModalTitle" tabindex="-1">
+            <div class="motoai-sheet__inner motorcycles-sheet__inner">
+                <div class="motorcycles-sheet__handle" aria-hidden="true"></div>
+                <header class="motorcycles-sheet__header">
+                    <div class="motorcycles-sheet__title-wrap">
+                        <h2 id="motorcyclesModalTitle" class="motorcycles-sheet__title">My motorcycles</h2>
+                        <p id="motorcyclesModalCount" class="motorcycles-sheet__count" aria-live="polite">Loading…</p>
+                    </div>
+                    <button type="button" aria-label="Add motorcycle" onclick="openAddModal()">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    </button>
+                    <button id="motorcyclesCloseButton" type="button" aria-label="Close" onclick="closeMotorcyclesModal()">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 19 19M19 5 5 19"/></svg>
+                    </button>
+                </header>
+                <div class="motorcycles-sheet__content">
+                    <p id="motorcyclesLoading" class="motorcycles-sheet__state" role="status">Loading…</p>
+                    <section id="motorcyclesError" class="motorcycles-sheet__state" role="alert" hidden>
+                        <p>Couldn't load motorcycle data. Check your connection and try again.</p>
+                        <button id="motorcyclesRetry" type="button" class="motorcycles-sheet__retry">Retry</button>
+                    </section>
+                    <section id="emptyState" class="motorcycles-sheet__state motorcycles-sheet__empty" hidden>
+                        <h3>You don't have any motorcycles yet</h3>
+                        <button type="button" class="motorcycles-sheet__add" aria-label="Add motorcycle" onclick="openAddModal()">Add motorcycle</button>
+                    </section>
+                    <section id="motorcyclesList" class="motorcycles-sheet__list" aria-label="Your motorcycles"></section>
+                    <aside class="motorcycles-sheet__info">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="m19 14 .9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z"/></svg>
+                        <div>
+                            <h3>A little care goes a long way</h3>
+                            <p>Keep your odometer updated for timely reminders and more useful MotoAI insights.</p>
+                        </div>
+                    </aside>
+                </div>
             </div>
-            <div id="motorcyclesList" class="motorcycles-list"></div>
-        </div>
-        <div class="motorcycles-add-footer"><button id="addAnotherBtn" type="button" onclick="openAddModal()" class="motorcycles-primary-action hidden">Add motorcycle</button></div>
+        </section>
     </div>
 
     <div id="motorcycleModal" class="fixed inset-0 hidden">
@@ -281,6 +306,6 @@
     </div>
 
     <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
-    <script type="module" src="./js/firebase-config.js?v=3"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=4"></script>    <script type="module" src="./js/motoai.js?v=4"></script><script type="module" src="./js/motorcycles.js?v=4"></script><script type="module" src="./js/logout-confirmation.js"></script><script type="module" src="./js/profile.js?v=6"></script><script type="module" src="./js/notification-settings.js?v=5"></script>
+    <script type="module" src="./js/firebase-config.js?v=3"></script><script type="module" src="./js/theme-auth.js?v=1"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=4"></script>    <script type="module" src="./js/motoai.js?v=4"></script><script type="module" src="./js/motorcycles.js?v=9"></script><script type="module" src="./js/logout-confirmation.js"></script><script type="module" src="./js/profile.js?v=7"></script><script type="module" src="./js/notification-settings.js?v=5"></script>
 </body>
 </html>

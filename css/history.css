@@ -1,0 +1,360 @@
+:root {
+    color-scheme: light;
+    --history-primary: #2e7d32;
+    --history-deep: #1b5e20;
+    --history-bg: #f6f7f5;
+    --history-surface: #fff;
+    --history-accent: #eaf3ea;
+    --history-icon: #eff1ee;
+    --history-text: #202820;
+    --history-muted: #727a73;
+    --history-border: #e8ebe7;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+body {
+    min-width: 320px;
+    min-height: 100dvh;
+    margin: 0;
+    color: var(--history-text);
+    background: var(--history-bg);
+    font-family: "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+a,
+button,
+input {
+    -webkit-tap-highlight-color: transparent;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--history-primary);
+    outline-offset: 3px;
+}
+
+.repair-history {
+    width: min(100%, 430px);
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding: 28px 16px max(100px, calc(80px + env(safe-area-inset-bottom, 0px)));
+}
+
+.repair-history__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.repair-history__header h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -.025em;
+    line-height: 1.25;
+}
+
+.repair-history__header p {
+    margin: 5px 0 0;
+    color: var(--history-muted);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.repair-history__add {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--history-primary);
+    text-decoration: none;
+}
+
+.repair-history__add svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-width: 1.7;
+}
+
+.repair-history__summary {
+    display: flex;
+    min-height: 79px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 15px 14px;
+    border-radius: 15px;
+    background: var(--history-accent);
+}
+
+.repair-history__eyebrow {
+    margin: 0;
+    color: var(--history-muted);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: .025em;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+.repair-history__total {
+    margin: 7px 0 0;
+    color: var(--history-primary);
+    font-size: 23px;
+    font-weight: 700;
+    letter-spacing: -.035em;
+    line-height: 1;
+}
+
+.repair-history__count {
+    margin: 0;
+    color: var(--history-primary);
+    font-size: 9px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.repair-history__search {
+    display: flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 9px;
+    margin-top: 14px;
+    padding: 0 11px;
+    border: 1px solid var(--history-border);
+    border-radius: 10px;
+    background: var(--history-surface);
+}
+
+.repair-history__search svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    fill: none;
+    stroke: var(--history-muted);
+    stroke-linecap: round;
+    stroke-width: 1.7;
+}
+
+.repair-history__search input {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    color: var(--history-text);
+    background: transparent;
+    font: 400 11px "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.repair-history__search input::placeholder {
+    color: #8b928c;
+}
+
+.repair-history__search:focus-within {
+    border-color: transparent;
+    outline: 2px solid var(--history-primary);
+    outline-offset: 2px;
+}
+
+.repair-history__state,
+.repair-history__empty {
+    margin-top: 22px;
+    padding: 22px 16px;
+    border-radius: 15px;
+    color: var(--history-muted);
+    background: var(--history-surface);
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.repair-history__state p,
+.repair-history__empty p {
+    margin: 0;
+}
+
+.repair-history__retry,
+.repair-history__empty-add {
+    display: inline-flex;
+    min-height: 37px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 13px;
+    padding: 8px 17px;
+    border: 0;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--history-primary);
+    font: 600 10px "Geist", Inter, ui-sans-serif, system-ui, sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.repair-history__list {
+    margin-top: 24px;
+}
+
+.repair-history__month {
+    margin: 23px 0 9px;
+    color: var(--history-muted);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: .025em;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+.repair-card {
+    margin-bottom: 12px;
+    padding: 15px 14px 16px;
+    border-radius: 14px;
+    background: var(--history-surface);
+    box-shadow: 0 2px 9px rgba(22, 38, 24, .035);
+}
+
+.repair-card__heading {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+}
+
+.repair-card__icon {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    place-items: center;
+    color: #657369;
+}
+
+.repair-card__icon svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+}
+
+.repair-card__title {
+    overflow: hidden;
+    margin: 0;
+    color: var(--history-text);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.repair-card__details {
+    display: flex;
+    min-height: 17px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 7px;
+}
+
+.repair-card__bike,
+.repair-card__amount {
+    margin: 0;
+    font-size: 9px;
+    line-height: 1.4;
+}
+
+.repair-card__bike {
+    overflow: hidden;
+    color: var(--history-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.repair-card__amount {
+    flex: 0 0 auto;
+    color: var(--history-text);
+    font-weight: 700;
+}
+
+.repair-card__divider {
+    height: 1px;
+    margin: 9px 0 10px;
+    background: var(--history-border);
+}
+
+.repair-card__meta,
+.repair-card__notes {
+    margin: 0;
+    color: #303a32;
+    font-size: 9px;
+    line-height: 1.5;
+}
+
+.repair-card__notes {
+    margin-top: 9px;
+    color: var(--history-muted);
+}
+
+#toastContainer {
+    position: fixed;
+    z-index: 120;
+    top: 12px;
+    right: 12px;
+    display: grid;
+    gap: 8px;
+    width: min(360px, calc(100vw - 24px));
+    pointer-events: none;
+}
+
+#toastContainer > * {
+    pointer-events: auto;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+
+@media (min-width: 600px) {
+    .repair-history {
+        padding-top: 36px;
+    }
+
+    .repair-history__header h1 {
+        font-size: 21px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
+}

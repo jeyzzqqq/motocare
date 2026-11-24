@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#F6F7F5">
+    <script src="./js/theme-init.js?v=1"></script>
     <title>MotoCare - Maintenance Schedule</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,6 +65,7 @@
         .schedule-empty { padding: 48px 16px; border: 1px dashed #dfe4df; border-radius: 16px; color: #7a817c; text-align: center; }
         @media (min-width: 640px) { .schedule-header { padding-top: 36px; } .schedule-main { padding-right: 20px; padding-left: 20px; } }
     </style>
+    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
 </head>
 <body>
     <header class="app-header schedule-header">
@@ -126,12 +129,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script type="module" src="./js/firebase-config.js?v=3"></script>
+    <script type="module" src="./js/theme-auth.js?v=1"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=4"></script>
     <script type="module" src="./js/motoai.js?v=4"></script>
     <script type="module" src="./js/add-record-overlay.js"></script>
     <script type="module" src="./js/logout-confirmation.js"></script>
     <script type="module" src="./js/notification-panel.js?v=6"></script>
-    <script type="module" src="./js/schedule.js?v=6"></script>
+    <script type="module" src="./js/schedule.js?v=7"></script>
 </body>
 </html>

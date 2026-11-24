@@ -3,85 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MotoCare - Repair History</title>
+    <meta name="theme-color" content="#f6f7f5">
+    <script src="./js/theme-init.js?v=1"></script>
+    <title>MotoCare - Repair history</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
+    <link rel="stylesheet" href="./css/history.css?v=1">
+    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
 </head>
-<body class="bg-gray-50 min-h-screen pb-32">
-    <div class="max-w-lg mx-auto">
-        <div class="p-4 space-y-6">
-            <!-- Header -->
+<body>
+    <main class="repair-history">
+        <header class="repair-history__header">
             <div>
-                <h1 class="text-3xl text-gray-800">Repair History</h1>
-                <p class="text-gray-500 text-sm mt-1">View all past services</p>
+                <h1>Repair history</h1>
+                <p>Keep track of fixes, big and small</p>
             </div>
+            <a class="repair-history__add" href="add-record.html" aria-label="Add repair">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </a>
+        </header>
 
-            <!-- Search Bar -->
-            <div class="relative">
-                <i class="lucide lucide-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl"></i>
-                <input type="text" id="searchInput" placeholder="Search repairs..." 
-                    class="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent shadow-sm">
+        <section id="historySummary" class="repair-history__summary" aria-label="Repair cost summary" hidden>
+            <div>
+                <p class="repair-history__eyebrow">Total repair cost</p>
+                <p id="totalHistorySpent" class="repair-history__total"></p>
             </div>
+            <p id="totalRepairs" class="repair-history__count"></p>
+        </section>
 
-            <!-- Summary Stats -->
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white rounded-xl p-4 shadow-md border border-gray-100">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <i class="lucide lucide-check-circle-2 text-green-700 text-2xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800" id="totalRepairs">0</p>
-                            <p class="text-xs text-gray-500">Total Repairs</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-4 shadow-md border border-gray-100">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <i class="lucide lucide-dollar-sign text-green-700 text-2xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800" id="totalHistorySpent">₱0</p>
-                            <p class="text-xs text-gray-500">Total Spent</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <label class="repair-history__search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <span class="sr-only">Search repairs</span>
+            <input id="searchInput" type="search" placeholder="Search repairs..." autocomplete="off">
+        </label>
 
-            <!-- Repair Records List -->
-            <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-gray-800">All Records</h2>
-                    <span class="text-xs text-gray-500" id="recordCount">0 entries</span>
-                </div>
-
-                <div id="historyList">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-            </div>
-
-            <!-- Export functionality removed -->
-        </div>
-    </div>
+        <p id="historyLoading" class="repair-history__state" role="status">Loading repairs…</p>
+        <section id="historyError" class="repair-history__state" role="alert" hidden>
+            <p>Couldn't load repair history. Check your connection and try again.</p>
+            <button id="historyRetry" type="button" class="repair-history__retry">Retry</button>
+        </section>
+        <div id="historyList" class="repair-history__list" hidden></div>
+    </main>
 
     <div id="mobileNav"></div>
-
-    <!-- Floating Action Button -->
-    <a href="add-record.html" class="fixed bottom-24 right-4 bg-green-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl hover:bg-green-800 transition-all hover:scale-110 active:scale-95 z-30">
-        <i class="lucide lucide-plus text-3xl"></i>
-    </a>
-
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
+    <div id="toastContainer" aria-live="polite"></div>
 
     <script type="module" src="./js/firebase-config.js?v=3"></script>
+    <script type="module" src="./js/theme-auth.js?v=1"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=2"></script>
     <script type="module" src="./js/motoai.js?v=4"></script>
     <script type="module" src="./js/add-record-overlay.js"></script>
-    <script type="module" src="./js/history.js"></script>
+    <script type="module" src="./js/history.js?v=1"></script>
 </body>
 </html>

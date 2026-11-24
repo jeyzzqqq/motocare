@@ -6,8 +6,11 @@ let currentUser = null;
 let currentBikeCount = 0;
 let isEditingProfile = false;
 let isSavingProfile = false;
+let draftAppearanceTheme = 'light';
+let appearanceSettingsOpener = null;
 
 const STREAK_PREFIX = 'motocare-streak-v1:';
+const THEME_STORAGE_KEY = 'motocare.theme';
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function dateKey(date = new Date()) {
@@ -384,6 +387,122 @@ function closeAccountSettings() {
     document.body.classList.remove('notification-settings-open');
 }
 
+function ensureAppearanceSettingsMarkup() {
+    if (document.getElementById('appearanceSettingsBackdrop')) return;
+
+    const root = document.createElement('div');
+    root.innerHTML = `<div id="appearanceSettingsBackdrop" class="motorcycles-modal-backdrop appearance-settings-backdrop">
+        <section class="motorcycles-modal-sheet appearance-settings" role="dialog" aria-modal="true" aria-labelledby="appearanceSettingsTitle">
+            <div class="appearance-settings__content">
+                <a class="appearance-settings__back" href="#" aria-label="Back to Account">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Account</span>
+                </a>
+                <main class="appearance-settings__main">
+                    <h2 id="appearanceSettingsTitle">Appearance</h2>
+                    <p class="appearance-settings__subtitle">Choose how MotoCare looks on your device.</p>
+                    <p class="appearance-settings__label">Display theme</p>
+                    <div class="appearance-settings__previews" aria-label="Theme previews">
+                        <button type="button" class="appearance-preview" data-theme-choice="light" aria-label="Select Light preview" aria-pressed="false">
+                            <span class="appearance-preview__brand">MotoCare</span>
+                            <span class="appearance-preview__page">My motorcycles</span>
+                            <span class="appearance-preview__row"><i></i><i></i></span>
+                            <span class="appearance-preview__row"><i></i><i></i></span>
+                        </button>
+                        <button type="button" class="appearance-preview" data-theme-choice="dark" aria-label="Select Dark preview" aria-pressed="false">
+                            <span class="appearance-preview__brand">MotoCare</span>
+                            <span class="appearance-preview__page">My motorcycles</span>
+                            <span class="appearance-preview__row"><i></i><i></i></span>
+                            <span class="appearance-preview__row"><i></i><i></i></span>
+                        </button>
+                    </div>
+                    <div class="appearance-settings__options" role="radiogroup" aria-label="Display theme">
+                        <button type="button" class="appearance-settings__option" data-theme-choice="dark" role="radio" aria-checked="false">
+                            <span class="appearance-settings__option-copy"><strong>Dark</strong><small>A softer display in low light</small></span>
+                            <span class="appearance-settings__radio" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" class="appearance-settings__option" data-theme-choice="light" role="radio" aria-checked="false">
+                            <span class="appearance-settings__option-copy"><strong>Light</strong><small>A bright, clean display</small></span>
+                            <span class="appearance-settings__radio" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </main>
+                <footer class="appearance-settings__footer">
+                    <button id="appearanceSettingsSave" class="appearance-settings__save" type="button">Save preference</button>
+                </footer>
+            </div>
+        </section>
+    </div>`;
+    document.body.appendChild(root.firstElementChild);
+
+    const backdrop = document.getElementById('appearanceSettingsBackdrop');
+    backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) closeAppearanceSettings();
+        const choice = event.target.closest('[data-theme-choice]');
+        if (choice) selectAppearanceTheme(choice.dataset.themeChoice);
+    });
+    backdrop.querySelector('.appearance-settings__back').addEventListener('click', (event) => {
+        event.preventDefault();
+        closeAppearanceSettings();
+    });
+    document.getElementById('appearanceSettingsSave').addEventListener('click', saveAppearanceTheme);
+}
+
+function selectAppearanceTheme(theme) {
+    if (theme !== 'light' && theme !== 'dark') return;
+    draftAppearanceTheme = theme;
+    document.querySelectorAll('#appearanceSettingsBackdrop [data-theme-choice]').forEach((choice) => {
+        const selected = choice.dataset.themeChoice === theme;
+        choice.classList.toggle('is-selected', selected);
+        choice.setAttribute(choice.getAttribute('role') === 'radio' ? 'aria-checked' : 'aria-pressed', String(selected));
+    });
+}
+
+function openAppearanceSettings() {
+    ensureAppearanceSettingsMarkup();
+    appearanceSettingsOpener = document.querySelector('.profile-row[aria-label="Appearance"]');
+    try {
+        draftAppearanceTheme = localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+    } catch (error) {
+        console.error('Could not read the saved appearance preference:', error);
+        draftAppearanceTheme = 'light';
+    }
+
+    selectAppearanceTheme(draftAppearanceTheme);
+    document.getElementById('appearanceSettingsBackdrop').classList.add('is-open');
+    document.querySelector('#appearanceSettingsBackdrop .appearance-settings').classList.add('is-open');
+    document.body.classList.add('notification-settings-open');
+    document.querySelector(`#appearanceSettingsBackdrop [data-theme-choice="${draftAppearanceTheme}"]`)?.focus({ preventScroll: true });
+}
+
+function closeAppearanceSettings() {
+    const backdrop = document.getElementById('appearanceSettingsBackdrop');
+    backdrop?.classList.remove('is-open');
+    backdrop?.querySelector('.appearance-settings')?.classList.remove('is-open');
+    document.body.classList.remove('notification-settings-open');
+    if (appearanceSettingsOpener?.isConnected) appearanceSettingsOpener.focus({ preventScroll: true });
+    appearanceSettingsOpener = null;
+}
+
+function saveAppearanceTheme() {
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, draftAppearanceTheme);
+        window.applyMotoCareTheme?.(draftAppearanceTheme);
+        closeAppearanceSettings();
+        showToast('Preference saved', 'success');
+    } catch (error) {
+        console.error('Could not save the appearance preference:', error);
+        showToast('Could not save your preference.', 'error');
+    }
+}
+
+document.querySelector('.profile-row[aria-label="Appearance"]')?.addEventListener('click', openAppearanceSettings);
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.getElementById('appearanceSettingsBackdrop')?.classList.contains('is-open')) {
+        closeAppearanceSettings();
+    }
+});
+
 addAccountSettingsStyles();
 
 // Auth State Listener - redirect ONLY if explicitly checked and no user
@@ -394,6 +513,7 @@ onAuthStateChanged(auth, async (user) => {
         console.log('User authenticated:', user.uid);
         await loadUserStats();
     } else {
+        window.resetMotoCareTheme?.();
         console.log('No user, redirecting to login');
         setTimeout(() => {
             window.location.href = "./index.html";
@@ -438,6 +558,7 @@ window.toggleEdit = function() {
 // Logout
 window.logoutUser = async function() {
     try {
+        window.resetMotoCareTheme?.();
         await auth.signOut();
         window.location.href = "./index.html";
     } catch (error) {

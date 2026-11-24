@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#F6F7F5">
+    <script src="./js/theme-init.js?v=1"></script>
     <title>MotoCare - Expense Tracker</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,6 +82,7 @@
             .progress-fill { transition: none; }
         }
     </style>
+    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
 </head>
 <body>
     <header class="app-header expenses-header">
@@ -129,10 +132,11 @@
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
 
     <script type="module" src="./js/firebase-config.js?v=3"></script>
+    <script type="module" src="./js/theme-auth.js?v=1"></script>
     <script src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=4"></script>
     <script type="module" src="./js/motoai.js?v=4"></script>
     <script type="module" src="./js/add-record-overlay.js"></script>
-    <script type="module" src="./js/expenses.js?v=5"></script>
+    <script type="module" src="./js/expenses.js?v=6"></script>
 </body>
 </html>

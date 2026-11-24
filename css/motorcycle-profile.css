@@ -1,0 +1,105 @@
+* { box-sizing: border-box; }
+[hidden], .hidden { display: none !important; }
+body {
+    --moto-primary: #2e7d32;
+    --moto-deep: #1b5e20;
+    --moto-bg: #f6f7f5;
+    --moto-surface: #fff;
+    --moto-icon-tile: #eff1ee;
+    --moto-accent-tint: #eaf3ea;
+    --moto-text: #111613;
+    --moto-muted: #68716b;
+    --moto-border: rgba(17, 22, 19, .08);
+    --moto-overdue: #ef4444;
+    --moto-due-soon: #f59e0b;
+    --moto-upcoming: #d1d5db;
+    min-width: 320px;
+    min-height: 100dvh;
+    margin: 0;
+    color: var(--moto-text);
+    background: var(--moto-bg);
+    font-family: var(--moto-font, "Geist", Inter, ui-sans-serif, system-ui, sans-serif);
+    -webkit-font-smoothing: antialiased;
+}
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 3px; }
+.motorcycle-profile-page { width: min(100%, 480px); min-height: 100dvh; margin: 0 auto; padding: 18px 16px max(24px, env(safe-area-inset-bottom, 0px)); }
+.motorcycle-profile-header { display: flex; min-height: 36px; align-items: center; gap: 10px; margin-bottom: 20px; }
+.motorcycle-profile-header h1 { min-width: 0; flex: 1; margin: 0; font-size: 15px; font-weight: 600; line-height: 1.2; }
+.motorcycle-profile-back { display: grid; width: 18px; height: 28px; flex: 0 0 18px; place-items: center; color: var(--moto-primary); }
+.motorcycle-profile-back svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycle-profile-edit { padding: 8px 4px; border: 0; color: var(--moto-primary); background: transparent; font: 500 10px var(--moto-font); cursor: pointer; }
+.motorcycle-profile-edit:disabled { opacity: .5; cursor: default; }
+.motorcycle-profile-state { padding: 24px 18px; border-radius: 16px; color: var(--moto-muted); background: var(--moto-surface); font-size: 11px; line-height: 1.5; text-align: center; }
+.motorcycle-profile-state p { margin: 0; }
+.motorcycle-profile-state a, .motorcycle-profile-retry { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; margin-top: 12px; padding: 8px 16px; border: 0; border-radius: 999px; color: #fff; background: var(--moto-primary); font: 600 10px var(--moto-font); text-decoration: none; cursor: pointer; }
+.motorcycle-profile-hero { padding: 16px 14px 12px; border-radius: 18px; color: #fff; background: var(--moto-primary); }
+.motorcycle-profile-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: rgba(255,255,255,.15); }
+.motorcycle-profile-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycle-profile-hero h2 { overflow: hidden; margin: 17px 0 0; font-size: 16px; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycle-profile-details { margin: 6px 0 0; color: rgba(255,255,255,.82); font-size: 9px; line-height: 1.2; }
+.motorcycle-profile-odo { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.motorcycle-profile-eyebrow { margin: 0; color: rgba(255,255,255,.76); font-size: 7px; font-weight: 500; text-transform: uppercase; }
+.motorcycle-profile-odo-value { display: flex; align-items: baseline; gap: 4px; margin: 7px 0 0; font-size: 17px; font-weight: 700; line-height: 1; }
+.motorcycle-profile-odo-unit { font-size: 14px; font-weight: 600; }
+.motorcycle-profile-odo > button { padding: 6px 0 2px; border: 0; color: rgba(255,255,255,.94); background: transparent; font: 500 9px var(--moto-font); cursor: pointer; white-space: nowrap; }
+.motorcycle-profile-odo-editor { display: flex; align-items: center; gap: 7px; margin-top: 12px; }
+.motorcycle-profile-odo-editor input { width: min(150px, 45%); height: 34px; padding: 0 9px; border: 1px solid rgba(255,255,255,.45); border-radius: 8px; color: var(--moto-text); background: #fff; font: 500 13px var(--moto-font); }
+.motorcycle-profile-odo-editor button { min-height: 32px; padding: 6px 10px; border: 0; border-radius: 999px; color: var(--moto-deep); background: #fff; font: 600 9px var(--moto-font); cursor: pointer; }
+.motorcycle-profile-odo-editor button:last-child { color: #fff; background: rgba(255,255,255,.17); }
+.motorcycle-profile-stats { display: grid; grid-template-columns: 1fr 1fr; margin-top: 10px; padding: 12px 0; border-radius: 12px; background: var(--moto-surface); }
+.motorcycle-profile-stat { display: flex; flex-direction: column; gap: 3px; padding: 0 20px; }
+.motorcycle-profile-stat + .motorcycle-profile-stat { border-left: 1px solid var(--moto-border); }
+.motorcycle-profile-stat strong { color: #26312a; font-size: 16px; font-weight: 700; line-height: 1.1; }
+.motorcycle-profile-stat span { color: var(--moto-muted); font-size: 8px; }
+.motorcycle-profile-next { margin-top: 21px; }
+.motorcycle-profile-section-label { margin: 0 0 8px; color: var(--moto-muted); font-size: 7px; font-weight: 500; letter-spacing: .04em; line-height: 1.2; text-transform: uppercase; }
+.motorcycle-profile-service-card { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 10px 11px; border-radius: 14px; background: var(--moto-surface); }
+.motorcycle-profile-caught-up { color: var(--moto-muted); font-size: 9px; }
+.motorcycle-profile-service-icon { display: grid; width: 31px; height: 31px; flex: 0 0 31px; place-items: center; border-radius: 50%; color: #758078; background: var(--moto-icon-tile); }
+.motorcycle-profile-service-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycle-profile-service-copy { min-width: 0; flex: 1; }
+.motorcycle-profile-service-copy strong { display: block; overflow: hidden; color: var(--moto-text); font-size: 9px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycle-profile-service-copy span { display: block; overflow: hidden; margin-top: 4px; color: var(--moto-muted); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycle-profile-service-meta { display: flex; min-width: 42px; flex-direction: column; align-items: flex-end; gap: 6px; color: var(--moto-muted); font-size: 7px; white-space: nowrap; }
+.motorcycle-profile-service-status { display: inline-flex; align-items: center; gap: 4px; }
+.motorcycle-profile-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--moto-upcoming); }
+.motorcycle-profile-service-status--overdue { color: var(--moto-overdue); }
+.motorcycle-profile-service-status--overdue .motorcycle-profile-status-dot { background: var(--moto-overdue); }
+.motorcycle-profile-service-status--due-soon { color: var(--moto-due-soon); }
+.motorcycle-profile-service-status--due-soon .motorcycle-profile-status-dot { background: var(--moto-due-soon); }
+.motorcycle-profile-service-status--upcoming .motorcycle-profile-status-dot { background: var(--moto-upcoming); }
+.motorcycle-profile-history { margin-top: 20px; }
+.motorcycle-profile-history-rows { overflow: hidden; padding: 0 12px; border-radius: 14px; background: var(--moto-surface); }
+.motorcycle-profile-history-row { display: flex; min-height: 46px; align-items: center; gap: 10px; color: var(--moto-text); text-decoration: none; }
+.motorcycle-profile-history-row + .motorcycle-profile-history-row { border-top: 1px solid var(--moto-border); }
+.motorcycle-profile-history-icon { display: grid; width: 17px; height: 20px; flex: 0 0 17px; place-items: center; color: #66716a; }
+.motorcycle-profile-history-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycle-profile-history-copy { min-width: 0; flex: 1; }
+.motorcycle-profile-history-copy strong { display: block; overflow: hidden; font-size: 9px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycle-profile-history-copy span { display: block; margin-top: 3px; color: var(--moto-muted); font-size: 7px; }
+.motorcycle-profile-history-chevron { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: #66716a; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycle-profile-modal { position: fixed; z-index: 110; inset: 0; display: flex; align-items: flex-end; justify-content: center; }
+.motorcycle-profile-modal.hidden { display: none; }
+.motorcycle-profile-modal-backdrop { position: absolute; inset: 0; border: 0; background: rgba(17,22,19,.52); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.motorcycle-profile-form { position: relative; z-index: 1; width: min(100%, 480px); max-height: 92dvh; overflow-y: auto; padding: 18px 16px max(18px, env(safe-area-inset-bottom, 0px)); border-radius: 22px 22px 0 0; background: var(--moto-bg); }
+.motorcycle-profile-form-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.motorcycle-profile-form-header h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.motorcycle-profile-form-header button { display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: 50%; color: var(--moto-muted); background: var(--moto-icon-tile); font: 400 22px var(--moto-font); cursor: pointer; }
+.motorcycle-profile-form-fields { display: grid; gap: 8px; }
+.motorcycle-profile-form-fields label { margin-top: 5px; color: #48534b; font-size: 10px; font-weight: 500; }
+.motorcycle-profile-form-fields select, .motorcycle-profile-form-fields input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--moto-border); border-radius: 11px; color: var(--moto-text); background: var(--moto-surface); font: 400 13px var(--moto-font); }
+.motorcycle-profile-form-fields select:disabled { color: var(--moto-muted); background: var(--moto-icon-tile); }
+.motorcycle-profile-mileage-updated { margin: -2px 0 0; color: var(--moto-muted); font-size: 9px; }
+.motorcycle-profile-form-actions { display: flex; gap: 9px; margin-top: 10px; }
+.motorcycle-profile-form-actions button { min-height: 44px; flex: 1; border: 0; border-radius: 999px; font: 600 11px var(--moto-font); cursor: pointer; }
+.motorcycle-profile-cancel { color: var(--moto-text); background: var(--moto-icon-tile); }
+.motorcycle-profile-save { color: #fff; background: var(--moto-primary); }
+.motorcycle-profile-toasts { position: fixed; z-index: 140; top: 12px; right: 12px; left: 12px; display: grid; justify-items: end; gap: 8px; pointer-events: none; }
+.motorcycle-profile-toasts > * { pointer-events: auto; }
+@media (min-width: 481px) {
+    .motorcycle-profile-page { padding-top: 28px; }
+    .motorcycle-profile-modal { align-items: center; padding: 20px; }
+    .motorcycle-profile-form { max-height: 85dvh; border-radius: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }

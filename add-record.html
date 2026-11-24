@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#F6F7F5">
+    <script src="./js/theme-init.js?v=1"></script>
     <title>MotoCare - Add Record</title>
     <link rel="icon" href="assets/images/logo.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,6 +74,7 @@
         }
         @keyframes record-field-in { to { opacity: 1; transform: translateY(0); } }
     </style>
+    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
 </head>
 <body>
     <main class="record-page">
@@ -136,7 +139,6 @@
             <div class="record-hidden-field">
                 <select id="mechanic" required><option value="Self Service" selected>Self Service</option></select>
                 <select id="category" required><option value="Routine Maintenance" selected>Routine Maintenance</option></select>
-                <textarea id="notes"></textarea>
             </div>
             <button type="button" id="cancelBtn" class="record-hidden-field">Cancel</button>
         </form>
@@ -152,6 +154,7 @@
     <div id="toastContainer" class="fixed top-4 right-4 max-w-sm"></div>
 
     <script type="module" src="./js/firebase-config.js?v=3"></script>
+    <script type="module" src="./js/theme-auth.js?v=1"></script>
     <script type="module" src="./js/utils.js"></script>
     <script type="module" src="./js/mobile-nav.js?v=2"></script>
     <script type="module" src="./js/motoai.js?v=4"></script>

@@ -256,7 +256,10 @@ async function loadDashboard(user) {
     await loadNotificationCount(uid);
 }
 
-document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => signOut(auth)));
+document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => {
+    window.resetMotoCareTheme?.();
+    return signOut(auth);
+}));
 document.getElementById('streakButton')?.addEventListener('click', () => {
     if (typeof window.openStreakModal === 'function') window.openStreakModal(auth.currentUser?.uid);
 });

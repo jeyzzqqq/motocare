@@ -180,7 +180,6 @@ function applyPrefillFromUrl() {
     const date = params.get('date');
     const titleValue = params.get('titleValue');
     const category = params.get('category');
-    const notes = params.get('notes');
 
     const dropdown = document.getElementById('motorcycle');
     const mileageInput = document.getElementById('mileage');
@@ -188,7 +187,6 @@ function applyPrefillFromUrl() {
     const titleSelect = document.getElementById('titleSelect');
     const customInput = document.getElementById('customTitle');
     const categoryInput = document.getElementById('category');
-    const notesInput = document.getElementById('notes');
 
     if (motorcycleId && dropdown) {
         dropdown.value = motorcycleId;
@@ -245,7 +243,6 @@ function applyPrefillFromUrl() {
     }
 
     if (category && categoryInput) categoryInput.value = category;
-    if (notes && notesInput) notesInput.value = notes;
 
 }
 
@@ -258,7 +255,6 @@ function syncUpdateModeVisibility() {
     const costInput = document.getElementById('cost');
     const mechanicSelect = document.getElementById('mechanic');
     const categorySelect = document.getElementById('category');
-    const notesInput = document.getElementById('notes');
 
     const hideElement = (el) => {
         if (!el) return;
@@ -271,7 +267,6 @@ function syncUpdateModeVisibility() {
     hideElement(costInput);
     hideElement(mechanicSelect);
     hideElement(categorySelect);
-    hideElement(notesInput);
 
     if (isUpdate && costInput) costInput.value = '0';
     if (isUpdate) showToast('Update mileage mode: only Date and Mileage required.', 'info');
@@ -432,7 +427,6 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const normalizedCost = updateMode ? 0 : cost;
     const normalizedMechanic = updateMode ? '' : mechanicValue;
     const normalizedCategory = updateMode ? '' : category;
-    const notesValue = document.getElementById('notes').value;
 
     const formData = {
         title: resolvedTitle,
@@ -441,7 +435,6 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         mileage: mileageValue,
         mechanic: normalizedMechanic,
         category: normalizedCategory,
-        notes: notesValue,
         motorcycleId: selectedMotorcycle.id,
         motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`,
         recordKind: kind,

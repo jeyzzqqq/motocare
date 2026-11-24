@@ -30,7 +30,10 @@ function bindScheduleControls() {
     drawerButton?.addEventListener('click', openMotorcycleDrawer);
     drawerBackdrop?.addEventListener('click', closeMotorcycleDrawer);
     closeButton?.addEventListener('click', closeMotorcycleDrawer);
-    document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => signOut(auth)));
+    document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => {
+        window.resetMotoCareTheme?.();
+        return signOut(auth);
+    }));
     document.querySelectorAll('[data-schedule-filter]').forEach((button) => {
         button.addEventListener('click', () => {
             currentScheduleFilter = button.dataset.scheduleFilter || 'all';

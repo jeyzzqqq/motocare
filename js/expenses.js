@@ -440,6 +440,7 @@ function displayDailyTrendChart() {
 
     const ctx = document.getElementById('dailyTrendChart')?.getContext('2d');
     if (ctx) {
+        const theme = getExpenseChartTheme();
         dailyTrendChartInstance?.destroy();
         dailyTrendChartInstance = new Chart(ctx, {
             type: 'bar',
@@ -447,18 +448,31 @@ function displayDailyTrendChart() {
                 labels,
                 datasets: [{
                     data,
-                    backgroundColor: '#15803d',
+                    backgroundColor: theme.dark ? theme.primary : '#15803d',
                     borderRadius: 8
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false },
+                    ...(theme.dark ? { tooltip: theme.tooltip } : {})
+                },
                 scales: {
+                    x: {
+                        ...(theme.dark ? {
+                            grid: { color: theme.border },
+                            ticks: { color: theme.text }
+                        } : {})
+                    },
                     y: {
                         beginAtZero: true,
-                        ticks: { callback: (value) => '₱' + value }
+                        ...(theme.dark ? { grid: { color: theme.border } } : {}),
+                        ticks: {
+                            ...(theme.dark ? { color: theme.text } : {}),
+                            callback: (value) => '₱' + value
+                        }
                     }
                 }
             }
@@ -477,7 +491,10 @@ function displayCategoryChart() {
         categoryData.set(cat, (categoryData.get(cat) || 0) + getExpenseAmount(exp));
     });
 
-    const colors = ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac'];
+    const theme = getExpenseChartTheme();
+    const colors = theme.dark
+        ? [theme.primary, theme.onTrack, theme.upcoming, theme.text, theme.dueSoon]
+        : ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac'];
     const chartData = Array.from(categoryData.entries()).map(([label, value], idx) => ({
         label,
         value,
@@ -498,7 +515,10 @@ function displayCategoryChart() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } }
+                plugins: {
+                    legend: { display: false },
+                    ...(theme.dark ? { tooltip: theme.tooltip } : {})
+                }
             }
         });
     }
@@ -516,6 +536,29 @@ function displayCategoryChart() {
             </div>
         `).join('');
     }
+}
+
+function getExpenseChartTheme() {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    const rootStyles = getComputedStyle(document.documentElement);
+    const readColor = (name, fallback) => rootStyles.getPropertyValue(name).trim() || fallback;
+
+    return {
+        dark,
+        primary: readColor('--moto-primary', '#4CAF50'),
+        text: readColor('--moto-muted', '#A6B2A7'),
+        border: readColor('--moto-border', '#2A352D'),
+        onTrack: readColor('--moto-on-track-text', '#81C784'),
+        upcoming: readColor('--moto-upcoming-text', '#A3ADA4'),
+        dueSoon: readColor('--moto-due-soon-text', '#FCD34D'),
+        tooltip: {
+            backgroundColor: readColor('--moto-elevated', '#202B23'),
+            titleColor: readColor('--moto-text', '#E8EEE8'),
+            bodyColor: readColor('--moto-text', '#E8EEE8'),
+            borderColor: readColor('--moto-border', '#2A352D'),
+            borderWidth: 1
+        }
+    };
 }
 
 function displayRecentExpenses(shouldAnimate = false) {

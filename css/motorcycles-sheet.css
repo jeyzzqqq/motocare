@@ -1,0 +1,60 @@
+.motorcycles-sheet { --moto-primary: #2e7d32; --moto-deep: #1b5e20; --moto-bg: #f6f7f5; --moto-surface: #fff; --moto-icon-tile: #eff1ee; --moto-accent-tint: #eaf3ea; --moto-text: #111613; --moto-muted: #68716b; --moto-border: rgba(17, 22, 19, .08); --moto-overdue: #ef4444; --moto-overdue-text: #ef4444; --moto-due-soon: #f59e0b; --moto-due-soon-text: #d97706; --moto-upcoming: #d1d5db; width: min(100%, 480px); }
+.motorcycles-sheet__inner { display: flex; height: 100%; flex-direction: column; }
+.motorcycles-sheet__handle { width: 36px; height: 4px; flex: 0 0 auto; margin: 10px auto 4px; border-radius: 999px; background: var(--moto-border); }
+.motorcycles-sheet__header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; padding: 4px 16px 14px; }
+.motorcycles-sheet__title-wrap { min-width: 0; flex: 1; }
+.motorcycles-sheet__title { margin: 0; color: var(--moto-text); font-size: 20px; font-weight: 700; line-height: 1.2; }
+.motorcycles-sheet__count { margin: 4px 0 0; color: var(--moto-muted); font-size: 10px; line-height: 1; }
+.motorcycles-sheet__header button { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border: 0; border-radius: 50%; color: var(--moto-primary); background: transparent; cursor: pointer; }
+.motorcycles-sheet__header button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycles-sheet__content { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 16px max(18px, env(safe-area-inset-bottom, 0px)); overscroll-behavior: contain; }
+.motorcycles-sheet__content > [hidden] { display: none !important; }
+.motorcycles-sheet__state { padding: 26px 18px; border-radius: 16px; color: var(--moto-muted); background: var(--moto-surface); font-size: 11px; line-height: 1.5; text-align: center; }
+.motorcycles-sheet__state p { margin: 0; }
+.motorcycles-sheet__retry, .motorcycles-sheet__add { margin-top: 12px; padding: 10px 18px; border: 0; border-radius: 999px; color: #fff; background: var(--moto-primary); font: 600 10px var(--moto-font); cursor: pointer; }
+.motorcycles-sheet__empty h3 { margin: 0; color: var(--moto-text); font-size: 15px; font-weight: 600; }
+.motorcycles-sheet__list { display: grid; gap: 12px; }
+.motorcycles-sheet__info { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; padding: 13px 12px; border-radius: 12px; color: var(--moto-deep); background: var(--moto-accent-tint); }
+.motorcycles-sheet__info svg { width: 19px; height: 19px; flex: 0 0 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycles-sheet__info h3 { margin: 1px 0 0; font-size: 10px; font-weight: 600; line-height: 1.25; }
+.motorcycles-sheet__info p { margin: 5px 0 0; color: #546b56; font-size: 8px; line-height: 1.45; }
+.motorcycles-sheet .motorcycle-card { position: relative; padding: 16px; border-radius: 16px; background: var(--moto-surface); box-shadow: 0 3px 14px rgba(20, 35, 25, .055); transition: box-shadow 160ms ease, transform 160ms ease; }
+.motorcycles-sheet .motorcycle-card:hover { box-shadow: 0 5px 18px rgba(20, 35, 25, .09); }
+.motorcycles-sheet .motorcycle-card__top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.motorcycles-sheet .motorcycle-card__icon { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 50%; color: var(--moto-primary); background: var(--moto-icon-tile); }
+.motorcycles-sheet .motorcycle-card__icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycles-sheet .motorcycle-card__identity { min-width: 0; flex: 1; }
+.motorcycles-sheet .motorcycle-card__name { overflow: hidden; margin: 0; color: var(--moto-text); font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycles-sheet .motorcycle-card__detail { overflow: hidden; margin: 4px 0 0; color: var(--moto-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycles-sheet .motorcycle-card__options-wrap { position: relative; flex: 0 0 auto; }
+.motorcycles-sheet .motorcycle-card__options { padding: 7px 8px; border: 0; border-radius: 8px; color: var(--moto-muted); background: transparent; font: 500 9px var(--moto-font); cursor: pointer; }
+.motorcycle-card__menu { position: fixed; z-index: 120; top: 0; right: auto; min-width: 148px; padding: 5px; border: 1px solid var(--moto-border); border-radius: 10px; background: var(--moto-surface); box-shadow: 0 5px 18px rgba(20, 35, 25, .12); }
+.motorcycle-card__menu[hidden] { display: none; }
+.motorcycle-card__menu button { display: block; width: 100%; padding: 9px 10px; border: 0; border-radius: 7px; color: var(--moto-text); background: transparent; font: 500 10px var(--moto-font); text-align: left; cursor: pointer; }
+.motorcycle-card__menu button:hover { background: var(--moto-icon-tile); }
+.motorcycle-card__menu button:last-child { color: var(--moto-overdue-text); }
+.motorcycles-sheet .motorcycle-card__divider { height: 1px; margin: 13px 0; background: var(--moto-border); }
+.motorcycles-sheet .motorcycle-card__label { margin: 0; color: var(--moto-muted); font-size: 7px; font-weight: 500; letter-spacing: .07em; line-height: 1.2; text-transform: uppercase; }
+.motorcycles-sheet .motorcycle-card__odo-area { display: block; width: 100%; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.motorcycles-sheet .motorcycle-card__odo-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.motorcycles-sheet .motorcycle-card__odo-value { color: #26312a; font-size: 22px; font-weight: 700; letter-spacing: -.04em; line-height: 1.1; }
+.motorcycles-sheet .motorcycle-card__odo-unit { align-self: flex-end; margin-bottom: 2px; color: var(--moto-muted); font-size: 8px; }
+.motorcycles-sheet .motorcycle-card__chevron { display: grid; width: 34px; height: 34px; place-items: center; margin-left: auto; color: var(--moto-muted); }
+.motorcycles-sheet .motorcycle-card__chevron svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.motorcycles-sheet .motorcycle-card__service { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.motorcycles-sheet .motorcycle-card__service-copy { min-width: 0; }
+.motorcycles-sheet .motorcycle-card__service-name { overflow: hidden; margin: 5px 0 0; color: var(--moto-text); font-size: 9px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.motorcycles-sheet .motorcycle-card__status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; color: var(--moto-muted); font-size: 8px; white-space: nowrap; }
+.motorcycles-sheet .motorcycle-card__status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--moto-upcoming); }
+.motorcycles-sheet .motorcycle-card__status--overdue { color: var(--moto-overdue); }
+.motorcycles-sheet .motorcycle-card__status--overdue .motorcycle-card__status-dot { background: var(--moto-overdue); }
+.motorcycles-sheet .motorcycle-card__status--due-soon { color: var(--moto-due-soon-text); }
+.motorcycles-sheet .motorcycle-card__status--due-soon .motorcycle-card__status-dot { background: var(--moto-due-soon); }
+.motorcycles-sheet .motorcycle-card__status--upcoming .motorcycle-card__status-dot { background: var(--moto-upcoming); }
+.motorcycles-sheet .motorcycle-card__edit-odo { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.motorcycles-sheet .motorcycle-card__edit-odo input { width: 150px; max-width: 55%; padding: 8px 10px; border: 1px solid var(--moto-border); border-radius: 9px; font: 500 14px var(--moto-font); }
+.motorcycles-sheet .motorcycle-card__edit-odo button { padding: 8px 10px; border: 0; border-radius: 999px; color: #fff; background: var(--moto-primary); font: 600 9px var(--moto-font); cursor: pointer; }
+.motorcycles-sheet .motorcycle-card__edit-odo button:last-child { color: var(--moto-text); background: var(--moto-icon-tile); }
+.motorcycles-sheet button:focus-visible, .motorcycles-sheet [tabindex="0"]:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 3px; }
+body.motorcycles-modal-open #toastContainer { z-index: 140; }
+@media (prefers-reduced-motion: reduce) { .motorcycles-sheet *, .motorcycle-card__menu { animation: none !important; transition: none !important; } }

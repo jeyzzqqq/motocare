@@ -2,14 +2,21 @@ import { auth } from './firebase-config.js?v=3';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, deleteFirestoreDoc } from './firebaseUtils.js';
 import { getOfficialBrands, getModelsForBrand, findBrandMatch, findModelMatch, isOfficialMotorcycleSelection } from './motorcycleCatalog.js';
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+import { getMaintenanceTaskStatus, isCompletionRecord } from './maintenanceStatus.js';
 
 let motorcycles = [];
+let maintenanceRecords = [];
 let editingId = null;
 let isLoading = false;
 let authReady = false;
 let pendingDeleteId = null;
 let pendingDeleteLabel = '';
 let isMotorcyclesModalOpen = false;
+let motorcyclesSheetOpener = null;
+let motorcyclesNestedOpener = null;
+let motorcyclesSheetCloseTimer = null;
+let profileRepairs = [];
 const CURRENT_YEAR = new Date().getFullYear();
 
 // Mapping of brand -> model -> [minYear, maxYear]
@@ -161,6 +168,19 @@ document.addEventListener('DOMContentLoaded', () => {
     populateYears();
     setupEventListeners();
     syncMotorcyclesModalState(false);
+    document.getElementById('motorcyclesRetry')?.addEventListener('click', loadMotorcyclesFromFirestore);
+    document.getElementById('motorcycleProfileEdit')?.addEventListener('click', () => {
+        const id = getMotorcycleProfileId();
+        if (id) editMotorcycle(id);
+    });
+    document.getElementById('motorcycleProfileUpdateOdo')?.addEventListener('click', () => {
+        const id = getMotorcycleProfileId();
+        if (id) startInlineEdit(id);
+    });
+    document.getElementById('motorcyclesBackdrop')?.addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) closeMotorcyclesModal();
+    });
+    requestAnimationFrame(markProfileNavigationActive);
     
     // If auth is already ready, load motorcycles
     if (authReady) {
@@ -171,49 +191,152 @@ document.addEventListener('DOMContentLoaded', () => {
 function syncMotorcyclesModalState(open) {
     isMotorcyclesModalOpen = open;
     const backdrop = document.getElementById('motorcyclesBackdrop');
-    const sheet = document.getElementById('motorcyclesBottomSheet');
-    if (backdrop) {
-        backdrop.classList.toggle('is-open', open);
-    }
-    if (sheet) {
-        sheet.classList.remove('is-open');
-        if (open) {
-            requestAnimationFrame(() => {
-                if (isMotorcyclesModalOpen) sheet.classList.add('is-open');
-            });
-        }
-    }
+    if (!backdrop) return;
+    window.clearTimeout(motorcyclesSheetCloseTimer);
+    if (open) backdrop.hidden = false;
+    requestAnimationFrame(() => {
+        if (isMotorcyclesModalOpen) backdrop.classList.add('is-open');
+    });
+    if (!open) backdrop.classList.remove('is-open');
     document.body.classList.toggle('motorcycles-modal-open', open);
+    document.body.classList.toggle('motoai-open', open);
+    if (!open) {
+        const closeDelay = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320;
+        motorcyclesSheetCloseTimer = window.setTimeout(() => {
+            if (!isMotorcyclesModalOpen) backdrop.hidden = true;
+        }, closeDelay);
+    }
 }
 
 function openMotorcyclesModal() {
-    syncMotorcyclesModalState(true);
-    if (!authReady) {
+    const backdrop = document.getElementById('motorcyclesBackdrop');
+    if (!backdrop) {
+        window.location.href = 'motorcycles.html';
         return;
     }
-    if (motorcycles.length === 0) {
-        loadMotorcyclesFromFirestore();
-    }
+    motorcyclesSheetOpener = document.activeElement;
+    syncMotorcyclesModalState(true);
+    requestAnimationFrame(() => {
+        document.getElementById('motorcyclesCloseButton')?.focus({ preventScroll: true });
+    });
 }
 
 function closeMotorcyclesModal() {
+    if (!isMotorcyclesModalOpen) return;
     syncMotorcyclesModalState(false);
     cancelInlineEdit();
+    document.querySelectorAll('.motorcycle-card__menu').forEach((menu) => { menu.hidden = true; });
+    const opener = motorcyclesSheetOpener;
+    motorcyclesSheetOpener = null;
+    if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true });
 }
 
 // Load motorcycles from Firestore
 async function loadMotorcyclesFromFirestore() {
+    if (isMotorcycleProfilePage()) {
+        await loadMotorcycleProfile();
+        return;
+    }
+
     isLoading = true;
+    const loading = document.getElementById('motorcyclesLoading');
+    const errorState = document.getElementById('motorcyclesError');
+    const emptyState = document.getElementById('emptyState');
+    const list = document.getElementById('motorcyclesList');
+    setElementHidden(loading, false);
+    setElementHidden(errorState, true);
+    setElementHidden(emptyState, true);
+    setElementHidden(list, true);
+    updateMotorcyclesCount('Loading…');
+
     try {
-        motorcycles = await getFirestoreDocs('motorcycles', 'createdAt');
+        const [loadedMotorcycles, loadedMaintenance] = await Promise.all([
+            getFirestoreDocs('motorcycles', 'createdAt'),
+            getFirestoreDocs('maintenance', 'createdAt')
+        ]);
+        motorcycles = loadedMotorcycles.filter((motorcycle) => motorcycle.deleted !== true);
+        maintenanceRecords = loadedMaintenance.filter((record) => record.deleted !== true);
         renderMotorcycles();
     } catch (error) {
         console.error('Error loading motorcycles:', error);
-        showToast('Error loading motorcycles', 'error');
-        renderEmptyState();
+        updateMotorcyclesCount('');
+        if (errorState) {
+            setElementHidden(errorState, false);
+            setElementHidden(list, true);
+        } else {
+            showToast('Error loading motorcycles', 'error');
+            renderEmptyState();
+        }
     } finally {
         isLoading = false;
+        setElementHidden(loading, true);
     }
+}
+
+function isMotorcycleProfilePage() {
+    return Boolean(document.getElementById('motorcycleProfileContent'));
+}
+
+function getMotorcycleProfileId() {
+    return new URLSearchParams(window.location.search).get('id')?.trim() || '';
+}
+
+async function loadMotorcycleProfile() {
+    const loading = document.getElementById('motorcycleProfileLoading');
+    const error = document.getElementById('motorcycleProfileError');
+    const invalid = document.getElementById('motorcycleProfileInvalid');
+    const content = document.getElementById('motorcycleProfileContent');
+    const editButton = document.getElementById('motorcycleProfileEdit');
+    const id = getMotorcycleProfileId();
+
+    setElementHidden(loading, true);
+    setElementHidden(error, true);
+    setElementHidden(invalid, true);
+    setElementHidden(content, true);
+    if (editButton) editButton.disabled = true;
+
+    if (!id) {
+        const message = document.getElementById('motorcycleProfileInvalidMessage');
+        if (message) message.textContent = 'Motorcycle ID is missing.';
+        setElementHidden(invalid, false);
+        return;
+    }
+
+    setElementHidden(loading, false);
+    try {
+        const [loadedMotorcycles, loadedMaintenance, loadedRepairs] = await Promise.all([
+            getFirestoreDocs('motorcycles', 'createdAt'),
+            getFirestoreDocs('maintenance', 'createdAt'),
+            getFirestoreDocs('repairs', 'createdAt')
+        ]);
+        motorcycles = loadedMotorcycles.filter((motorcycle) => motorcycle.deleted !== true);
+        maintenanceRecords = loadedMaintenance.filter((record) => record.deleted !== true);
+        profileRepairs = loadedRepairs.filter((record) =>
+            record.deleted !== true && String(record.motorcycleId || '') === id
+        );
+
+        if (!motorcycles.some((motorcycle) => String(motorcycle.id) === id)) {
+            const message = document.getElementById('motorcycleProfileInvalidMessage');
+            if (message) message.textContent = 'Motorcycle profile not found.';
+            setElementHidden(invalid, false);
+            return;
+        }
+
+        renderMotorcycleProfile();
+        setElementHidden(content, false);
+        if (editButton) editButton.disabled = false;
+    } catch (loadError) {
+        console.error('Error loading motorcycle profile:', loadError);
+        setElementHidden(error, false);
+    } finally {
+        setElementHidden(loading, true);
+    }
+}
+
+function setElementHidden(element, hidden) {
+    if (!element) return;
+    element.hidden = hidden;
+    element.classList.toggle('hidden', hidden);
 }
 
 function populateBrands() {
@@ -286,6 +409,18 @@ function setupEventListeners() {
     }
 }
 
+function markProfileNavigationActive() {
+    const nav = document.getElementById('mobileNav');
+    const profileLink = nav?.querySelector('a[href="profile.html"]');
+    if (!profileLink) return;
+    nav.querySelectorAll('.mobile-bottom-nav__item').forEach((item) => {
+        item.classList.remove('is-active');
+        item.setAttribute('aria-current', 'false');
+    });
+    profileLink.classList.add('is-active');
+    profileLink.setAttribute('aria-current', 'page');
+}
+
 function getBikeInitials(moto) {
     const modelText = String(moto?.model || '').trim();
     const brandText = String(moto?.brand || '').trim();
@@ -308,104 +443,486 @@ function bikeIconSvg(size = 22) {
     return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`;
 }
 
-function updateMotorcyclesCount() {
+function getMotorcycleName(moto) {
+    return String(moto.motorcycleName || '').trim()
+        || [moto.brand, moto.model].filter(Boolean).join(' ').trim()
+        || 'Motorcycle';
+}
+
+function getMotorcycleMileage(moto) {
+    const raw = moto.mileage ?? moto.odo ?? moto.currentOdo ?? moto.odometer;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function getNextService(moto) {
+    const category = classifyMotorcycleCategory(moto);
+    const rules = MAINTENANCE_RULES[category.key] || MAINTENANCE_RULES.underbone;
+    const statusPriority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3 };
+
+    return rules.map((rule) => ({
+        rule,
+        ...getMaintenanceTaskStatus(moto, rule, maintenanceRecords)
+    })).sort((left, right) => {
+        const priorityDiff = statusPriority[left.status.key] - statusPriority[right.status.key];
+        return priorityDiff || left.dueMileage - right.dueMileage;
+    })[0] || null;
+}
+
+function formatServiceDueDate(date) {
+    if (!date) return '';
+    const value = date instanceof Date ? date : new Date(date);
+    return Number.isNaN(value.getTime())
+        ? ''
+        : value.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getRepairAmount(record = {}) {
+    const value = record.amount ?? record.cost ?? record.total ?? 0;
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : 0;
+}
+
+function createProfileSvg(paths) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    paths.forEach((pathData) => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        svg.appendChild(path);
+    });
+    return svg;
+}
+
+function createProfileHistoryRow(title, subtitle, iconPaths, href, onClick) {
+    const row = href ? document.createElement('a') : document.createElement('div');
+    row.className = 'motorcycle-profile-history-row';
+    if (href) row.href = href;
+    if (onClick) row.addEventListener('click', onClick);
+
+    const icon = document.createElement('span');
+    icon.className = 'motorcycle-profile-history-icon';
+    icon.appendChild(createProfileSvg(iconPaths));
+    const copy = document.createElement('span');
+    copy.className = 'motorcycle-profile-history-copy';
+    const titleElement = document.createElement('strong');
+    titleElement.textContent = title;
+    const subtitleElement = document.createElement('span');
+    subtitleElement.textContent = subtitle;
+    copy.append(titleElement, subtitleElement);
+    row.append(icon, copy);
+    if (href) {
+        const chevron = createProfileSvg(['m9 18 6-6-6-6']);
+        chevron.classList.add('motorcycle-profile-history-chevron');
+        row.appendChild(chevron);
+    }
+    return row;
+}
+
+function renderMotorcycleProfileOdoEditor(motorcycle, mileage) {
+    const editor = document.getElementById('motorcycleProfileOdoEditor');
+    if (!editor) return;
+    editor.replaceChildren();
+    if (editingId !== motorcycle.id) {
+        setElementHidden(editor, true);
+        return;
+    }
+
+    const name = getMotorcycleName(motorcycle);
+    const input = document.createElement('input');
+    input.id = `inline-mileage-${motorcycle.id}`;
+    input.type = 'number';
+    input.min = '0';
+    input.step = '1';
+    input.inputMode = 'numeric';
+    input.setAttribute('aria-label', `Current odometer for ${name}`);
+    input.value = mileage === null ? '' : String(mileage);
+
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.textContent = 'Save';
+    saveButton.addEventListener('click', () => saveInlineMileage(motorcycle.id));
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', cancelInlineEdit);
+    editor.append(input, saveButton, cancelButton);
+    setElementHidden(editor, false);
+}
+
+function renderMotorcycleProfileNextService(motorcycle) {
+    const container = document.getElementById('motorcycleProfileNextService');
+    if (!container) return;
+    container.replaceChildren();
+
+    const nextService = getNextService(motorcycle);
+    if (!nextService) {
+        const caughtUp = document.createElement('p');
+        caughtUp.className = 'motorcycle-profile-service-card motorcycle-profile-caught-up';
+        caughtUp.textContent = 'All caught up';
+        container.appendChild(caughtUp);
+        return;
+    }
+
+    const statusLabels = {
+        overdue: ['Overdue', 'motorcycle-profile-service-status--overdue'],
+        due: ['Overdue', 'motorcycle-profile-service-status--overdue'],
+        upcoming: ['Due soon', 'motorcycle-profile-service-status--due-soon'],
+        scheduled: ['Upcoming', 'motorcycle-profile-service-status--upcoming']
+    };
+    const statusInfo = statusLabels[nextService.status.key];
+    if (!statusInfo) {
+        const caughtUp = document.createElement('p');
+        caughtUp.className = 'motorcycle-profile-service-card motorcycle-profile-caught-up';
+        caughtUp.textContent = 'All caught up';
+        container.appendChild(caughtUp);
+        return;
+    }
+
+    const dueDate = formatServiceDueDate(nextService.dueDate);
+    const dueInfo = dueDate || `at ${nextService.dueMileage.toLocaleString()} km`;
+    const card = document.createElement('div');
+    card.className = 'motorcycle-profile-service-card';
+    const icon = document.createElement('span');
+    icon.className = 'motorcycle-profile-service-icon';
+    icon.appendChild(createProfileSvg(['M12 22a7 7 0 0 0 7-7c0-2-1-3-3-5-2-2-3-4-4-7-1 3-2 5-4 7-2 2-3 3-3 5a7 7 0 0 0 7 7Z']));
+
+    const copy = document.createElement('span');
+    copy.className = 'motorcycle-profile-service-copy';
+    const task = document.createElement('strong');
+    task.textContent = nextService.rule.task;
+    const name = document.createElement('span');
+    name.textContent = getMotorcycleName(motorcycle);
+    copy.append(task, name);
+
+    const meta = document.createElement('span');
+    meta.className = 'motorcycle-profile-service-meta';
+    const status = document.createElement('span');
+    status.className = `motorcycle-profile-service-status ${statusInfo[1]}`;
+    const dot = document.createElement('span');
+    dot.className = 'motorcycle-profile-status-dot';
+    status.append(dot, document.createTextNode(statusInfo[0]));
+    const due = document.createElement('span');
+    due.textContent = dueInfo;
+    meta.append(status, due);
+    card.append(icon, copy, meta);
+    container.appendChild(card);
+}
+
+function renderMotorcycleProfile() {
+    const id = getMotorcycleProfileId();
+    const motorcycle = motorcycles.find((item) => String(item.id) === id && item.deleted !== true);
+    if (!motorcycle) return;
+
+    const name = document.getElementById('motorcycleProfileName');
+    if (name) name.textContent = getMotorcycleName(motorcycle);
+
+    const details = document.getElementById('motorcycleProfileDetails');
+    if (details) {
+        const year = motorcycle.year === null || motorcycle.year === undefined
+            ? ''
+            : String(motorcycle.year).trim();
+        details.textContent = year;
+        setElementHidden(details, !year);
+    }
+
+    const mileage = getMotorcycleMileage(motorcycle);
+    const mileageElement = document.getElementById('motorcycleProfileMileage');
+    const mileageUnit = document.getElementById('motorcycleProfileMileageUnit');
+    if (mileageElement) mileageElement.textContent = mileage === null ? '—' : mileage.toLocaleString();
+    setElementHidden(mileageUnit, mileage === null);
+    renderMotorcycleProfileOdoEditor(motorcycle, mileage);
+
+    const completedRecords = maintenanceRecords.filter((record) =>
+        String(record.motorcycleId || '') === id && isCompletionRecord(record)
+    );
+    const serviceCount = document.getElementById('motorcycleProfileServiceCount');
+    if (serviceCount) serviceCount.textContent = String(completedRecords.length);
+
+    const spent = profileRepairs.reduce((sum, record) => sum + getRepairAmount(record), 0);
+    const totalSpent = document.getElementById('motorcycleProfileTotalSpent');
+    if (totalSpent) {
+        totalSpent.textContent = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: window.getCurrencyPreference(),
+            maximumFractionDigits: 0
+        }).format(spent);
+    }
+
+    renderMotorcycleProfileNextService(motorcycle);
+
+    const category = classifyMotorcycleCategory(motorcycle);
+    const taskCount = (MAINTENANCE_RULES[category.key] || MAINTENANCE_RULES.underbone).length;
+    const repairsCount = profileRepairs.length;
+    const historyRows = document.getElementById('motorcycleProfileHistoryRows');
+    if (historyRows) {
+        const maintenanceCountLabel = completedRecords.length
+            ? `${completedRecords.length} ${completedRecords.length === 1 ? 'record' : 'records'}`
+            : 'No records yet';
+        const repairsCountLabel = repairsCount
+            ? `${repairsCount} ${repairsCount === 1 ? 'repair' : 'repairs'}`
+            : 'No repairs yet';
+        const taskCountLabel = `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`;
+
+        const maintenanceRow = createProfileHistoryRow(
+            'Maintenance records',
+            maintenanceCountLabel,
+            ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'],
+            null
+        );
+        const repairRow = createProfileHistoryRow(
+            'Repair history',
+            repairsCountLabel,
+            ['m14.7 6.3 3 3', 'M4 20l5.5-1.5L20 8l-4-4L5.5 14.5 4 20Z'],
+            'history.html'
+        );
+        const scheduleRow = createProfileHistoryRow(
+            'Maintenance schedule',
+            taskCountLabel,
+            ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z'],
+            'schedule.html',
+            () => {
+                try {
+                    localStorage.setItem('motocare.selectedMotorcycleId', id);
+                } catch (error) {
+                    console.warn('Could not select motorcycle for Schedule:', error);
+                }
+            }
+        );
+        historyRows.replaceChildren(maintenanceRow, repairRow, scheduleRow);
+    }
+}
+
+function openMotorcycleProfile(id) {
+    window.location.href = `motorcycle-profile.html?id=${encodeURIComponent(String(id))}`;
+}
+
+function createMotorcycleCard(moto) {
+    const name = getMotorcycleName(moto);
+    const card = document.createElement('article');
+    card.className = 'motorcycle-card';
+    card.dataset.motorcycleId = String(moto.id);
+    card.tabIndex = 0;
+    card.setAttribute('aria-label', `${name}. Press Enter to open motorcycle profile.`);
+    card.addEventListener('click', (event) => {
+        if (!event.target.closest('button, input')) openMotorcycleProfile(moto.id);
+    });
+    card.addEventListener('keydown', (event) => {
+        if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        openMotorcycleProfile(moto.id);
+    });
+
+    const top = document.createElement('div');
+    top.className = 'motorcycle-card__top';
+    const icon = document.createElement('div');
+    icon.className = 'motorcycle-card__icon';
+    icon.innerHTML = bikeIconSvg();
+
+    const identity = document.createElement('div');
+    identity.className = 'motorcycle-card__identity';
+    const nameElement = document.createElement('h2');
+    nameElement.className = 'motorcycle-card__name';
+    nameElement.textContent = name;
+    const detailsElement = document.createElement('p');
+    detailsElement.className = 'motorcycle-card__detail';
+    detailsElement.textContent = moto.year === null || moto.year === undefined || moto.year === ''
+        ? ''
+        : String(moto.year);
+    detailsElement.hidden = !detailsElement.textContent;
+    identity.append(nameElement, detailsElement);
+
+    const optionsWrap = document.createElement('div');
+    optionsWrap.className = 'motorcycle-card__options-wrap';
+    const optionsButton = document.createElement('button');
+    optionsButton.type = 'button';
+    optionsButton.className = 'motorcycle-card__options';
+    optionsButton.textContent = 'Edit';
+    optionsButton.setAttribute('aria-label', `Actions for ${name}`);
+    optionsButton.setAttribute('aria-expanded', 'false');
+    const menu = document.createElement('div');
+    menu.className = 'motorcycle-card__menu';
+    menu.id = `motorcycle-menu-${String(moto.id)}`;
+    menu.dataset.motorcycleId = String(moto.id);
+    menu.setAttribute('role', 'group');
+    menu.setAttribute('aria-label', `Actions for ${name}`);
+    menu.hidden = true;
+    optionsButton.setAttribute('aria-controls', menu.id);
+    optionsButton.addEventListener('click', () => {
+        const shouldOpen = menu.hidden;
+        document.querySelectorAll('.motorcycle-card__menu').forEach((openMenu) => { openMenu.hidden = true; });
+        document.querySelectorAll('.motorcycle-card__options').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+        menu.hidden = !shouldOpen;
+        if (shouldOpen && document.getElementById('motorcyclesBackdrop')) {
+            const rect = optionsButton.getBoundingClientRect();
+            const menuHeight = menu.offsetHeight || 120;
+            const top = rect.bottom + menuHeight + 8 > window.innerHeight
+                ? Math.max(8, rect.top - menuHeight - 4)
+                : rect.bottom + 4;
+            const left = Math.max(8, Math.min(rect.right - 148, window.innerWidth - 156));
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        }
+        optionsButton.setAttribute('aria-expanded', String(!menu.hidden));
+        if (!menu.hidden) menu.querySelector('button')?.focus({ preventScroll: true });
+    });
+
+    const addMenuAction = (label, action) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', () => {
+            menu.hidden = true;
+            optionsButton.setAttribute('aria-expanded', 'false');
+            action();
+        });
+        menu.appendChild(button);
+    };
+    addMenuAction('Edit', () => openMotorcycleProfile(moto.id));
+    addMenuAction('Edit Odometer', () => startInlineEdit(moto.id));
+    addMenuAction('Delete motorcycle', () => openDeleteMotorcycleModal(moto.id, name));
+    optionsWrap.appendChild(optionsButton);
+    if (document.getElementById('motorcyclesBackdrop')) {
+        document.body.appendChild(menu);
+    } else {
+        optionsWrap.appendChild(menu);
+    }
+    top.append(icon, identity, optionsWrap);
+    card.appendChild(top);
+
+    const firstDivider = document.createElement('div');
+    firstDivider.className = 'motorcycle-card__divider';
+    card.appendChild(firstDivider);
+
+    const odoLabel = document.createElement('p');
+    odoLabel.className = 'motorcycle-card__label';
+    odoLabel.textContent = 'Current odometer';
+    const odoArea = document.createElement('button');
+    odoArea.type = 'button';
+    odoArea.className = 'motorcycle-card__odo-area';
+    odoArea.setAttribute('aria-label', `Edit odometer for ${name}`);
+    const odoRow = document.createElement('div');
+    odoRow.className = 'motorcycle-card__odo-row';
+    const odoValue = document.createElement('span');
+    odoValue.className = 'motorcycle-card__odo-value';
+    const mileage = getMotorcycleMileage(moto);
+    odoValue.textContent = mileage === null ? '—' : mileage.toLocaleString();
+    const odoUnit = document.createElement('span');
+    odoUnit.className = 'motorcycle-card__odo-unit';
+    odoUnit.textContent = 'km';
+    odoUnit.hidden = mileage === null;
+    const chevron = document.createElement('span');
+    chevron.className = 'motorcycle-card__chevron';
+    chevron.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+    odoRow.append(odoValue, odoUnit, chevron);
+    odoArea.append(odoLabel, odoRow);
+    odoArea.addEventListener('click', () => startInlineEdit(moto.id));
+    card.appendChild(odoArea);
+
+    if (editingId === moto.id) {
+        const editor = document.createElement('div');
+        editor.className = 'motorcycle-card__edit-odo';
+        const input = document.createElement('input');
+        input.id = `inline-mileage-${moto.id}`;
+        input.type = 'number';
+        input.min = '0';
+        input.step = '1';
+        input.inputMode = 'numeric';
+        input.setAttribute('aria-label', `Current odometer for ${name}`);
+        input.value = mileage === null ? '' : String(mileage);
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.textContent = 'Save';
+        saveButton.addEventListener('click', () => saveInlineMileage(moto.id));
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.textContent = 'Cancel';
+        cancelButton.addEventListener('click', cancelInlineEdit);
+        editor.append(input, saveButton, cancelButton);
+        card.appendChild(editor);
+    }
+
+    const secondDivider = document.createElement('div');
+    secondDivider.className = 'motorcycle-card__divider';
+    card.appendChild(secondDivider);
+
+    const serviceRow = document.createElement('div');
+    serviceRow.className = 'motorcycle-card__service';
+    const serviceCopy = document.createElement('div');
+    serviceCopy.className = 'motorcycle-card__service-copy';
+    const serviceLabel = document.createElement('p');
+    serviceLabel.className = 'motorcycle-card__label';
+    serviceLabel.textContent = 'Next service';
+    const serviceName = document.createElement('p');
+    serviceName.className = 'motorcycle-card__service-name';
+    const nextService = getNextService(moto);
+    const statusClasses = {
+        overdue: ['Overdue', 'motorcycle-card__status--overdue'],
+        due: ['Overdue', 'motorcycle-card__status--overdue'],
+        upcoming: ['Due soon', 'motorcycle-card__status--due-soon'],
+        scheduled: ['Upcoming', 'motorcycle-card__status--upcoming']
+    };
+    const statusInfo = nextService && statusClasses[nextService.status.key];
+    if (nextService && statusInfo) {
+        const dueDate = formatServiceDueDate(nextService.dueDate);
+        const dueInfo = dueDate
+            ? dueDate
+            : `at ${nextService.dueMileage.toLocaleString()} km`;
+        serviceName.textContent = `${nextService.rule.task} · ${dueInfo}`;
+        const status = document.createElement('span');
+        status.className = `motorcycle-card__status ${statusInfo[1]}`;
+        const dot = document.createElement('span');
+        dot.className = 'motorcycle-card__status-dot';
+        status.append(dot, document.createTextNode(statusInfo[0]));
+        serviceRow.append(serviceCopy, status);
+    } else {
+        serviceName.textContent = 'All caught up';
+        serviceRow.appendChild(serviceCopy);
+    }
+    serviceCopy.append(serviceLabel, serviceName);
+    card.appendChild(serviceRow);
+
+    return card;
+}
+
+function updateMotorcyclesCount(message) {
     const count = document.getElementById('motorcyclesModalCount');
-    if (count) count.textContent = `${motorcycles.length} motorcycle${motorcycles.length === 1 ? '' : 's'}`;
+    if (count) {
+        count.textContent = message !== undefined
+            ? message
+            : `${motorcycles.length} ${motorcycles.length === 1 ? 'bike' : 'bikes'}`;
+    }
 }
 
 function renderMotorcycles() {
     const list = document.getElementById('motorcyclesList');
     const emptyState = document.getElementById('emptyState');
     const addAnother = document.getElementById('addAnotherBtn');
-    if (!list || !emptyState || !addAnother) return;
+    if (!list || !emptyState) return;
     updateMotorcyclesCount();
+    if (addAnother) addAnother.classList.toggle('hidden', motorcycles.length === 0);
+    document.querySelectorAll('.motorcycle-card__menu').forEach((menu) => menu.remove());
 
     if (motorcycles.length === 0) {
-        list.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        addAnother.classList.add('hidden');
+        list.replaceChildren();
+        setElementHidden(list, true);
+        setElementHidden(emptyState, false);
         return;
     }
 
-    emptyState.classList.add('hidden');
-    addAnother.classList.remove('hidden');
-    addAnother.classList.add('flex');
+    setElementHidden(emptyState, true);
+    setElementHidden(list, false);
+    list.replaceChildren(...motorcycles.map(createMotorcycleCard));
+}
 
-    list.innerHTML = motorcycles.map((moto, idx) => {
-        const badgeColor = getBikeBadgeColor(moto);
-        const initials = getBikeInitials(moto);
-        const bikeName = `${moto.brand || ''} ${moto.model || ''}`.trim();
-        const subtitle = `${moto.year || ''} · ${Number(moto.mileage || 0).toLocaleString()} km`;
-        const isEditing = editingId === moto.id;
-
-        if (isEditing) {
-            return `
-                <div class="rounded-[18px] border border-gray-200 bg-[#f9fafb] p-3 shadow-sm" style="animation: fadeIn 0.2s ease-out ${idx * 0.08}s both">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="flex items-start gap-3">
-                            <div class="motorcycle-card__icon">${bikeIconSvg()}</div>
-                            <div>
-                                <h3 class="text-[15px] font-bold text-[#111827]">${escapeHtml(bikeName)}</h3>
-                                <p class="text-[11px] text-gray-500">${escapeHtml(subtitle)}</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button type="button" aria-label="Save mileage" onclick="saveInlineMileage('${moto.id}')" class="grid h-8 w-8 place-items-center rounded-full bg-green-600 text-white transition hover:bg-green-700">
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
-                            </button>
-                            <button type="button" aria-label="Cancel edit" onclick="cancelInlineEdit()" class="grid h-8 w-8 place-items-center rounded-full bg-gray-200 text-gray-600 transition hover:bg-gray-300">
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M6 18 18 6"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 grid grid-cols-2 gap-3">
-                        <div class="rounded-[14px] border border-gray-200 bg-white p-3">
-                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Mileage</div>
-                            <input id="inline-mileage-${moto.id}" type="number" min="0" value="${Number(moto.mileage || 0)}" class="w-full border-0 bg-transparent p-0 text-[18px] font-bold text-[#111827] outline-none" />
-                        </div>
-                        <div class="rounded-[14px] border border-gray-200 bg-white p-3">
-                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Year</div>
-                            <div class="text-[18px] font-bold text-[#111827]">${escapeHtml(moto.year || '')}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        return `
-            <div class="rounded-[16px] border border-gray-200 bg-white p-3 shadow-[0_2px_8px_rgba(17,24,39,0.04)] transition hover:shadow-[0_4px_12px_rgba(17,24,39,0.06)]" style="animation: fadeIn 0.2s ease-out ${idx * 0.08}s both">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex min-w-0 items-start gap-3">
-                        <div class="motorcycle-card__icon">${bikeIconSvg()}</div>
-                        <div class="min-w-0">
-                            <h3 class="truncate text-[15px] font-bold text-[#111827]">${escapeHtml(bikeName)}</h3>
-                            <p class="text-[11px] text-gray-500">${escapeHtml(subtitle)}</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button type="button" aria-label="Edit motorcycle" onclick="startInlineEdit('${moto.id}')" class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16  -1 5 5-1L19 9l-4-4L4 16Z"/><path d="m13 6 4 4"/></svg>
-                        </button>
-                        <button type="button" aria-label="Delete motorcycle" onclick='openDeleteMotorcycleModal(${JSON.stringify(moto.id)}, ${JSON.stringify(bikeName)})' class="grid h-7 w-7 place-items-center rounded-full bg-red-50 text-red-600 transition hover:bg-red-100">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="mt-3 grid grid-cols-2 gap-2.5">
-                    <div class="rounded-[12px] border border-gray-200 bg-[#f8faf9] p-3">
-                        <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Mileage</div>
-                        <div class="text-[16px] font-bold text-[#111827]">${escapeHtml(Number(moto.mileage || 0).toLocaleString())} km</div>
-                    </div>
-                    <div class="rounded-[12px] border border-gray-200 bg-[#f8faf9] p-3">
-                        <div class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Year</div>
-                        <div class="text-[16px] font-bold text-[#111827]">${escapeHtml(moto.year || '')}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+function renderCurrentMotorcycleView() {
+    if (isMotorcycleProfilePage()) {
+        renderMotorcycleProfile();
+        return;
+    }
+    renderMotorcycles();
 }
 
 function closeMotorcyclesSheet() {
@@ -415,34 +932,41 @@ function closeMotorcyclesSheet() {
     if (backdrop) backdrop.style.display = 'none';
 }
 
+function getMotorcycleActionTrigger() {
+    const activeElement = document.activeElement;
+    const activeMenu = activeElement instanceof HTMLElement ? activeElement.closest('.motorcycle-card__menu') : null;
+    if (!activeMenu) return activeElement;
+    const card = Array.from(document.querySelectorAll('.motorcycle-card'))
+        .find((item) => item.dataset.motorcycleId === activeMenu.dataset.motorcycleId);
+    return card?.querySelector('.motorcycle-card__options') || activeElement;
+}
+
 function startInlineEdit(id) {
     editingId = id;
-    renderMotorcycles();
+    renderCurrentMotorcycleView();
+    requestAnimationFrame(() => document.getElementById(`inline-mileage-${id}`)?.focus({ preventScroll: true }));
 }
 
 function cancelInlineEdit() {
     editingId = null;
-    renderMotorcycles();
+    renderCurrentMotorcycleView();
 }
 
 async function saveInlineMileage(id) {
     const input = document.getElementById(`inline-mileage-${id}`);
     if (!input) return;
 
-    const nextMileage = Number(input.value);
-    if (!Number.isFinite(nextMileage) || nextMileage < 0) {
+    const rawMileage = input.value.trim();
+    const nextMileage = Number(rawMileage);
+    if (!rawMileage || !Number.isFinite(nextMileage) || nextMileage < 0) {
         showToast('Please enter a valid mileage value', 'error');
         return;
     }
 
     try {
         await updateFirestoreDoc('motorcycles', id, { mileage: nextMileage });
-        const idx = motorcycles.findIndex((bike) => bike.id === id);
-        if (idx > -1) {
-            motorcycles[idx] = { ...motorcycles[idx], mileage: nextMileage };
-        }
         editingId = null;
-        renderMotorcycles();
+        await loadMotorcyclesFromFirestore();
         showToast('Mileage updated', 'success');
     } catch (error) {
         console.error('Error updating mileage:', error);
@@ -453,6 +977,7 @@ async function saveInlineMileage(id) {
 function openAddModal() {
     console.log('openAddModal called, authReady:', authReady);
     editingId = null;
+    if (isMotorcyclesModalOpen) motorcyclesNestedOpener = document.activeElement;
     const modal = document.getElementById('motorcycleModal');
     const form = document.getElementById('motorcycleForm');
     const backdrop = modal ? modal.querySelector('.modal-backdrop, .absolute.inset-0') : null;
@@ -489,7 +1014,8 @@ function openAddModal() {
     
     modal.classList.remove('hidden');
     backdrop.style.display = 'block';
-    
+    requestAnimationFrame(() => brandSelect?.focus({ preventScroll: true }));
+
     console.log('✓ Add motorcycle modal opened');
 }
 
@@ -499,18 +1025,65 @@ function closeModal() {
     const backdrop = modal.querySelector('.absolute.inset-0');
     modal.classList.add('hidden');
     if (backdrop) backdrop.style.display = 'none';
+    const opener = motorcyclesNestedOpener;
+    motorcyclesNestedOpener = null;
+    if (isMotorcyclesModalOpen && opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus({ preventScroll: true });
+    } else if (isMotorcyclesModalOpen) {
+        document.getElementById('motorcyclesCloseButton')?.focus({ preventScroll: true });
+    }
+}
+
+function getFocusableElements(container) {
+    const focusable = Array.from(container.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ));
+    if (container.id === 'motorcyclesBottomSheet') {
+        focusable.push(...document.querySelectorAll('.motorcycle-card__menu:not([hidden]) button:not([disabled])'));
+    }
+    return focusable.filter((element) => element.getClientRects().length > 0);
+}
+
+function getTopMotorcyclesDialog() {
+    const deleteModal = document.getElementById('deleteMotorcycleModal');
+    if (deleteModal && !deleteModal.classList.contains('hidden')) return deleteModal;
+    const formModal = document.getElementById('motorcycleModal');
+    if (formModal && !formModal.classList.contains('hidden')) return formModal;
+    return document.getElementById('motorcyclesBottomSheet');
 }
 
 window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isMotorcyclesModalOpen) {
-        closeMotorcyclesModal();
+    if (!isMotorcyclesModalOpen) return;
+    if (event.key === 'Escape') {
+        const deleteModal = document.getElementById('deleteMotorcycleModal');
+        const formModal = document.getElementById('motorcycleModal');
+        if (deleteModal && !deleteModal.classList.contains('hidden')) closeDeleteMotorcycleModal();
+        else if (formModal && !formModal.classList.contains('hidden')) closeModal();
+        else closeMotorcyclesModal();
+        event.stopPropagation();
+        return;
     }
+    if (event.key !== 'Tab') return;
+    const dialog = getTopMotorcyclesDialog();
+    const focusable = dialog ? getFocusableElements(dialog) : [];
+    if (!focusable.length) {
+        event.preventDefault();
+        dialog?.focus({ preventScroll: true });
+        return;
+    }
+    const currentIndex = focusable.indexOf(document.activeElement);
+    const nextIndex = event.shiftKey
+        ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
+        : (currentIndex < 0 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1);
+    event.preventDefault();
+    focusable[nextIndex].focus({ preventScroll: true });
 });
 
 function openDeleteMotorcycleModal(id, label = '') {
     pendingDeleteId = id;
     pendingDeleteLabel = label;
     window.pendingDeleteMotorcycleLabel = label;
+    if (isMotorcyclesModalOpen) motorcyclesNestedOpener = getMotorcycleActionTrigger();
 
     const modal = document.getElementById('deleteMotorcycleModal');
     const backdrop = document.getElementById('deleteMotorcycleBackdrop');
@@ -527,6 +1100,7 @@ function openDeleteMotorcycleModal(id, label = '') {
 
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
+    requestAnimationFrame(() => getFocusableElements(modal)[0]?.focus({ preventScroll: true }));
 }
 
 function closeDeleteMotorcycleModal() {
@@ -538,6 +1112,13 @@ function closeDeleteMotorcycleModal() {
 
     pendingDeleteId = null;
     pendingDeleteLabel = '';
+    const opener = motorcyclesNestedOpener;
+    motorcyclesNestedOpener = null;
+    if (isMotorcyclesModalOpen && opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus({ preventScroll: true });
+    } else if (isMotorcyclesModalOpen) {
+        document.getElementById('motorcyclesCloseButton')?.focus({ preventScroll: true });
+    }
 }
 
 async function confirmDeleteMotorcycle() {
@@ -551,10 +1132,12 @@ async function confirmDeleteMotorcycle() {
 function editMotorcycle(id) {
     const moto = motorcycles.find(m => m.id === id);
     if (!moto) return;
+    if (isMotorcyclesModalOpen) motorcyclesNestedOpener = getMotorcycleActionTrigger();
     editingId = id;
     const modal = document.getElementById('motorcycleModal');
+    if (!modal) return;
     const backdrop = modal.querySelector('.modal-backdrop, .absolute.inset-0');
-    if (!modal || !backdrop) return;
+    if (!backdrop) return;
 
     const brandSelect = document.getElementById('brandSelect');
     const modelSelect = document.getElementById('modelSelect');
@@ -591,13 +1174,15 @@ function editMotorcycle(id) {
 
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
+    requestAnimationFrame(() => brandSelect?.focus({ preventScroll: true }));
 }
 
 async function deleteMotorcycle(id) {
     try {
         await deleteFirestoreDoc('motorcycles', id);
         motorcycles = motorcycles.filter(m => m.id !== id);
-        renderMotorcycles();
+        editingId = null;
+        renderCurrentMotorcycleView();
         showToast('Motorcycle deleted', 'success');
     } catch (error) {
         console.error('Error deleting motorcycle:', error);
@@ -674,8 +1259,9 @@ async function saveMotorcycle() {
             showToast('Motorcycle added successfully', 'success');
         }
         
+        editingId = null;
         window.dispatchEvent(new CustomEvent('motocare:motorcycle-changed'));
-        renderMotorcycles();
+        renderCurrentMotorcycleView();
         closeModal();
     } catch (error) {
         console.error('Error saving motorcycle:', error);
@@ -687,12 +1273,13 @@ function renderEmptyState() {
     const list = document.getElementById('motorcyclesList');
     const emptyState = document.getElementById('emptyState');
     const addAnother = document.getElementById('addAnotherBtn');
-    if (!list || !emptyState || !addAnother) return;
+    if (!list || !emptyState) return;
     updateMotorcyclesCount();
     
-    list.innerHTML = '';
-    emptyState.classList.remove('hidden');
-    addAnother.classList.add('hidden');
+    list.replaceChildren();
+    setElementHidden(list, true);
+    setElementHidden(emptyState, false);
+    if (addAnother) addAnother.classList.add('hidden');
 }
 
 function showToast(message, type = 'info') {
