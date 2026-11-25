@@ -2,7 +2,8 @@ import { auth } from "./firebase-config.js?v=3";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  onAuthStateChanged
+  onAuthStateChanged,
+  signOut
 } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
 import {
@@ -12,7 +13,10 @@ import {
 
 // SIGN UP
 export function signUp(email, password) {
-  return createUserWithEmailAndPassword(auth, email, password);
+  return createUserWithEmailAndPassword(auth, email, password).then(async (credential) => {
+    await signOut(auth);
+    return credential;
+  });
 }
 
 // LOGIN

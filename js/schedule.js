@@ -1,7 +1,7 @@
 import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
-import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, getFirestoreDocById } from './firebaseUtils.js';
-import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { getFirestoreDocs } from './firebaseUtils.js';
+import { collection, doc, query, runTransaction, serverTimestamp, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { normalizeRecord } from './utils-module.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 import {
@@ -9,7 +9,6 @@ import {
     getCompletionMileage,
     getReminderThreshold
 } from './maintenanceStatus.js';
-import { initEmailJS, sendMaintenanceReminder } from './emailjs.js';
 
 let currentUserId = null;
 let currentUserEmail = '';
@@ -59,7 +58,6 @@ onAuthStateChanged(auth, async (user) => {
 
     currentUserId = user.uid;
     currentUserEmail = user.email || '';
-    initEmailJS();
     // Use realtime listeners so schedule reflects recent saves immediately
     setupScheduleListeners(user.uid);
 });
@@ -304,18 +302,6 @@ window.openMotorcycleDrawer = openMotorcycleDrawer;
 window.closeMotorcycleDrawer = closeMotorcycleDrawer;
 window.selectMotorcycleUnit = selectMotorcycleUnit;
 
-function isAutoSendEnabled() {
-    try {
-        const el = document.getElementById('autoSendToggle');
-        if (el) return Boolean(el.checked);
-        const stored = localStorage.getItem('motocare.autoSendEnabled');
-        if (stored !== null) return stored === 'true';
-    } catch (e) {
-        // ignore
-    }
-    return true; // default to enabled for demo convenience
-}
-
 async function loadSchedule(userId) {
     // Deprecated: loadSchedule is now handled by realtime listeners in setupScheduleListeners
     return;
@@ -340,6 +326,7 @@ function setupScheduleListeners(userId) {
 
         if (!motorcycles.length) {
             scheduleItems = [];
+            window.scheduleItems = scheduleItems;
             selectedMotorcycleId = '';
             renderMotorcycleDrawer();
             renderEmptySchedule('No motorcycles yet. Add one first to generate maintenance reminders.');
@@ -361,6 +348,7 @@ function setupScheduleListeners(userId) {
                 if (a.dueMileage !== b.dueMileage) return a.dueMileage - b.dueMileage;
                 return a.currentOdo - b.currentOdo;
             });
+        window.scheduleItems = scheduleItems;
 
         renderMotorcycleDrawer();
         displaySchedule(getSelectedScheduleItems());
@@ -391,6 +379,7 @@ function setupScheduleListeners(userId) {
                     if (a.dueMileage !== b.dueMileage) return a.dueMileage - b.dueMileage;
                     return a.currentOdo - b.currentOdo;
                 });
+            window.scheduleItems = scheduleItems;
 
             renderMotorcycleDrawer();
             displaySchedule(getSelectedScheduleItems());
@@ -448,6 +437,25 @@ function filterScheduleItems(items) {
     return items.filter((item) => getDisplayStatus(item).filter === currentScheduleFilter);
 }
 
+function scheduleIconMarkup(iconName) {
+    const icons = {
+        'droplets': 'fa-droplet',
+        'wrench': 'fa-wrench',
+        'settings-2': 'fa-gears',
+        'shield-check': 'fa-shield-halved',
+        'alert-triangle': 'fa-triangle-exclamation',
+        'sparkles': 'fa-wand-magic-sparkles',
+        'clipboard-check': 'fa-clipboard-check',
+        'link': 'fa-link',
+        'thermometer': 'fa-temperature-half',
+        'alert-circle': 'fa-circle-exclamation',
+        'check-circle-2': 'fa-circle-check',
+        'clock': 'fa-clock'
+    };
+    const icon = icons[iconName] || icons.wrench;
+    return `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
+}
+
 function displaySchedule(items) {
     const container = document.getElementById('scheduleList');
     if (!container) return;
@@ -480,10 +488,6 @@ function displaySchedule(items) {
                     <p class="text-sm font-bold text-gray-900">${escapeHtml(motorcycleName)}</p>
                     <p class="mt-0.5 text-[10px] text-gray-500">${visibleItems.length} reminder${visibleItems.length === 1 ? '' : 's'}</p>
                 </div>
-                <label for="autoSendToggle" class="flex items-center gap-2 text-[10px] font-medium text-gray-600">
-                    <input id="autoSendToggle" type="checkbox" class="h-3.5 w-3.5" checked>
-                    Auto-send emails
-                </label>
             </div>
             <div class="mt-3 flex items-center justify-between gap-2">
                 <label for="reminderThresholdInput" class="schedule-label">REMINDER THRESHOLD</label>
@@ -502,7 +506,7 @@ function displaySchedule(items) {
         ${visibleItems.map((item) => { const displayStatus = getDisplayStatus(item); return `
             <article class="schedule-card">
                 <div class="schedule-card__top">
-                    <div class="schedule-icon"><i class="lucide lucide-${escapeHtml(item.icon || item.overall.icon)} text-lg" aria-hidden="true"></i></div>
+                    <div class="schedule-icon">${scheduleIconMarkup(item.icon || item.overall.icon)}</div>
                     <div class="schedule-card__identity">
                         <div class="flex items-start justify-between gap-2">
                             <h2 class="schedule-card__name">${escapeHtml(item.task)}</h2>
@@ -520,22 +524,6 @@ function displaySchedule(items) {
             </article>
         `; }).join('')}
     `;
-
-    // Hook auto-send toggle persistence
-    try {
-        const autoToggle = document.getElementById('autoSendToggle');
-        if (autoToggle) {
-            const stored = localStorage.getItem('motocare.autoSendEnabled');
-            if (stored !== null) {
-                autoToggle.checked = stored === 'true';
-            }
-            autoToggle.addEventListener('change', () => {
-                try { localStorage.setItem('motocare.autoSendEnabled', String(autoToggle.checked)); } catch (e) { /* ignore */ }
-            });
-        }
-    } catch (e) {
-        // ignore
-    }
 
     // Hook threshold controls
     const thresholdInput = document.getElementById('reminderThresholdInput');
@@ -704,8 +692,7 @@ async function createPendingReminders(items = []) {
             dueMileage: r.dueMileage || r.due || ''
         })));
 
-        // Group pending items by recipient email so we can create one email per recipient
-        const createdDocs = [];
+        // Use a stable queue ID and transaction so listener updates cannot queue the same reminder twice.
         const createdSignatures = new Set();
         for (const item of pending) {
             const signature = buildReminderSignature({ motorcycleId: item.motorcycleId, ruleKey: item.ruleKey, task: item.task, dueMileage: item.dueMileage });
@@ -730,80 +717,34 @@ async function createPendingReminders(items = []) {
             };
 
             try {
-                const newDoc = await addFirestoreDoc('emailReminders', payload);
-                createdDocs.push({ docId: newDoc.id, item, signature });
+                const reminderRef = doc(db, 'emailReminders', encodeURIComponent(signature));
+                const wasCreated = await runTransaction(db, async (transaction) => {
+                    const reminderSnapshot = await transaction.get(reminderRef);
+                    if (reminderSnapshot.exists()) return false;
+                    transaction.set(reminderRef, {
+                        ...payload,
+                        uid: currentUserId,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    return true;
+                });
+                if (!wasCreated) {
+                    existingSignatures.add(signature);
+                    continue;
+                }
                 createdSignatures.add(signature);
                 existingSignatures.add(signature);
-                console.log('Created reminder doc', newDoc.id, 'for', item.task, item.motorcycleName, 'signature:', signature);
+                console.log('Created reminder for', item.task, item.motorcycleName, 'signature:', signature);
                 try { showToast(`Created reminder: ${item.task} (${item.motorcycleName})`, 'info'); } catch (e) {}
             } catch (err) {
                 console.warn('Could not create reminder doc for', item.id, err?.message || err);
             }
         }
 
-        if (!createdDocs.length) {
+        if (!createdSignatures.size) {
             console.log('createPendingReminders: no new reminder docs created');
             try { showToast('No new reminders to create.', 'info'); } catch (e) {}
-        }
-
-        // If auto-send enabled, send one email per created reminder (simple, allows duplicates)
-        if (isAutoSendEnabled() && createdDocs.length) {
-            try {
-                const mod = await import('./emailjs.js');
-                const sendReminder = mod.sendMaintenanceReminder || mod.default?.sendMaintenanceReminder;
-                if (!sendReminder) throw new Error('sendMaintenanceReminder not available');
-
-                for (const d of createdDocs) {
-                    const item = d.item;
-                    try {
-                        // Re-fetch the reminder doc to ensure it wasn't already sent by another process
-                        let latest = null;
-                        try {
-                            latest = await getFirestoreDocById('emailReminders', d.docId);
-                        } catch (e) {
-                            console.warn('Could not re-fetch reminder doc', d.docId, e?.message || e);
-                        }
-
-                        if (latest && latest.sent === true) {
-                            console.log('Reminder already sent, skipping', d.docId);
-                            try { showToast('Reminder already sent, skipping.', 'info'); } catch (e) {}
-                            continue;
-                        }
-
-                        try { showToast(`Sending reminder for ${item.task}...`, 'info'); } catch (e) {}
-                        await sendReminder({
-                            toEmail: currentUserEmail,
-                            motorcycleName: item.motorcycleName,
-                            task: item.task,
-                            reminder: item.reminder,
-                            dueMileage: item.dueMileage,
-                            currentOdo: item.currentOdo,
-                            categoryLabel: item.categoryLabel
-                        });
-                        try { showToast('Reminder sent.', 'success'); } catch (e) {}
-                        await updateFirestoreDoc('emailReminders', d.docId, {
-                            sent: true,
-                            sentAt: new Date().toISOString(),
-                            lastError: null,
-                            source: 'emailjs-client-per-item'
-                        });
-                    } catch (sendErr) {
-                        console.warn('Per-item reminder send failed for', d.docId, sendErr?.message || sendErr);
-                        try { showToast('Reminder send failed: ' + (sendErr?.message || ''), 'error'); } catch (e) {}
-                        try {
-                            await updateFirestoreDoc('emailReminders', d.docId, {
-                                lastError: String(sendErr?.message || sendErr),
-                                lastAttempt: new Date().toISOString()
-                            });
-                        } catch (uErr) {
-                            console.warn('Could not update reminder with send error for', d.docId, uErr?.message || uErr);
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn('Auto-send per-item flow failed', err?.message || err);
-                try { showToast('Auto-send configuration error: ' + (err?.message || ''), 'error'); } catch (e) {}
-            }
         }
     } catch (err) {
         console.error('createPendingReminders error:', err);

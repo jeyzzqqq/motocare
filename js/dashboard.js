@@ -1,5 +1,5 @@
 import { auth, db } from './firebase-config.js?v=3';
-import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js';
+import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js';
 import { collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
 import { normalizeRecord } from './utils-module.js';
@@ -256,10 +256,6 @@ async function loadDashboard(user) {
     await loadNotificationCount(uid);
 }
 
-document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => {
-    window.resetMotoCareTheme?.();
-    return signOut(auth);
-}));
 document.getElementById('streakButton')?.addEventListener('click', () => {
     if (typeof window.openStreakModal === 'function') window.openStreakModal(auth.currentUser?.uid);
 });

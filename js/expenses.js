@@ -577,7 +577,7 @@ function displayRecentExpenses(shouldAnimate = false) {
         const date = dateValue ? dateValue.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date unavailable';
         return `
             <div class="expense-log-row" style="--row-index:${index}">
-                <span class="expense-icon"><i class="lucide lucide-receipt-text" aria-hidden="true"></i></span>
+                <span class="expense-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18l-3-2-3 2-2-2-3 2-2-2-3 2V3Z"/><path d="M8 8h8M8 12h8M8 16h4"/></svg></span>
                 <div class="expense-log-copy">
                     <p class="expense-log-title">${exp.title || 'Untitled expense'}</p>
                     <p class="expense-log-subtitle">${exp.motorcycleName || 'Unassigned bike'} · ${date}</p>
