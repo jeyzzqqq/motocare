@@ -9,10 +9,51 @@ let isSavingProfile = false;
 let draftAppearanceTheme = 'light';
 let appearanceSettingsOpener = null;
 let termsSettingsOpener = null;
+let helpSupportOpener = null;
+let aboutMotoCareOpener = null;
 
 const STREAK_PREFIX = 'motocare-streak-v1:';
 const THEME_STORAGE_KEY = 'motocare.theme';
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const HELP_FAQS = [
+    {
+        question: 'How do I add a motorcycle?',
+        answer: 'Go to My motorcycles and choose Add motorcycle. Enter the model, year, plate number and current odometer, then save your details.'
+    },
+    {
+        question: 'How do service reminders work?',
+        answer: 'MotoCare compares your current odometer with the recommended service interval for each task. When a service is close or overdue, it shows up in your Schedule and Dashboard. Reminders are estimates, so keep your odometer up to date.'
+    },
+    {
+        question: 'How do I update my odometer?',
+        answer: "Go to My motorcycles, tap your motorcycle's odometer, enter the new reading, then save. Updating it regularly keeps your reminders accurate."
+    },
+    {
+        question: 'Can I edit a maintenance record?',
+        answer: 'Yes. Open the record, change the details, then save. If you added a record by mistake, you can delete it instead.'
+    },
+    {
+        question: 'What can MotoAI help me with?',
+        answer: 'MotoAI can tell you what maintenance is due, explain what a service involves, and answer general questions about your motorcycle using your records. It gives general guidance only and can be wrong, so ask a qualified mechanic for anything involving safety.'
+    },
+    {
+        question: 'How do I delete a motorcycle?',
+        answer: 'Go to My motorcycles, open the motorcycle you want to remove, and choose Delete. It disappears from your list and your records.'
+    },
+    {
+        question: 'How do I log a repair or expense?',
+        answer: 'Go to Expenses and choose Add. Enter what was done, the cost, and the date, pick the motorcycle, then save. It will show up in your monthly total.'
+    },
+    {
+        question: 'Is my data safe?',
+        answer: "Your records are stored with Google Firebase and tied to your account, so you need to log in to see them. We never sell your data. Use a password you don't use anywhere else, and log out on shared devices."
+    }
+];
+const ABOUT_INFORMATION = [
+    { label: 'Version', value: '1.0.0 · Preview' },
+    { label: 'Developed by', value: 'Team Unplanned' },
+    { label: 'Platform', value: 'Web app (mobile-first)' }
+];
 
 function dateKey(date = new Date()) {
     const year = date.getFullYear();
@@ -485,6 +526,216 @@ function closeAppearanceSettings() {
     appearanceSettingsOpener = null;
 }
 
+function ensureHelpSupportMarkup() {
+    if (document.getElementById('helpSupportBackdrop')) return;
+
+    const root = document.createElement('div');
+    root.innerHTML = `<div id="helpSupportBackdrop" class="motorcycles-modal-backdrop help-support-backdrop">
+        <section class="motorcycles-modal-sheet help-support-sheet" role="dialog" aria-modal="true" aria-labelledby="helpSupportTitle" tabindex="-1">
+            <div class="help-support__content">
+                <a class="help-support__back" href="#" aria-label="Back to Account">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Account</span>
+                </a>
+                <main class="help-support__main">
+                    <h2 id="helpSupportTitle" class="help-support__title">Help and Support</h2>
+                    <p class="help-support__label">Frequently asked questions</p>
+                    <div id="helpSupportFaqs" class="help-faq"></div>
+                </main>
+            </div>
+        </section>
+    </div>`;
+    const backdrop = root.firstElementChild;
+    const faqList = backdrop.querySelector('#helpSupportFaqs');
+
+    HELP_FAQS.forEach((faq, index) => {
+        const isInitiallyOpen = index === 0;
+        const item = document.createElement('div');
+        item.className = `help-faq__item${isInitiallyOpen ? ' is-open' : ''}`;
+
+        const question = document.createElement('button');
+        question.className = 'help-faq__question';
+        question.type = 'button';
+        question.id = `helpFaqQuestion${index + 1}`;
+        question.setAttribute('aria-expanded', String(isInitiallyOpen));
+        question.setAttribute('aria-controls', `helpFaqAnswer${index + 1}`);
+
+        const questionText = document.createElement('span');
+        questionText.textContent = faq.question;
+        question.appendChild(questionText);
+        question.insertAdjacentHTML('beforeend', '<svg class="help-faq__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>');
+
+        const answer = document.createElement('div');
+        answer.className = 'help-faq__answer';
+        answer.id = `helpFaqAnswer${index + 1}`;
+        answer.setAttribute('role', 'region');
+        answer.setAttribute('aria-labelledby', question.id);
+        answer.setAttribute('aria-hidden', String(!isInitiallyOpen));
+        answer.hidden = !isInitiallyOpen;
+
+        const answerText = document.createElement('p');
+        answerText.textContent = faq.answer;
+        const answerInner = document.createElement('div');
+        answerInner.className = 'help-faq__answer-inner';
+        answerInner.appendChild(answerText);
+        answer.appendChild(answerInner);
+
+        item.append(question, answer);
+        faqList.appendChild(item);
+    });
+
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) closeHelpSupport();
+    });
+    backdrop.querySelector('.help-support__back').addEventListener('click', (event) => {
+        event.preventDefault();
+        closeHelpSupport();
+    });
+    faqList.addEventListener('click', (event) => {
+        const question = event.target.closest('.help-faq__question');
+        if (!question) return;
+
+        const item = question.closest('.help-faq__item');
+        const willExpand = question.getAttribute('aria-expanded') !== 'true';
+        faqList.querySelectorAll('.help-faq__item').forEach((faqItem) => {
+            if (faqItem !== item) setHelpFaqExpanded(faqItem, false);
+        });
+        setHelpFaqExpanded(item, willExpand);
+    });
+}
+
+function finishHelpFaqCollapse(event) {
+    if (event.target !== event.currentTarget || event.propertyName !== 'grid-template-rows') return;
+    const answer = event.currentTarget;
+    answer.removeEventListener('transitionend', finishHelpFaqCollapse);
+    if (answer.getAttribute('aria-hidden') === 'true') answer.hidden = true;
+}
+
+function setHelpFaqExpanded(item, expanded) {
+    const question = item.querySelector('.help-faq__question');
+    const answer = item.querySelector('.help-faq__answer');
+    if (question.getAttribute('aria-expanded') === String(expanded)) return;
+
+    question.setAttribute('aria-expanded', String(expanded));
+    if (expanded) {
+        answer.removeEventListener('transitionend', finishHelpFaqCollapse);
+        answer.hidden = false;
+        answer.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(() => {
+            if (question.getAttribute('aria-expanded') === 'true') item.classList.add('is-open');
+        });
+        return;
+    }
+
+    answer.setAttribute('aria-hidden', 'true');
+    item.classList.remove('is-open');
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        answer.hidden = true;
+    } else {
+        answer.addEventListener('transitionend', finishHelpFaqCollapse);
+    }
+}
+
+function openHelpSupport() {
+    ensureHelpSupportMarkup();
+    helpSupportOpener = document.getElementById('helpAndSupportRow');
+    const backdrop = document.getElementById('helpSupportBackdrop');
+    const dialog = backdrop.querySelector('.help-support-sheet');
+    backdrop.classList.add('is-open');
+    dialog.classList.add('is-open');
+    document.body.classList.add('notification-settings-open');
+    dialog.focus({ preventScroll: true });
+}
+
+function closeHelpSupport() {
+    const backdrop = document.getElementById('helpSupportBackdrop');
+    backdrop?.classList.remove('is-open');
+    backdrop?.querySelector('.help-support-sheet')?.classList.remove('is-open');
+    document.body.classList.remove('notification-settings-open');
+    if (helpSupportOpener?.isConnected) helpSupportOpener.focus({ preventScroll: true });
+    helpSupportOpener = null;
+}
+
+function ensureAboutMotoCareMarkup() {
+    if (document.getElementById('aboutMotoCareBackdrop')) return;
+
+    const root = document.createElement('div');
+    root.innerHTML = `<div id="aboutMotoCareBackdrop" class="motorcycles-modal-backdrop about-motocare-backdrop">
+        <section class="motorcycles-modal-sheet help-support-sheet about-motocare-sheet" role="dialog" aria-modal="true" aria-labelledby="aboutMotoCareTitle" tabindex="-1">
+            <div class="help-support__content">
+                <a class="help-support__back" href="#" aria-label="Back to Account">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Account</span>
+                </a>
+                <main class="help-support__main">
+                    <h2 id="aboutMotoCareTitle" class="help-support__title">About MotoCare</h2>
+                    <p class="about-motocare__intro">Your companion for better motorcycle care.</p>
+                    <div class="about-motocare__brand">
+                        <svg class="about-motocare__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+                        <span class="about-motocare__wordmark">MotoCare</span>
+                    </div>
+                    <p class="about-motocare__tagline">A little care goes a long way.</p>
+                    <p class="about-motocare__description">Keep your motorcycle details, maintenance history, and expenses in one place, so you always know what's due and what you've spent. MotoAI is there when you need quick answers.</p>
+                    <section class="about-motocare__information" aria-labelledby="aboutMotoCareInformationTitle">
+                        <h3 id="aboutMotoCareInformationTitle" class="about-motocare__section-label">Application information</h3>
+                        <div id="aboutMotoCareInfo"></div>
+                    </section>
+                </main>
+            </div>
+        </section>
+    </div>`;
+    const backdrop = root.firstElementChild;
+    const infoList = backdrop.querySelector('#aboutMotoCareInfo');
+
+    ABOUT_INFORMATION.forEach(({ label, value }) => {
+        const row = document.createElement('div');
+        row.className = 'about-motocare__info-row';
+
+        const rowLabel = document.createElement('span');
+        rowLabel.className = 'about-motocare__info-label';
+        rowLabel.textContent = label;
+
+        const rowValue = document.createElement('span');
+        rowValue.className = 'about-motocare__info-value';
+        rowValue.textContent = value;
+
+        row.append(rowLabel, rowValue);
+        infoList.appendChild(row);
+    });
+
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) closeAboutMotoCare();
+    });
+    backdrop.querySelector('.help-support__back').addEventListener('click', (event) => {
+        event.preventDefault();
+        closeAboutMotoCare();
+    });
+}
+
+function openAboutMotoCare() {
+    ensureAboutMotoCareMarkup();
+    aboutMotoCareOpener = document.querySelector('.profile-row[aria-label="About MotoCare"]');
+    const backdrop = document.getElementById('aboutMotoCareBackdrop');
+    const dialog = backdrop.querySelector('.about-motocare-sheet');
+    backdrop.classList.add('is-open');
+    dialog.classList.add('is-open');
+    document.body.classList.add('notification-settings-open');
+    dialog.focus({ preventScroll: true });
+}
+
+function closeAboutMotoCare() {
+    const backdrop = document.getElementById('aboutMotoCareBackdrop');
+    backdrop?.classList.remove('is-open');
+    backdrop?.querySelector('.about-motocare-sheet')?.classList.remove('is-open');
+    document.body.classList.remove('notification-settings-open');
+    if (aboutMotoCareOpener?.isConnected) aboutMotoCareOpener.focus({ preventScroll: true });
+    aboutMotoCareOpener = null;
+}
+
 function ensureTermsSettingsMarkup() {
     if (document.getElementById('termsSettingsBackdrop')) return;
 
@@ -679,10 +930,217 @@ function addTermsSettingsStyles() {
     document.head.appendChild(style);
 }
 
+function addHelpSupportStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .help-support-sheet {
+            width: min(calc(100% - 14px), 480px);
+            height: calc(100dvh - 5px);
+            max-height: calc(100dvh - 5px);
+            margin-bottom: 2px;
+            border-radius: 12px;
+            background: var(--moto-surface);
+        }
+        .help-support__content {
+            display: flex;
+            min-height: 0;
+            height: 100%;
+            flex-direction: column;
+            padding: max(12px, env(safe-area-inset-top)) 16px 0;
+        }
+        .help-support__back {
+            display: flex;
+            min-height: 38px;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 7px;
+            color: var(--moto-primary);
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .help-support__back svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.75;
+        }
+        .help-support__main {
+            min-height: 0;
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 0 12px;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+        }
+        .help-support__main::-webkit-scrollbar { display: none; }
+        .help-support__title {
+            margin: 0;
+            color: var(--moto-text);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .about-motocare__intro {
+            margin: 16px 0 0;
+            color: var(--moto-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .about-motocare__brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 42px;
+        }
+        .about-motocare__icon {
+            width: 24px;
+            height: 24px;
+            flex: 0 0 24px;
+            fill: none;
+            stroke: var(--moto-primary);
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.75;
+        }
+        .about-motocare__wordmark {
+            color: var(--moto-text);
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .about-motocare__tagline {
+            margin: 14px 0 0;
+            color: var(--moto-text);
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.35;
+        }
+        .about-motocare__description {
+            margin: 10px 0 0;
+            color: var(--moto-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .about-motocare__information {
+            margin-top: 34px;
+            padding-top: 22px;
+            border-top: 1px solid var(--moto-border);
+        }
+        .about-motocare__section-label {
+            margin: 0 0 8px;
+            color: var(--moto-muted);
+            font-size: 8px;
+            font-weight: 500;
+            letter-spacing: .04em;
+            line-height: 1.3;
+            text-transform: uppercase;
+        }
+        .about-motocare__info-row {
+            display: flex;
+            min-height: 47px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--moto-border);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+        .about-motocare__info-label { color: var(--moto-muted); }
+        .about-motocare__info-value { color: var(--moto-text); text-align: right; }
+        .help-support__label {
+            margin: 24px 0 10px;
+            color: var(--moto-muted);
+            font-size: 8px;
+            font-weight: 500;
+            letter-spacing: .04em;
+            line-height: 1.3;
+            text-transform: uppercase;
+        }
+        .help-faq__item { border-bottom: 1px solid var(--moto-border); }
+        .help-faq__question {
+            display: flex;
+            width: 100%;
+            min-height: 43px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border: 0;
+            color: var(--moto-text);
+            background: transparent;
+            font: 400 11px/1.35 var(--moto-font);
+            text-align: left;
+            cursor: pointer;
+        }
+        .help-faq__question:active { transform: none; }
+        .help-faq__chevron {
+            width: 18px;
+            height: 18px;
+            flex: 0 0 18px;
+            fill: none;
+            stroke: var(--moto-streak-primary);
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.75;
+            transition: transform 200ms ease;
+        }
+        .help-faq__item.is-open .help-faq__chevron { transform: rotate(90deg); }
+        .help-faq__answer {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            transition: grid-template-rows 200ms ease, opacity 200ms ease;
+        }
+        .help-faq__answer[hidden] { display: none; }
+        .help-faq__item.is-open .help-faq__answer {
+            grid-template-rows: 1fr;
+            opacity: 1;
+        }
+        .help-faq__answer-inner { min-height: 0; overflow: hidden; }
+        .help-faq__answer p {
+            margin: 0 0 12px;
+            color: var(--moto-muted);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .help-support__back:focus-visible,
+        .help-faq__question:focus-visible {
+            outline: 2px solid var(--moto-primary);
+            outline-offset: 3px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .help-faq__chevron,
+            .help-faq__answer { transition: none; }
+        }
+        @media (min-width: 481px) {
+            .help-support-sheet {
+                width: min(calc(100% - 40px), 480px);
+                height: min(85dvh, 720px);
+                max-height: 85dvh;
+                margin-bottom: 0;
+                border-radius: 24px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+document.getElementById('helpAndSupportRow')?.addEventListener('click', openHelpSupport);
+document.querySelector('.profile-row[aria-label="About MotoCare"]')?.addEventListener('click', openAboutMotoCare);
 document.getElementById('termsAndConditionsRow')?.addEventListener('click', openTermsSettings);
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && document.getElementById('termsSettingsBackdrop')?.classList.contains('is-open')) {
         closeTermsSettings();
+    }
+    if (event.key === 'Escape' && document.getElementById('helpSupportBackdrop')?.classList.contains('is-open')) {
+        closeHelpSupport();
+    }
+    if (event.key === 'Escape' && document.getElementById('aboutMotoCareBackdrop')?.classList.contains('is-open')) {
+        closeAboutMotoCare();
     }
 });
 
@@ -707,6 +1165,7 @@ document.addEventListener('keydown', (event) => {
 
 addAccountSettingsStyles();
 addTermsSettingsStyles();
+addHelpSupportStyles();
 
 // Auth State Listener - redirect ONLY if explicitly checked and no user
 onAuthStateChanged(auth, async (user) => {
