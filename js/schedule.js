@@ -1,11 +1,12 @@
 import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc, ensureMotorcyclesTrackedFromOdo } from './firebaseUtils.js?v=4';
-import { collection, doc, query, runTransaction, serverTimestamp, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { collection, doc, query, runTransaction, serverTimestamp, Timestamp, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { normalizeRecord } from './utils-module.js';
 import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js?v=2';
 import { showToast } from './toast.js?v=1';
 import { syncMaintenanceNotifications } from './maintenanceNotifications.js?v=1';
+import { initEmailJS, sendMaintenanceReminder } from './emailjs.js';
 import {
     getMaintenanceTaskStatus,
     getCompletionMileage,
@@ -25,6 +26,9 @@ let currentScheduleFilter = 'all';
 let activeCompletionItem = null;
 const completionSaveProgress = new Map();
 const completedSubmissionKeys = new Set();
+const emailReminderAttemptsThisSession = new Set();
+const MAX_EMAIL_REMINDER_ATTEMPTS = 3;
+const EMAIL_REMINDER_LEASE_MS = 2 * 60 * 1000;
 
 const SELECTED_MOTORCYCLE_STORAGE_KEY = 'motocare.selectedMotorcycleId';
 
@@ -90,6 +94,7 @@ onAuthStateChanged(auth, async (user) => {
 
     currentUserId = user.uid;
     currentUserEmail = user.email || '';
+    initEmailJS();
     // Use realtime listeners so schedule reflects recent saves immediately
     setupScheduleListeners(user.uid);
 });
@@ -900,49 +905,42 @@ async function submitMarkDone(event) {
 
 
 /**
- * Create pending email reminders for items that are due or overdue.
- * Avoid creating duplicates by checking existing user reminders.
+ * Queue and send reminders for overdue and upcoming maintenance items.
  */
 async function createPendingReminders(items = []) {
     try {
-        if (!items || !items.length) return;
-        // Only proceed when we have the authenticated user's email available
-        if (!currentUserEmail) {
-            console.warn('createPendingReminders: no authenticated email available');
-            showToast({ type: 'error', title: 'Email unavailable', message: 'Reminders cannot be sent without an authenticated email.' });
-            return;
-        }
+        if (!items || !items.length || !maintenanceRecordsReady) return;
+        if (!currentUserEmail) return;
 
-        // Fetch existing reminders for this user
-        const existing = await getFirestoreDocs('emailReminders').catch(() => []);
+        const existing = await getFirestoreDocs('emailReminders');
 
         const pending = items.filter((it) => {
             if (!it || !it.status) return false;
             const remaining = Math.max(0, (Number(it.dueMileage || 0) - Number(it.currentOdo || 0)));
             const threshold = getReminderThreshold(it.motorcycleId);
-            // send for due/overdue immediately, and for upcoming when within user's threshold
-            if (it.status.key === 'due' || it.status.key === 'overdue') return true;
-            if (it.status.key === 'upcoming' && Number(remaining) <= Number(threshold || 500)) return true;
-            return false;
+            const effectiveThreshold = Number.isFinite(threshold) ? threshold : 500;
+            return it.status.key === 'overdue'
+                || (it.status.key === 'upcoming' && remaining <= effectiveThreshold);
         });
 
-        // Build a set of existing reminder signatures to avoid creating duplicates
-        const existingSignatures = new Set((existing || []).map(r => buildReminderSignature({
-            motorcycleId: r.motorcycleId,
-            ruleKey: r.taskKey,
-            task: r.task || r.title || r.reminderText,
-            dueMileage: r.dueMileage || r.due || ''
-        })));
+        const existingBySignature = new Map();
+        existing.forEach((reminder) => {
+            const signature = buildReminderSignature({
+                motorcycleId: reminder.motorcycleId,
+                ruleKey: reminder.taskKey || reminder.ruleKey,
+                task: reminder.task || reminder.title || reminder.reminderText,
+                dueMileage: reminder.dueMileage || reminder.due || ''
+            });
+            if (!existingBySignature.has(signature)) {
+                existingBySignature.set(signature, reminder);
+            }
+        });
 
-        // Use a stable queue ID and transaction so listener updates cannot queue the same reminder twice.
-        const createdSignatures = new Set();
         for (const item of pending) {
             const signature = buildReminderSignature({ motorcycleId: item.motorcycleId, ruleKey: item.ruleKey, task: item.task, dueMileage: item.dueMileage });
-
-            if (existingSignatures.has(signature) || createdSignatures.has(signature)) {
-                console.log('Skipping duplicate reminder creation for', item.motorcycleName, item.task || item.title, 'signature:', signature);
-                continue;
-            }
+            const sessionSignature = `${currentUserId}::${signature}`;
+            if (emailReminderAttemptsThisSession.has(sessionSignature)) continue;
+            emailReminderAttemptsThisSession.add(sessionSignature);
 
             const payload = {
                 motorcycleId: item.motorcycleId,
@@ -955,38 +953,104 @@ async function createPendingReminders(items = []) {
                 reminderText: item.reminder,
                 sendAt: new Date().toISOString(),
                 sent: false,
-                email: currentUserEmail
+                email: currentUserEmail,
+                attempts: 0
             };
 
             try {
-                const reminderRef = doc(db, 'emailReminders', encodeURIComponent(signature));
-                const wasCreated = await runTransaction(db, async (transaction) => {
+                let reminder = existingBySignature.get(signature);
+                const reminderRef = doc(db, 'emailReminders', reminder?.id || encodeURIComponent(signature));
+
+                if (!reminder) {
+                    await runTransaction(db, async (transaction) => {
+                        const reminderSnapshot = await transaction.get(reminderRef);
+                        if (!reminderSnapshot.exists()) {
+                            transaction.set(reminderRef, {
+                                ...payload,
+                                uid: currentUserId,
+                                createdAt: serverTimestamp(),
+                                updatedAt: serverTimestamp()
+                            });
+                        }
+                    });
+                    reminder = { id: reminderRef.id, ...payload, uid: currentUserId };
+                    existingBySignature.set(signature, reminder);
+                }
+
+                const claimed = await runTransaction(db, async (transaction) => {
                     const reminderSnapshot = await transaction.get(reminderRef);
-                    if (reminderSnapshot.exists()) return false;
-                    transaction.set(reminderRef, {
-                        ...payload,
-                        uid: currentUserId,
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp()
+                    if (!reminderSnapshot.exists()) return false;
+
+                    const data = reminderSnapshot.data();
+                    if (data.sent === true) return false;
+
+                    const now = Date.now();
+                    const lease = data.sendLeaseUntil;
+                    const leaseUntil = lease && typeof lease.toMillis === 'function'
+                        ? lease.toMillis()
+                        : lease instanceof Date ? lease.getTime() : 0;
+                    if (leaseUntil > now) return false;
+
+                    const currentAttempts = Number(data.attempts);
+                    const attempts = Number.isFinite(currentAttempts) ? Math.max(0, currentAttempts) : 0;
+                    if (attempts >= MAX_EMAIL_REMINDER_ATTEMPTS) return false;
+
+                    transaction.update(reminderRef, {
+                        sendLeaseUntil: Timestamp.fromMillis(now + EMAIL_REMINDER_LEASE_MS),
+                        lastAttempt: Timestamp.fromMillis(now),
+                        attempts: attempts + 1
                     });
                     return true;
                 });
-                if (!wasCreated) {
-                    existingSignatures.add(signature);
+                if (!claimed) continue;
+
+                try {
+                    await sendMaintenanceReminder({
+                        toEmail: currentUserEmail,
+                        motorcycleName: item.motorcycleName,
+                        task: item.task,
+                        reminder: item.reminder,
+                        dueMileage: item.dueMileage,
+                        currentOdo: item.currentOdo,
+                        categoryLabel: item.categoryLabel
+                    });
+                } catch (sendError) {
+                    const message = String(sendError?.text || sendError?.message || sendError || 'EmailJS send failed')
+                        .replace(/\s+/g, ' ')
+                        .slice(0, 240);
+                    try {
+                        await runTransaction(db, async (transaction) => {
+                            const reminderSnapshot = await transaction.get(reminderRef);
+                            if (!reminderSnapshot.exists()) return;
+                            transaction.update(reminderRef, {
+                                lastError: message,
+                                sendLeaseUntil: null
+                            });
+                        });
+                    } catch (releaseError) {
+                        console.error('Could not release reminder send lease:', releaseError);
+                    }
+                    console.error('EmailJS reminder send failed:', message);
                     continue;
                 }
-                createdSignatures.add(signature);
-                existingSignatures.add(signature);
-                console.log('Created reminder for', item.task, item.motorcycleName, 'signature:', signature);
-                showToast({ type: 'info', title: 'Reminder created', message: `${item.task} for ${item.motorcycleName}.` });
-            } catch (err) {
-                console.warn('Could not create reminder doc for', item.id, err?.message || err);
-            }
-        }
 
-        if (!createdSignatures.size) {
-            console.log('createPendingReminders: no new reminder docs created');
-            showToast({ type: 'info', title: 'No new reminders', message: 'There are no new reminders to create.' });
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const reminderSnapshot = await transaction.get(reminderRef);
+                        if (!reminderSnapshot.exists()) return;
+                        transaction.update(reminderRef, {
+                            sent: true,
+                            sentAt: serverTimestamp(),
+                            sendLeaseUntil: null,
+                            lastError: null
+                        });
+                    });
+                } catch (updateError) {
+                    console.error('Email sent, but reminder status could not be updated:', updateError);
+                }
+            } catch (err) {
+                console.error('Could not process reminder for', item.id, err);
+            }
         }
     } catch (err) {
         console.error('createPendingReminders error:', err);

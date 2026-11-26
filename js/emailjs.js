@@ -1,6 +1,8 @@
 // NOTE: Public key, service ID and template ID are safe to include in frontend code.
 // Do NOT place the EmailJS private key (secret) in this file — keep any private
 // credentials on a secure backend and never commit them to source control.
+// Template variables: to_email, email, motorcycle_name, task, reminder, due_mileage,
+// current_odo, category_label, app_name, sent_at; digest also sends is_digest.
 const DEFAULT_PUBLIC_KEY = 'nmJQtK4ALM9B8qXPl';
 const DEFAULT_SERVICE_ID = 'service_me60alu';
 const DEFAULT_TEMPLATE_ID = 'template_wh04j4o';

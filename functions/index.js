@@ -1,4 +1,3 @@
-const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const sgMail = require('@sendgrid/mail');
 const { defineString } = require('firebase-functions/params');
@@ -242,11 +241,3 @@ async function sendPendingRemindersImpl() {
 function batchWrite(docRef, data) {
   return db.batch().update(docRef, data).commit();
 }
-
-exports.sendPendingReminders = functions.pubsub
-  .schedule('every 15 minutes')
-  .onRun(async () => sendPendingRemindersImpl());
-
-exports._test = {
-  sendPendingRemindersImpl,
-};

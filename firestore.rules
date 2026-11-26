@@ -64,6 +64,17 @@ service cloud.firestore {
       allow get: if canReadOwnedOrMissing();
       allow list: if signedIn() && resource.data.uid == request.auth.uid;
       allow create: if canCreateOwned();
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'sent',
+          'sentAt',
+          'sendLeaseUntil',
+          'lastAttempt',
+          'lastError',
+          'attempts'
+        ]);
     }
 
     match /userSettings/{documentId} {
