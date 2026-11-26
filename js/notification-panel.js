@@ -32,8 +32,17 @@ function timeAgo(value) {
 }
 
 function getNotificationMeta(item) {
+    const type = String(item.type || '').toLowerCase();
+    const status = String(item.status || '').toLowerCase();
+    if (item.ai === true || type === 'ai') return { key: 'ai', className: 'notification-panel__icon--ai' };
+    if (status === 'overdue') return { key: 'overdue', className: 'notification-panel__icon--overdue' };
+    if (status === 'due_soon') return { key: 'due', className: 'notification-panel__icon--due' };
+    if (status || type) {
+        if (type === 'maintenance') return { key: 'due', className: 'notification-panel__icon--due' };
+        return { key: 'other', className: 'notification-panel__icon--other' };
+    }
+
     const text = `${item.type || ''} ${item.category || ''} ${item.title || ''} ${item.message || item.body || ''}`.toLowerCase();
-    if (item.ai === true || text.includes('ai') || text.includes('insight')) return { key: 'ai', className: 'notification-panel__icon--ai' };
     if (text.includes('overdue') || text.includes('alert')) return { key: 'overdue', className: 'notification-panel__icon--overdue' };
     if (text.includes('due') || text.includes('reminder') || text.includes('soon')) return { key: 'due', className: 'notification-panel__icon--due' };
     if (text.includes('logged') || text.includes('success') || text.includes('complete')) return { key: 'complete', className: 'notification-panel__icon--complete' };
@@ -41,11 +50,11 @@ function getNotificationMeta(item) {
 }
 
 function notificationIcon(meta) {
-    const common = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+    const common = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
     const paths = {
-        due: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+        due: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
         ai: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
-        overdue: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+        overdue: '<path d="m10.29 3.86-8.52 14.14a2 2 0 0 0 1.71 3h17.04a2 2 0 0 0 1.71-3l-8.52-14.14a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
         complete: '<path d="M20 6 9 17l-5-5"/>',
         other: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'
     };
@@ -86,12 +95,19 @@ function ensurePanel() {
         if (event.target === backdrop || event.target.closest('.notification-panel__close')) closePanel();
     });
     root.querySelector('#notificationMarkAll').addEventListener('click', markAllRead);
-    root.querySelector('#notificationPanelList').addEventListener('click', (event) => {
+    root.querySelector('#notificationPanelList').addEventListener('click', async (event) => {
         const row = event.target.closest('[data-notification-id]');
         if (!row) return;
         const item = notifications.find((entry) => entry.id === row.dataset.notificationId);
         if (!item) return;
-        if (!item.read) updateDoc(doc(db, 'notifications', item.id), { read: true }).catch((error) => console.warn('Notification read update failed:', error));
+        if (!item.read) {
+            try {
+                await updateDoc(doc(db, 'notifications', item.id), { read: true });
+                item.read = true;
+            } catch (error) {
+                console.warn('Notification read update failed:', error);
+            }
+        }
         closePanel();
         const target = getTarget(item, getNotificationMeta(item));
         if (target.startsWith('motoai.html')) {
@@ -102,11 +118,25 @@ function ensurePanel() {
     });
 }
 
-function updateBell(unreadCount) {
+export function setNotificationUnreadCount(unreadCount) {
+    const count = Number.isFinite(Number(unreadCount)) ? Math.max(0, Math.floor(Number(unreadCount))) : 0;
+    const bell = document.getElementById('notificationBtn');
     const badge = document.getElementById('notificationBadge');
+    if (bell) {
+        bell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications');
+    }
     if (!badge) return;
-    badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
-    badge.classList.toggle('hidden', unreadCount === 0);
+
+    const countValue = String(count);
+    const changed = badge.dataset.unreadCount !== countValue;
+    badge.dataset.unreadCount = countValue;
+    badge.textContent = count > 9 ? '9+' : countValue;
+    badge.hidden = count === 0;
+    if (count > 0 && changed) {
+        badge.classList.remove('notification-badge--changed');
+        void badge.offsetWidth;
+        badge.classList.add('notification-badge--changed');
+    }
 }
 
 function renderNotifications() {
@@ -117,7 +147,7 @@ function renderNotifications() {
     if (unreadLabel) unreadLabel.textContent = unread ? `${unread} unread` : 'All caught up';
     const markAll = document.getElementById('notificationMarkAll');
     if (markAll) markAll.hidden = unread === 0;
-    updateBell(unread);
+    setNotificationUnreadCount(unread);
     if (!list) return;
     if (!visibleNotifications.length) {
         list.innerHTML = '<p class="notification-panel__empty">You\'re all caught up.</p>';
@@ -223,10 +253,11 @@ function addStyles() {
         .notification-panel__row:active { background: var(--moto-icon-tile, #eff1ee); transform: scale(.99); }
         .notification-panel__row.is-read .notification-panel__content strong { color: #53605a; }
         .notification-panel__row.notification-panel__row--enter { animation: notification-row-in 400ms ease both; animation-delay: var(--notification-delay, 0ms); }
-        .notification-panel__icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; background: var(--moto-icon-tile, #eff1ee); }
-        .notification-panel__icon svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
-        .notification-panel__icon--due, .notification-panel__icon--ai, .notification-panel__icon--complete, .notification-panel__icon--other { color: ${GREEN}; }
-        .notification-panel__icon--overdue { color: var(--moto-overdue, #ef4444); }
+        .notification-panel__icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--moto-icon-tile, #eff1ee); }
+        .notification-panel__icon svg { display: block; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
+        .notification-panel__icon--ai, .notification-panel__icon--complete, .notification-panel__icon--other { color: ${GREEN}; }
+        .notification-panel__icon--due { color: #F59E0B; }
+        .notification-panel__icon--overdue { color: #EF4444; }
         .notification-panel__content { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; padding-top: 1px; }
         .notification-panel__content strong { overflow: hidden; color: var(--moto-text, #111613); font: 600 12px/1.3 var(--moto-font, sans-serif); text-overflow: ellipsis; white-space: nowrap; }
         .notification-panel__content span { color: var(--moto-muted, #7a817c); font: 400 10px/1.4 var(--moto-font, sans-serif); }
@@ -254,7 +285,7 @@ onAuthStateChanged(auth, (user) => {
         activeUserId = '';
         notifications = [];
         notificationPreferences = { maintenanceReminders: true, overdueAlerts: true, aiInsights: true };
-        updateBell(0);
+        setNotificationUnreadCount(0);
     }
 });
 

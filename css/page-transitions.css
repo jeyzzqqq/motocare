@@ -1,0 +1,125 @@
+:root {
+    --moto-bg: var(--auth-background, #f6f7f5);
+}
+
+html,
+body {
+    background-color: var(--moto-bg, #f6f7f5) !important;
+}
+
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition {
+    background-color: var(--moto-bg, #f6f7f5);
+}
+
+.home-header,
+.schedule-header,
+.repair-history__header,
+.expenses-header,
+.profile-title,
+.motorcycles-header,
+.motorcycle-profile-header,
+.record-header,
+.motoai-header,
+.auth-hero,
+.notifications-page > header,
+main > header {
+    view-transition-name: page-header;
+}
+
+.mobile-bottom-nav {
+    view-transition-name: bottom-navigation;
+}
+
+::view-transition-group(page-header),
+::view-transition-old(page-header),
+::view-transition-new(page-header),
+::view-transition-group(bottom-navigation),
+::view-transition-old(bottom-navigation),
+::view-transition-new(bottom-navigation) {
+    animation: none;
+}
+
+::view-transition-old(root) {
+    animation: page-transition-out 400ms ease-out both;
+}
+
+::view-transition-new(root) {
+    animation: page-transition-in 400ms ease-out both;
+}
+
+@keyframes page-transition-out {
+    to {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+}
+
+@keyframes page-transition-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+@keyframes page-transition-fade-out {
+    to { opacity: 0; }
+}
+
+@keyframes page-transition-fade-in {
+    from { opacity: 0; }
+}
+
+@supports not (view-transition-name: root) {
+    .home-scroll > main,
+    .schedule-main,
+    .repair-history > :not(.repair-history__header),
+    .expense-main,
+    .profile-main > :not(.profile-title),
+    .motorcycles-shell > :not(.motorcycles-header),
+    .motorcycle-profile-page > :not(.motorcycle-profile-header),
+    .record-page > :not(.record-header),
+    .auth-shell > .auth-frame > :not(.auth-hero),
+    .notifications-page > :not(header) {
+        animation: page-content-enter 400ms ease-out both;
+    }
+
+    @keyframes page-content-enter {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root) {
+        animation: page-transition-fade-out 100ms ease-out both;
+    }
+
+    ::view-transition-new(root) {
+        animation: page-transition-fade-in 100ms ease-out both;
+    }
+
+    @supports not (view-transition-name: root) {
+        .home-scroll > main,
+        .schedule-main,
+        .repair-history > :not(.repair-history__header),
+        .expense-main,
+        .profile-main > :not(.profile-title),
+        .motorcycles-shell > :not(.motorcycles-header),
+        .motorcycle-profile-page > :not(.motorcycle-profile-header),
+        .record-page > :not(.record-header),
+        .auth-shell > .auth-frame > :not(.auth-hero),
+        .notifications-page > :not(header) {
+            animation: page-content-fade-in 100ms ease-out both;
+        }
+
+        @keyframes page-content-fade-in {
+            from { opacity: 0; }
+        }
+    }
+}

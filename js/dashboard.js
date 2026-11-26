@@ -1,9 +1,12 @@
 import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js';
 import { collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
-import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js?v=2';
 import { normalizeRecord } from './utils-module.js';
-import { getMaintenanceTaskStatus } from './maintenanceStatus.js';
+import { ensureMotorcyclesTrackedFromOdo } from './firebaseUtils.js?v=4';
+import { getMaintenanceTaskStatus } from './maintenanceStatus.js?v=2';
+import { syncMaintenanceNotifications } from './maintenanceNotifications.js?v=1';
+import { setNotificationUnreadCount } from './notification-panel.js?v=9';
 
 const STREAK_PREFIX = 'motocare-streak-v1:';
 const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
@@ -123,11 +126,11 @@ function renderStreak(uid) {
     return streak;
 }
 
-function maintenanceIcon(item) {
-    const icon = `${item.task || ''} ${item.icon || ''}`.toLowerCase();
-    if (icon.includes('oil') || icon.includes('fluid')) return 'droplet';
-    if (icon.includes('tire') || icon.includes('pressure')) return 'gauge';
-    return 'wrench';
+function statusIconSvg(status) {
+    if (status === 'overdue') {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m10.29 3.86-8.52 14.14a2 2 0 0 0 1.71 3h17.04a2 2 0 0 0 1.71-3l-8.52-14.14a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
 }
 
 function renderUrgent(items, shouldAnimate = false) {
@@ -140,11 +143,14 @@ function renderUrgent(items, shouldAnimate = false) {
         container.classList.add('is-visible');
         return;
     }
-    container.innerHTML = items.map((item, index) => `<a href="schedule.html" class="maintenance-row" style="--row-index:${index}">
-        <span class="row-icon"><i class="lucide lucide-${maintenanceIcon(item)}" aria-hidden="true"></i></span>
+    container.innerHTML = items.map((item, index) => {
+        const status = item.statusKey === 'overdue' ? 'overdue' : 'due-soon';
+        return `<a href="schedule.html" class="maintenance-row" style="--row-index:${index}">
+        <span class="row-icon row-icon--${status}">${statusIconSvg(status)}</span>
         <span class="row-main"><strong class="row-title">${escapeHtml(item.task)}</strong><small class="row-subtitle">${escapeHtml(item.bikeName)}</small></span>
         <span class="row-meta"><span class="status status--${item.statusKey === 'overdue' ? 'overdue' : 'due-soon'}">${item.statusKey === 'overdue' ? 'Overdue' : 'Due soon'}</span><small class="row-date">${escapeHtml(item.text)}</small></span>
-    </a>`).join('');
+    </a>`;
+    }).join('');
     if (shouldAnimate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         requestAnimationFrame(() => container.classList.add('is-visible'));
     } else {
@@ -215,11 +221,7 @@ function renderInsight(motorcycles) {
 
 function loadNotificationCount(uid) {
     return getDocs(query(collection(db, 'notifications'), where('uid', '==', uid), where('read', '==', false))).then((snapshot) => {
-        const badge = document.getElementById('notificationBadge');
-        if (badge) {
-            badge.textContent = snapshot.size > 99 ? '99+' : String(snapshot.size);
-            badge.classList.toggle('hidden', snapshot.size === 0);
-        }
+        setNotificationUnreadCount(snapshot.size);
     }).catch((error) => console.warn('Unread notifications unavailable:', error.message));
 }
 
@@ -230,7 +232,11 @@ async function loadDashboard(user) {
         getDocs(query(collection(db, 'maintenance'), where('uid', '==', uid))),
         getDocs(query(collection(db, 'repairs'), where('uid', '==', uid)))
     ]);
-    const motorcycles = motorcyclesSnapshot.docs.map((entry) => normalizeRecord({ id: entry.id, ...entry.data() })).filter((item) => item.deleted !== true);
+    const motorcycles = await ensureMotorcyclesTrackedFromOdo(
+        motorcyclesSnapshot.docs
+            .map((entry) => normalizeRecord({ id: entry.id, ...entry.data() }))
+            .filter((item) => item.deleted !== true)
+    );
     const maintenance = maintenanceSnapshot.docs.map((entry) => normalizeRecord({ id: entry.id, ...entry.data() })).filter((item) => item.deleted !== true);
     const repairs = repairsSnapshot.docs.map((entry) => normalizeRecord({ id: entry.id, ...entry.data() })).filter((item) => item.deleted !== true);
     const now = new Date();
@@ -253,6 +259,9 @@ async function loadDashboard(user) {
     renderUrgent(urgent, shouldAnimate);
     renderRecent(repairs);
     dashboardHasRendered = true;
+    window.setTimeout(() => {
+        void syncMaintenanceNotifications(uid, { motorcycles, maintenance });
+    }, 0);
     await loadNotificationCount(uid);
 }
 

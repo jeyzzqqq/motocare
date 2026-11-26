@@ -1,10 +1,13 @@
 import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
-import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
-import { getServiceTitleGroups, getTitleSelectionMeta } from './maintenanceOptions.js';
+import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc, ensureMotorcyclesTrackedFromOdo } from './firebaseUtils.js?v=4';
+import { getServiceTitleGroups, getTitleSelectionMeta } from './maintenanceOptions.js?v=2';
+import { showToast } from './toast.js?v=1';
+import { syncMaintenanceNotifications } from './maintenanceNotifications.js?v=1';
 
 let motorcycles = [];
+let maintenanceRecords = [];
 let currentUser = null; 
 
 onAuthStateChanged(auth, (user) => {
@@ -36,7 +39,9 @@ function populateTitleSelect(motorcycleId) {
 
     const selectedMotorcycle = motorcycles.find((m) => m.id === motorcycleId);
     const currentMileage = selectedMotorcycle ? getMotorcycleMileage(selectedMotorcycle) : 0;
-    const groups = selectedMotorcycle ? getServiceTitleGroups(selectedMotorcycle, currentMileage) : [];
+    const groups = selectedMotorcycle
+        ? getServiceTitleGroups(selectedMotorcycle, currentMileage, maintenanceRecords)
+        : [];
 
     select.innerHTML = '<option value="">Select a title</option>';
 
@@ -108,8 +113,25 @@ async function loadMotorcyclesFromFirestore(user) {
     }
 
     try {
-        motorcycles = await getFirestoreDocs('motorcycles', 'createdAt');
-        
+        let loadedMotorcycles;
+        try {
+            loadedMotorcycles = await getFirestoreDocs('motorcycles', 'createdAt');
+        } catch (error) {
+            console.error('Error loading motorcycles from Firestore:', error);
+            const fallbackQuery = query(
+                collection(db, 'motorcycles'),
+                where('uid', '==', user.uid)
+            );
+            const snapshot = await getDocs(fallbackQuery);
+            loadedMotorcycles = snapshot.docs.map((entry) => ({
+                id: entry.id,
+                ...entry.data()
+            })).filter((motorcycle) => motorcycle.deleted !== true);
+        }
+
+        motorcycles = await ensureMotorcyclesTrackedFromOdo(loadedMotorcycles);
+        maintenanceRecords = await getFirestoreDocs('maintenance', 'createdAt');
+
         if (motorcycles.length === 0) {
             dropdown.innerHTML = '<option value="">No motorcycles found. Add one in Profile.</option>';
             dropdown.disabled = true;
@@ -121,35 +143,10 @@ async function loadMotorcyclesFromFirestore(user) {
             console.log('Loaded motorcycles from Firestore:', motorcycles);
         }
     } catch (error) {
-        console.error('Error loading motorcycles from Firestore:', error);
-
-        // Fallback: try a plain uid-filtered query without ordering.
-        try {
-            const fallbackQuery = query(
-                collection(db, 'motorcycles'),
-                where('uid', '==', user.uid)
-            );
-            const snapshot = await getDocs(fallbackQuery);
-            motorcycles = [];
-            snapshot.forEach((doc) => {
-                motorcycles.push({ id: doc.id, ...doc.data() });
-            });
-
-            if (motorcycles.length === 0) {
-                dropdown.innerHTML = '<option value="">No motorcycles found. Add one in Profile.</option>';
-                dropdown.disabled = true;
-                console.log('No motorcycles found in Firestore (fallback)');
-            } else {
-                dropdown.innerHTML = '<option value="">Select a motorcycle</option>' +
-                    motorcycles.map((m) => `<option value="${m.id}">${m.motorcycleName || `${m.brand || 'Unknown'} ${m.model || 'Unknown'}`} (${m.year || ''})</option>`).join('');
-                dropdown.disabled = false;
-                console.log('Loaded motorcycles from Firestore using fallback query:', motorcycles);
-            }
-        } catch (fallbackError) {
-            console.error('Fallback motorcycle query failed:', fallbackError);
-            dropdown.innerHTML = '<option value="">Error loading motorcycles</option>';
-            dropdown.disabled = true;
-        }
+        console.error('Could not load motorcycle maintenance options:', error);
+        dropdown.innerHTML = '<option value="">Error loading motorcycle maintenance options</option>';
+        dropdown.disabled = true;
+        return;
     }
 
     if (motorcycles.length === 1 && !dropdown.value) {
@@ -269,7 +266,7 @@ function syncUpdateModeVisibility() {
     hideElement(categorySelect);
 
     if (isUpdate && costInput) costInput.value = '0';
-    if (isUpdate) showToast('Update mileage mode: only Date and Mileage required.', 'info');
+    if (isUpdate) showToast({ type: 'info', title: 'Mileage update mode', message: 'Only Date and Mileage are required.' });
 }
 
 function syncMileageField(motorcycleId) {
@@ -334,25 +331,12 @@ if (recordForm) {
 }
 
 // Form submission
-// Toast notification system
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-    const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
-    
-    toast.className = `fixed bottom-8 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg text-white ${bgColor} shadow-lg z-50 flex items-center gap-2`;
-    toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => toast.remove(), 3000);
-}
-
 document.getElementById('addRecordForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const user = currentUser || auth.currentUser;
     if (!user) {
-        showToast('Please sign in to save a record.', 'error');
+        showToast({ type: 'error', title: 'Sign-in required', message: 'Please sign in to save a record.' });
         window.location.replace('index.html');
         return;
     }
@@ -369,20 +353,20 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     const customTitle = document.getElementById('customTitle').value.trim();
 
     if (!submitBtn || !cancelBtn) {
-        showToast('Form buttons are missing. Please refresh.', 'error');
+        showToast({ type: 'error', title: 'Form unavailable', message: 'Form buttons are missing. Please refresh.' });
         return;
     }
 
     const updateMode = String(titleSelect.value || '').toLowerCase().includes('update');
 
     if (!titleSelect?.value || !date || !motorcycleId || Number.isNaN(mileageValue) || (Number.isNaN(cost) && !updateMode)) {
-        showToast('Please complete all required fields with valid values.', 'error');
+        showToast({ type: 'error', title: 'Check required fields', message: 'Complete all required fields with valid values.' });
         return;
     }
 
     if (!updateMode) {
         if (!category || Number.isNaN(cost) || cost <= 0 || !mechanicValue) {
-            showToast('Please complete all required fields with valid values.', 'error');
+            showToast({ type: 'error', title: 'Check required fields', message: 'Complete all required fields with valid values.' });
             return;
         }
     }
@@ -390,13 +374,13 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
     // Get selected motorcycle details by ID
     const selectedMotorcycle = motorcycles.find(m => m.id === motorcycleId);
     if (!selectedMotorcycle) {
-        showToast('Invalid motorcycle selection.', 'error');
+        showToast({ type: 'error', title: 'Invalid motorcycle', message: 'Select a valid motorcycle.' });
         return;
     }
 
     const currentMileage = getMotorcycleMileage(selectedMotorcycle);
     if (mileageValue < currentMileage) {
-        showToast(`Mileage cannot go below the motorcycle's current ODO (${currentMileage.toLocaleString()} km).`, 'error');
+        showToast({ type: 'error', title: 'Mileage too low', message: `Mileage cannot be below current ODO (${currentMileage.toLocaleString()} km).` });
         return;
     }
 
@@ -412,7 +396,7 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         : selectedTitle.split('•')[0].trim();
 
     if (requiresCustomTitle && !customTitle) {
-        showToast('Please describe the upgrade or other service item.', 'error');
+        showToast({ type: 'error', title: 'More detail needed', message: 'Describe the upgrade or other service item.' });
         return;
     }
     
@@ -440,13 +424,14 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         recordKind: kind,
         taskKey: key
     };
+    let savedMaintenanceRecord = null;
     
     try {
         // Add to Firestore (uses addFirestoreDoc to attach uid and serverTimestamp)
         await addFirestoreDoc('repairs', formData);
 
         if (kind === 'scheduled') {
-            await addFirestoreDoc('maintenance', {
+            savedMaintenanceRecord = await addFirestoreDoc('maintenance', {
                 motorcycleId: selectedMotorcycle.id,
                 motorcycleName: `${selectedMotorcycle.brand} ${selectedMotorcycle.model}`,
                 category,
@@ -461,11 +446,27 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         }
 
         // Keep the motorcycle profile ODO in sync with the latest logged mileage
-        await updateFirestoreDoc('motorcycles', selectedMotorcycle.id, {
-            mileage: mileageValue
-        });
+        const motorcycleMileageUpdate = { mileage: mileageValue };
+        if (mileageValue < Number(selectedMotorcycle.trackedFromOdo)) {
+            motorcycleMileageUpdate.trackedFromOdo = mileageValue;
+        }
+        await updateFirestoreDoc('motorcycles', selectedMotorcycle.id, motorcycleMileageUpdate);
+
+        const updatedMotorcycle = { ...selectedMotorcycle, ...motorcycleMileageUpdate };
+        const notificationMotorcycles = motorcycles.map((motorcycle) =>
+            motorcycle.id === selectedMotorcycle.id ? updatedMotorcycle : motorcycle
+        );
+        const notificationMaintenance = savedMaintenanceRecord
+            ? [...maintenanceRecords, savedMaintenanceRecord]
+            : maintenanceRecords;
+        window.setTimeout(() => {
+            void syncMaintenanceNotifications(user.uid, {
+                motorcycles: notificationMotorcycles,
+                maintenance: notificationMaintenance
+            });
+        }, 0);
         
-        showToast('Service record added successfully!', 'success');
+        showToast({ type: 'success', title: 'Service record saved', message: 'Service record added successfully.' });
 
         // If the form was opened from the Schedule (mark as complete), return to Schedule
         const paramsAfter = getAddRecordParams();
@@ -483,7 +484,7 @@ document.getElementById('addRecordForm')?.addEventListener('submit', async (e) =
         }, 500);
     } catch (error) {
         console.error('Error adding record:', error);
-        showToast(error?.message || 'Error saving record. Please try again.', 'error');
+        showToast({ type: 'error', title: 'Save failed', message: error?.message || 'Error saving record. Please try again.' });
     } finally {
         // Reset button state on failure; on success we'll navigate away
         submitBtn.disabled = false;

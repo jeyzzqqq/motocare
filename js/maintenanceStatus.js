@@ -15,24 +15,23 @@ function getMileageValue(motorcycle) {
 }
 
 export function getReminderThreshold(motorcycleId) {
+    const parseThreshold = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const numeric = Number(value);
+        return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+    };
+
     try {
         if (motorcycleId) {
             const perValue = localStorage.getItem(`motocare.reminderThreshold.${motorcycleId}`);
-            if (perValue !== null && perValue !== undefined && perValue !== '') return Number(perValue);
+            const perMotorcycleThreshold = parseThreshold(perValue);
+            if (perMotorcycleThreshold !== null) return perMotorcycleThreshold;
         }
         const globalValue = localStorage.getItem('motocare.reminderThreshold.default');
-        if (globalValue !== null && globalValue !== undefined && globalValue !== '') return Number(globalValue);
+        const globalThreshold = parseThreshold(globalValue);
+        if (globalThreshold !== null) return globalThreshold;
     } catch (error) {}
     return 500;
-}
-
-export function getNextMileageTarget(currentMileage, interval) {
-    const mileage = Number(currentMileage || 0);
-    const step = Number(interval || 0);
-    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!Number.isFinite(mileage) || mileage < 0) return step;
-    if (mileage % step === 0) return mileage + step;
-    return Math.ceil(mileage / step) * step || step;
 }
 
 export function getNextMileageAfterCompletion(completedMileage, interval) {
@@ -86,18 +85,32 @@ export function findCompletedMaintenanceRecord(records, motorcycleId, rule) {
 export function getMaintenanceTaskStatus(motorcycle, rule, records = [], now = new Date()) {
     const odo = getMileageValue(motorcycle);
     const completedRecord = findCompletedMaintenanceRecord(records, motorcycle.id, rule);
-    const anchorMileage = completedRecord ? getCompletionMileage(completedRecord) : odo;
-    const dueMileage = completedRecord
-        ? getNextMileageAfterCompletion(anchorMileage, rule.interval)
-        : getNextMileageTarget(anchorMileage, rule.interval);
+    const interval = Number(rule.interval);
+    if (!Number.isFinite(interval) || interval <= 0) {
+        throw new Error(`Invalid maintenance interval for task "${rule.task}".`);
+    }
+
+    let dueMileage;
+    if (completedRecord) {
+        dueMileage = getNextMileageAfterCompletion(getCompletionMileage(completedRecord), interval);
+    } else {
+        const trackedFromOdoValue = motorcycle.trackedFromOdo;
+        const trackedFromOdo = Number(trackedFromOdoValue);
+        if (trackedFromOdoValue === null
+            || trackedFromOdoValue === undefined
+            || trackedFromOdoValue === ''
+            || !Number.isFinite(trackedFromOdo)
+            || trackedFromOdo < 0) {
+            throw new Error(`Motorcycle "${motorcycle.id}" is missing a persisted trackedFromOdo value.`);
+        }
+        dueMileage = trackedFromOdo + interval;
+    }
     const threshold = getReminderThreshold(motorcycle.id);
 
     let status;
-    if (odo > dueMileage) {
+    if (odo >= dueMileage) {
         status = { key: 'overdue', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
-    } else if (odo === dueMileage) {
-        status = { key: 'due', label: 'Due / overdue', className: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' };
-    } else if ((dueMileage - odo) <= Number(threshold || 500)) {
+    } else if ((dueMileage - odo) <= (Number.isFinite(threshold) ? threshold : 500)) {
         status = { key: 'upcoming', label: 'Coming up', className: 'bg-amber-100 text-amber-700', dotClass: 'bg-amber-500' };
     } else {
         status = { key: 'scheduled', label: 'Scheduled', className: 'bg-gray-100 text-gray-600', dotClass: 'bg-gray-400' };

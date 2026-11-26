@@ -1,3 +1,5 @@
+import { getMaintenanceTaskStatus } from './maintenanceStatus.js?v=2';
+
 const SCOOTER_PATTERNS = ['nmax', 'aerox', 'mio', 'fazzio', 'sight', 'click', 'beat', 'pcx', 'adv', 'airblade', 'giorno', 'burgman', 'skydrive'];
 const UNDERBONE_PATTERNS = ['winner x', 'rs125', 'tmx', 'sniper', 'raider', 'smash', 'gixxer', 'gsx', 'fury', 'barako', 'shooter', 'ct100', 'rouser'];
 const SPORT_PATTERNS = ['r15', 'mt ', 'mt-', 'cbr150r', 'cb150x', 'ninja 400', 'ninja 650', 'zx-25r', 'zx-4rr', 'dominar', 'xsr 155'];
@@ -154,44 +156,6 @@ function includesAny(text, patterns) {
     return patterns.some((pattern) => text.includes(normalizeText(pattern)));
 }
 
-function getNextMileageDelta(currentMileage, interval) {
-    const mileage = Number(currentMileage || 0);
-    const step = Number(interval || 0);
-
-    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!Number.isFinite(mileage) || mileage < 0) return step;
-
-    const nextMileage = getNextMileageTarget(mileage, step);
-    return Math.max(0, nextMileage - mileage);
-}
-
-function getNextMileageTarget(currentMileage, interval) {
-    const mileage = Number(currentMileage || 0);
-    const step = Number(interval || 0);
-
-    if (!step || step <= 0) return Number.MAX_SAFE_INTEGER;
-    if (!Number.isFinite(mileage) || mileage < 0) return step;
-
-    // If mileage is exactly on an interval boundary, the next due should be the next interval
-    // e.g., mileage=10000 and step=1000 => next due = 11000 (not 10000)
-    try {
-        const remainder = mileage % step;
-        if (remainder === 0) return mileage + step;
-    } catch (e) {}
-
-    return Math.ceil(mileage / step) * step || step;
-}
-
-function formatRelativeMileageText(currentMileage, interval) {
-    const delta = getNextMileageDelta(currentMileage, interval);
-
-    if (delta === 0) {
-        return 'due now';
-    }
-
-    return `next in ${delta.toLocaleString()} km`;
-}
-
 export function classifyMotorcycleCategory(motorcycle = {}) {
     const explicitCategory = resolveCategoryFromModelName(motorcycle.model)
         || resolveCategoryFromModelName(motorcycle.motorcycleName);
@@ -213,23 +177,30 @@ export function classifyMotorcycleCategory(motorcycle = {}) {
     return { key: 'underbone', ...CATEGORY_META.underbone };
 }
 
-export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0) {
+export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage, records = []) {
     const category = classifyMotorcycleCategory(motorcycle);
     const rules = MAINTENANCE_RULES[category.key] || MAINTENANCE_RULES.underbone;
+    const rawMileage = currentMileage ?? motorcycle.mileage ?? motorcycle.odo ?? motorcycle.currentOdo ?? motorcycle.odometer ?? 0;
+    const odo = Number(rawMileage);
+    const normalizedOdo = Number.isFinite(odo) && odo >= 0 ? odo : 0;
 
     return rules
         .map((rule) => {
-            const delta = getNextMileageDelta(currentMileage, rule.interval);
-            const dueMileage = getNextMileageTarget(currentMileage, rule.interval);
+            const taskStatus = getMaintenanceTaskStatus(motorcycle, rule, records);
+            const dueMileage = taskStatus.dueMileage;
+            const remaining = dueMileage - normalizedOdo;
+            const relativeText = taskStatus.status.key === 'overdue'
+                ? `overdue by ${Math.max(0, -remaining).toLocaleString()} km`
+                : `next in ${remaining.toLocaleString()} km`;
 
             return {
                 value: `scheduled:${rule.key}`,
-                label: `${rule.task} • due at ${Number.isFinite(dueMileage) ? dueMileage.toLocaleString() : 'N/A'} km • ${formatRelativeMileageText(currentMileage, rule.interval)}`,
+                label: `${rule.task} • due at ${dueMileage.toLocaleString()} km • ${relativeText}`,
                 taskKey: rule.key,
                 title: rule.task,
                 kind: 'scheduled',
                 categoryKey: category.key,
-                sortDelta: delta,
+                sortDelta: Math.max(0, remaining),
                 sortInterval: rule.interval,
                 dueMileage
             };
@@ -237,12 +208,12 @@ export function getMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMilea
         .sort((a, b) => a.sortInterval - b.sortInterval || a.title.localeCompare(b.title));
 }
 
-export function getTopMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0, limit = 3) {
-    return getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage).slice(0, Math.max(0, limit));
+export function getTopMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage, limit = 3, records = []) {
+    return getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, records).slice(0, Math.max(0, limit));
 }
 
-export function getRemainingMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage = 0, limit = 3) {
-    return getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage).slice(Math.max(0, limit));
+export function getRemainingMaintenanceOptionsForMotorcycle(motorcycle = {}, currentMileage, limit = 3, records = []) {
+    return getMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, records).slice(Math.max(0, limit));
 }
 
 export function getUpgradeOptions() {
@@ -255,15 +226,15 @@ export function getUpgradeOptions() {
     }));
 }
 
-export function getServiceTitleGroups(motorcycle = {}, currentMileage = 0) {
+export function getServiceTitleGroups(motorcycle = {}, currentMileage, records = []) {
     return [
         {
             label: 'Top 3 Most Relevant',
-            options: getTopMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, 3)
+            options: getTopMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, 3, records)
         },
         {
             label: 'Show all maintenance options',
-            options: getRemainingMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, 3)
+            options: getRemainingMaintenanceOptionsForMotorcycle(motorcycle, currentMileage, 3, records)
         },
         {
             label: 'Upgrades / Accessories',

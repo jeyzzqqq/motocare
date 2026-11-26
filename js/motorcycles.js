@@ -1,9 +1,11 @@
 import { auth } from './firebase-config.js?v=3';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
-import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, deleteFirestoreDoc } from './firebaseUtils.js';
+import { addFirestoreDoc, getFirestoreDocs, updateFirestoreDoc, deleteFirestoreDoc, ensureMotorcyclesTrackedFromOdo } from './firebaseUtils.js?v=4';
 import { getOfficialBrands, getModelsForBrand, findBrandMatch, findModelMatch, isOfficialMotorcycleSelection } from './motorcycleCatalog.js';
-import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
-import { getMaintenanceTaskStatus, isCompletionRecord } from './maintenanceStatus.js';
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js?v=2';
+import { getMaintenanceTaskStatus, isCompletionRecord } from './maintenanceStatus.js?v=2';
+import { showToast } from './toast.js?v=1';
+import { syncMaintenanceNotifications } from './maintenanceNotifications.js?v=1';
 
 let motorcycles = [];
 let maintenanceRecords = [];
@@ -18,6 +20,15 @@ let motorcyclesNestedOpener = null;
 let motorcyclesSheetCloseTimer = null;
 let profileRepairs = [];
 const CURRENT_YEAR = new Date().getFullYear();
+
+function deferMaintenanceNotificationSync() {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const options = { motorcycles, maintenance: maintenanceRecords };
+    window.setTimeout(() => {
+        void syncMaintenanceNotifications(uid, options);
+    }, 0);
+}
 
 // Mapping of brand -> model -> [minYear, maxYear]
 const MODEL_YEAR_MAP = {
@@ -254,7 +265,9 @@ async function loadMotorcyclesFromFirestore() {
             getFirestoreDocs('motorcycles', 'createdAt'),
             getFirestoreDocs('maintenance', 'createdAt')
         ]);
-        motorcycles = loadedMotorcycles.filter((motorcycle) => motorcycle.deleted !== true);
+        motorcycles = await ensureMotorcyclesTrackedFromOdo(
+            loadedMotorcycles.filter((motorcycle) => motorcycle.deleted !== true)
+        );
         maintenanceRecords = loadedMaintenance.filter((record) => record.deleted !== true);
         renderMotorcycles();
     } catch (error) {
@@ -264,7 +277,7 @@ async function loadMotorcyclesFromFirestore() {
             setElementHidden(errorState, false);
             setElementHidden(list, true);
         } else {
-            showToast('Error loading motorcycles', 'error');
+            showToast({ type: 'error', title: 'Motorcycle load failed', message: 'Could not load motorcycles.' });
             renderEmptyState();
         }
     } finally {
@@ -309,7 +322,9 @@ async function loadMotorcycleProfile() {
             getFirestoreDocs('maintenance', 'createdAt'),
             getFirestoreDocs('repairs', 'createdAt')
         ]);
-        motorcycles = loadedMotorcycles.filter((motorcycle) => motorcycle.deleted !== true);
+        motorcycles = await ensureMotorcyclesTrackedFromOdo(
+            loadedMotorcycles.filter((motorcycle) => motorcycle.deleted !== true)
+        );
         maintenanceRecords = loadedMaintenance.filter((record) => record.deleted !== true);
         profileRepairs = loadedRepairs.filter((record) =>
             record.deleted !== true && String(record.motorcycleId || '') === id
@@ -959,18 +974,26 @@ async function saveInlineMileage(id) {
     const rawMileage = input.value.trim();
     const nextMileage = Number(rawMileage);
     if (!rawMileage || !Number.isFinite(nextMileage) || nextMileage < 0) {
-        showToast('Please enter a valid mileage value', 'error');
+        showToast({ type: 'error', title: 'Invalid mileage', message: 'Enter a valid mileage value.' });
         return;
     }
 
     try {
-        await updateFirestoreDoc('motorcycles', id, { mileage: nextMileage });
+        const motorcycle = motorcycles.find((item) => String(item.id) === String(id));
+        const trackedFromOdo = Number(motorcycle?.trackedFromOdo);
+        if (!motorcycle || !Number.isFinite(trackedFromOdo) || trackedFromOdo < 0) {
+            throw new Error('Motorcycle tracked odometer baseline is unavailable.');
+        }
+        const update = { mileage: nextMileage };
+        if (nextMileage < trackedFromOdo) update.trackedFromOdo = nextMileage;
+        await updateFirestoreDoc('motorcycles', id, update);
         editingId = null;
         await loadMotorcyclesFromFirestore();
-        showToast('Mileage updated', 'success');
+        deferMaintenanceNotificationSync();
+        showToast({ type: 'success', title: 'Mileage updated', message: 'Motorcycle mileage was updated.' });
     } catch (error) {
         console.error('Error updating mileage:', error);
-        showToast('Error updating mileage', 'error'); 
+        showToast({ type: 'error', title: 'Mileage update failed', message: 'Could not update mileage.' });
     }
 }
 
@@ -1183,10 +1206,10 @@ async function deleteMotorcycle(id) {
         motorcycles = motorcycles.filter(m => m.id !== id);
         editingId = null;
         renderCurrentMotorcycleView();
-        showToast('Motorcycle deleted', 'success');
+        showToast({ type: 'success', title: 'Motorcycle deleted', message: 'Motorcycle was deleted.' });
     } catch (error) {
         console.error('Error deleting motorcycle:', error);
-        showToast('Error deleting motorcycle', 'error');
+        showToast({ type: 'error', title: 'Delete failed', message: 'Could not delete motorcycle.' });
     }
 }
 
@@ -1202,24 +1225,24 @@ async function saveMotorcycle() {
     console.log('Saving motorcycle:', { brand, model, year, mileage });
 
     if (!brand || !model || !year || !mileage) {
-        showToast('Please fill all fields', 'error');
+        showToast({ type: 'error', title: 'Missing information', message: 'Fill in all motorcycle details.' });
         return;
     }
 
     if (!isOfficialMotorcycleSelection(brand, model)) {
-        showToast('Invalid motorcycle model. Please choose from the official list.', 'error');
+        showToast({ type: 'error', title: 'Invalid motorcycle model', message: 'Choose a model from the official list.' });
         return;
     }
 
     // Validate mileage is a number
     if (isNaN(mileage) || Number(mileage) < 0) {
-        showToast('Mileage must be a valid number', 'error');
+        showToast({ type: 'error', title: 'Invalid mileage', message: 'Mileage must be a valid number.' });
         return;
     }
 
     // Check if user is authenticated
     if (!authReady) {
-        showToast('User not authenticated. Please refresh the page.', 'error');
+        showToast({ type: 'error', title: 'Session not ready', message: 'Refresh the page and try again.' });
         console.error('Auth not ready when trying to save motorcycle');
         return;
     }
@@ -1228,21 +1251,37 @@ async function saveMotorcycle() {
         if (editingId) {
             // Update existing motorcycle
             console.log('Updating motorcycle:', editingId);
-            await updateFirestoreDoc('motorcycles', editingId, {
+            const existingMotorcycle = motorcycles.find((item) => String(item.id) === String(editingId));
+            const trackedFromOdo = Number(existingMotorcycle?.trackedFromOdo);
+            if (!existingMotorcycle || !Number.isFinite(trackedFromOdo) || trackedFromOdo < 0) {
+                throw new Error('Motorcycle tracked odometer baseline is unavailable.');
+            }
+            const update = {
                 brand,
                 model,
                 year,
                 mileage,
                 motorcycleName: `${brand} ${model}`
-            });
+            };
+            if (Number(mileage) < trackedFromOdo) update.trackedFromOdo = Number(mileage);
+            await updateFirestoreDoc('motorcycles', editingId, update);
             
             // Update local array
             const idx = motorcycles.findIndex(m => m.id === editingId);
             if (idx > -1) {
-                motorcycles[idx] = { ...motorcycles[idx], brand, model, year, mileage, motorcycleName: `${brand} ${model}` };
+                motorcycles[idx] = {
+                    ...motorcycles[idx],
+                    brand,
+                    model,
+                    year,
+                    mileage,
+                    trackedFromOdo: update.trackedFromOdo ?? trackedFromOdo,
+                    motorcycleName: `${brand} ${model}`
+                };
             }
+            deferMaintenanceNotificationSync();
             
-            showToast('Motorcycle updated', 'success');
+            showToast({ type: 'success', title: 'Motorcycle updated', message: 'Motorcycle details were updated.' });
         } else {
             // Add new motorcycle
             console.log('Adding new motorcycle');
@@ -1251,12 +1290,13 @@ async function saveMotorcycle() {
                 model,
                 year,
                 mileage,
+                trackedFromOdo: Number(mileage),
                 motorcycleName: `${brand} ${model}`
             });
             
             console.log('Motorcycle added with ID:', newMoto.id);
             motorcycles.unshift(newMoto);
-            showToast('Motorcycle added successfully', 'success');
+            showToast({ type: 'success', title: 'Motorcycle added', message: 'Motorcycle added successfully.' });
         }
         
         editingId = null;
@@ -1265,7 +1305,7 @@ async function saveMotorcycle() {
         closeModal();
     } catch (error) {
         console.error('Error saving motorcycle:', error);
-        showToast('Error saving motorcycle: ' + error.message, 'error');
+        showToast({ type: 'error', title: 'Save failed', message: `Could not save motorcycle: ${error.message}` });
     }
 }
 
@@ -1280,24 +1320,6 @@ function renderEmptyState() {
     setElementHidden(list, true);
     setElementHidden(emptyState, false);
     if (addAnother) addAnother.classList.add('hidden');
-}
-
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
-    const el = document.createElement('div');
-    el.className = 'rounded-xl px-4 py-3 shadow-xl flex items-center gap-3 bg-white';
-    el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><p class="flex-1 text-sm font-medium">${escapeHtml(message)}</p><button class="hover:bg-gray-100 rounded-full p-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M6 18 18 6"/></svg></button>`;
-    const btn = el.querySelector('button');
-    btn.addEventListener('click', () => el.remove());
-    container.appendChild(el);
-    setTimeout(() => el.remove(), 3000);
-}
-
-// small helper to escape HTML
-function escapeHtml(str) {
-    if (typeof str !== 'string') return str;
-    return str.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);
 }
 
 if (typeof window !== 'undefined') {

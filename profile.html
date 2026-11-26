@@ -11,9 +11,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
-    <link id="motoai-overlay-styles" rel="stylesheet" href="./css/motoai-overlay.css?v=4">
-    <link rel="stylesheet" href="./css/motorcycles-sheet.css?v=1">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=4">
+    <link id="motoai-overlay-styles" rel="stylesheet" href="./css/motoai-overlay.css?v=5">
+    <link rel="stylesheet" href="./css/motorcycles-sheet.css?v=2">
     <style>
         * { box-sizing: border-box; }
         html { background: var(--moto-bg); }
@@ -21,7 +21,6 @@
         a, button { -webkit-tap-highlight-color: transparent; }
         button:active, a:active { transform: scale(.98); }
         .profile-shell { width: min(100%, 480px); min-height: 100dvh; margin: 0 auto; padding: 20px 16px 96px; }
-        .profile-main { animation: profile-rise 400ms ease-out both; }
         .profile-title { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
         .profile-user { display: flex; align-items: center; gap: 12px; margin-top: 22px; }
         .profile-avatar { display: grid; place-items: center; width: 64px; height: 64px; flex: 0 0 64px; overflow: hidden; border-radius: 50%; color: var(--moto-surface); background: var(--moto-streak-primary); font-size: 18px; font-weight: 700; }
@@ -51,8 +50,6 @@
         .profile-signout svg { width: 17px; height: 17px; }
         .profile-signout-wrap { display: flex; justify-content: center; }
         .profile-hidden-hook { display: none; }
-        @keyframes profile-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @media (prefers-reduced-motion: reduce) { .profile-main { animation: none; } }
         body.motorcycles-modal-open { overflow: hidden; }
         .motorcycles-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center; padding: 0; background: rgba(27, 35, 30, .38); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
         .motorcycles-modal-backdrop.is-open { opacity: 1; pointer-events: auto; }
@@ -124,7 +121,8 @@
         @media (min-width: 481px) { #motorcycleModal > .motorcycle-form-sheet { inset: 50% auto auto 50%; max-height: 85dvh; border-radius: 24px; transform: translate(-50%, -50%); } .motorcycle-form-sheet__inner { max-height: 85dvh; } }
         @media (prefers-reduced-motion: reduce) { .motorcycle-field select, .motorcycle-field input, .motorcycle-form-submit { transition: none; } }
     </style>
-    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
+    <link rel="stylesheet" href="./css/theme-dark.css?v=2">
+    <link rel="stylesheet" href="./css/page-transitions.css?v=1">
 </head>
 <body>
     <div class="profile-shell">
@@ -305,7 +303,7 @@
         </div>
     </div>
 
-    <div id="mobileNav"></div><div id="toastContainer" class="fixed right-4 top-4 z-50 space-y-2"></div>
-    <script type="module" src="./js/firebase-config.js?v=3"></script><script type="module" src="./js/theme-auth.js?v=1"></script><script src="./js/utils.js"></script><script type="module" src="./js/mobile-nav.js?v=4"></script>    <script type="module" src="./js/motoai.js?v=4"></script><script type="module" src="./js/motorcycles.js?v=9"></script><script type="module" src="./js/logout-confirmation.js"></script><script type="module" src="./js/profile.js?v=10"></script><script type="module" src="./js/notification-settings.js?v=5"></script>
+    <div id="mobileNav"></div>
+    <script type="module" src="./js/firebase-config.js?v=3"></script><script type="module" src="./js/theme-auth.js?v=1"></script><script type="module" src="./js/utils.js?v=1"></script><script type="module" src="./js/mobile-nav.js?v=4"></script>    <script type="module" src="./js/motoai.js?v=6"></script><script type="module" src="./js/motorcycles.js?v=12"></script><script type="module" src="./js/logout-confirmation.js"></script><script type="module" src="./js/profile.js?v=11"></script><script type="module" src="./js/notification-settings.js?v=6"></script>
 </body>
 </html>

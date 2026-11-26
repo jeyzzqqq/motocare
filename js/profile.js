@@ -1,6 +1,7 @@
 import { auth, onAuthStateChanged } from "./firebase-config.js?v=3";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { getFirestoreDocs } from './firebaseUtils.js';
+import { showToast } from './toast.js?v=1';
 
 let currentUser = null;
 let currentBikeCount = 0;
@@ -220,10 +221,10 @@ async function toggleNameEdit() {
         renderProfile(currentUser, currentBikeCount);
         renderAccountSettings();
         setEditMode(false);
-        window.showToast?.('Name updated.', 'success');
+        showToast({ type: 'success', title: 'Profile updated', message: 'Your name was updated.' });
     } catch (error) {
         console.error(error);
-        window.showToast?.('Could not save your profile.', 'error');
+        showToast({ type: 'error', title: 'Profile save failed', message: 'Could not save your profile.' });
     } finally {
         isSavingProfile = false;
         button.disabled = false;
@@ -1149,10 +1150,10 @@ function saveAppearanceTheme() {
         localStorage.setItem(THEME_STORAGE_KEY, draftAppearanceTheme);
         window.applyMotoCareTheme?.(draftAppearanceTheme);
         closeAppearanceSettings();
-        showToast('Preference saved', 'success');
+        showToast({ type: 'success', title: 'Preference saved', message: 'Appearance preference was saved.' });
     } catch (error) {
         console.error('Could not save the appearance preference:', error);
-        showToast('Could not save your preference.', 'error');
+        showToast({ type: 'error', title: 'Preference save failed', message: 'Could not save your preference.' });
     }
 }
 
@@ -1225,34 +1226,6 @@ window.logoutUser = async function() {
         window.location.href = "./index.html";
     } catch (error) {
         console.error("Logout error:", error);
-        showToast('Error logging out', 'error');
+        showToast({ type: 'error', title: 'Logout failed', message: 'Could not log out.' });
     }
 };
-
-// Show toast notification
-function showToast(message, type = 'info') {
-    const toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) return;
-    
-    const toast = document.createElement('div');
-    const colors = {
-        success: 'bg-green-700 text-white',
-        error: 'bg-red-500 text-white',
-        info: 'bg-blue-500 text-white'
-    };
-    
-    const icons = {
-        success: 'check-circle',
-        error: 'alert-circle',
-        info: 'info'
-    };
-
-    toast.className = `${colors[type]} rounded-lg px-4 py-3 shadow-lg flex items-center gap-2`;
-    toast.innerHTML = `
-        <i class="fa-solid fa-${icons[type]}"></i>
-        <span class="text-sm font-medium">${message}</span>
-    `;
-    
-    toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}

@@ -141,6 +141,33 @@ export async function updateFirestoreDoc(collectionName, docId, data) {
     }
 }
 
+export async function ensureMotorcyclesTrackedFromOdo(motorcycles = []) {
+    return Promise.all(motorcycles.map(async (motorcycle) => {
+        if (motorcycle.deleted === true) return motorcycle;
+
+        const trackedFromOdo = Number(motorcycle.trackedFromOdo);
+        const hasTrackedFromOdo = motorcycle.trackedFromOdo !== null
+            && motorcycle.trackedFromOdo !== undefined
+            && motorcycle.trackedFromOdo !== ''
+            && Number.isFinite(trackedFromOdo)
+            && trackedFromOdo >= 0;
+        if (hasTrackedFromOdo && typeof motorcycle.trackedFromOdo === 'number') return motorcycle;
+
+        const rawOdo = motorcycle.mileage ?? motorcycle.odo ?? motorcycle.currentOdo ?? motorcycle.odometer ?? 0;
+        const currentOdo = Number(rawOdo);
+        if (!Number.isFinite(currentOdo) || currentOdo < 0) {
+            throw new Error(`Motorcycle "${motorcycle.id}" has an invalid odometer value.`);
+        }
+        if (!motorcycle.id) {
+            throw new Error('Cannot persist trackedFromOdo for a motorcycle without an ID.');
+        }
+
+        const baseline = hasTrackedFromOdo ? trackedFromOdo : currentOdo;
+        await updateFirestoreDoc('motorcycles', motorcycle.id, { trackedFromOdo: baseline });
+        return { ...motorcycle, trackedFromOdo: baseline };
+    }));
+}
+
 // DELETE DOCUMENT
 export async function deleteFirestoreDoc(collectionName, docId) {
     try {

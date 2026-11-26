@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function canReadOwnedOrMissing() {
+      return signedIn()
+        && (resource == null || resource.data.uid == request.auth.uid);
+    }
+
+    function canCreateOwned() {
+      return signedIn()
+        && request.resource.data.uid == request.auth.uid;
+    }
+
+    function canUpdateOwned() {
+      return signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid;
+    }
+
+    function canDeleteOwned() {
+      return signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    match /motorcycles/{documentId} {
+      allow get: if canReadOwnedOrMissing();
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if canCreateOwned();
+      allow update: if canUpdateOwned();
+      allow delete: if canDeleteOwned();
+    }
+
+    match /maintenance/{documentId} {
+      allow get: if canReadOwnedOrMissing();
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if canCreateOwned();
+      allow update: if canUpdateOwned();
+      allow delete: if canDeleteOwned();
+    }
+
+    match /repairs/{documentId} {
+      allow get: if canReadOwnedOrMissing();
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if canCreateOwned();
+      allow update: if canUpdateOwned();
+      allow delete: if canDeleteOwned();
+    }
+
+    match /notifications/{documentId} {
+      allow get: if canReadOwnedOrMissing();
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if canCreateOwned();
+      allow update: if canUpdateOwned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true;
+    }
+
+    match /emailReminders/{documentId} {
+      allow get: if canReadOwnedOrMissing();
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if canCreateOwned();
+    }
+
+    match /userSettings/{documentId} {
+      allow get: if signedIn()
+        && documentId == request.auth.uid
+        && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if canCreateOwned()
+        && documentId == request.auth.uid;
+      allow update: if canUpdateOwned()
+        && documentId == request.auth.uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

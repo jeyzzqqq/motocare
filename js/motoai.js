@@ -1,8 +1,8 @@
 import { app, auth, onAuthStateChanged } from './firebase-config.js?v=3';
-import { getFirestoreDocs } from './firebaseUtils.js';
-import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+import { getFirestoreDocs, ensureMotorcyclesTrackedFromOdo } from './firebaseUtils.js?v=4';
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js?v=2';
 import { normalizeRecord } from './utils-module.js';
-import { getMaintenanceTaskStatus } from './maintenanceStatus.js';
+import { getMaintenanceTaskStatus } from './maintenanceStatus.js?v=2';
 
 const motoAiModelName = 'gemini-3.1-flash-lite';
 const motoAiSystemInstruction = `You are MotoAI, a motorcycle maintenance assistant for MotoCare.
@@ -141,11 +141,15 @@ function formatMotoContext(motorcycles, repairs, maintenance, prompt = '') {
             .filter((record) => String(record.motorcycleId || record.motorbikeId || '') === String(bike.id))
             .sort((left, right) => (contextDate(contextRecordDate(right))?.getTime() || 0)
                 - (contextDate(contextRecordDate(left))?.getTime() || 0));
+        const bikeMaintenance = maintenance.filter((record) =>
+            record.deleted !== true
+            && String(record.motorcycleId || record.motorbikeId || '') === String(bike.id)
+        );
         const recentRecords = bikeRecords.slice(0, 3);
         const currentMileage = contextMileage(bike);
         const category = classifyMotorcycleCategory(bike);
         const dueItems = (MAINTENANCE_RULES[category.key] || []).map((rule) => {
-            const taskStatus = getMaintenanceTaskStatus(bike, rule, bikeRecords);
+            const taskStatus = getMaintenanceTaskStatus(bike, rule, bikeMaintenance);
             const statusKey = taskStatus.status.key;
             if (statusKey === 'scheduled') return null;
             const dueText = taskStatus.dueDate
@@ -235,11 +239,12 @@ async function fetchRawMotoData(accountUid) {
             getFirestoreDocs('motorcycles'),
             getFirestoreDocs('repairs'),
             getFirestoreDocs('maintenance')
-        ]).then(([motorcycles, repairs, maintenance]) => {
+        ]).then(async ([motorcycles, repairs, maintenance]) => {
             if (generation !== motoContextGeneration || accountUid !== (auth.currentUser?.uid || '')) {
                 return null;
             }
-            const rawData = { motorcycles, repairs, maintenance };
+            const trackedMotorcycles = await ensureMotorcyclesTrackedFromOdo(motorcycles);
+            const rawData = { motorcycles: trackedMotorcycles, repairs, maintenance };
             rawMotoData = rawData;
             rawMotoDataUid = accountUid;
             rawMotoDataLoadedAt = Date.now();
@@ -316,6 +321,7 @@ function addMessage(text, type) {
         message.textContent = text;
         messages.appendChild(message);
         messages.scrollTop = messages.scrollHeight;
+        syncConversationState();
         return message;
     }
 
@@ -432,7 +438,8 @@ async function submitPrompt(prompt) {
     if (input) input.disabled = true;
 
     addMessage(trimmedPrompt, 'user');
-    const assistantMessage = addMessage('Thinking...', 'assistant');
+    const assistantMessage = addMessage('Thinking', 'assistant');
+    assistantMessage.classList.add('motoai-message--thinking');
 
     try {
         assistantMessage.textContent = await getAiResponse(trimmedPrompt);
@@ -451,6 +458,7 @@ async function submitPrompt(prompt) {
         assistantMessage.textContent = getResponse(trimmedPrompt);
         if (isDevelopment) console.log('[MotoAI] reply source: fallback');
     } finally {
+        assistantMessage.classList.remove('motoai-message--thinking');
         if (sendButton) sendButton.disabled = false;
         if (input) input.disabled = false;
         isSubmittingMotoAi = false;
@@ -463,7 +471,7 @@ const motoAiMarkup = `
     <section class="motoai-sheet" role="dialog" aria-modal="true" aria-labelledby="motoAiTitle">
         <div class="motoai-sheet__inner">
             <header class="motoai-header">
-                <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z"></path><path d="m19 15 .7 2.3L22 18l-2.3 1.4L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"></path></svg></div>
+                <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" /></svg></div>
                 <div class="motoai-header__content"><div class="motoai-title-row"><h1 id="motoAiTitle" class="motoai-title">MotoAI</h1></div><p class="motoai-online">● Online</p></div>
                 <button id="motoAiClose" class="motoai-close" type="button" aria-label="Close MotoAI"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 L19 19"/><path d="M19 5 L5 19"/></svg></button>
             </header>
@@ -489,14 +497,30 @@ function ensureMotoAiStyles() {
     const link = document.createElement('link');
     link.id = 'motoai-overlay-styles';
     link.rel = 'stylesheet';
-    link.href = './css/motoai-overlay.css';
+    link.href = './css/motoai-overlay.css?v=5';
     document.head.appendChild(link);
+}
+
+function syncConversationState() {
+    const messages = document.getElementById('motoAiMessages');
+    const sheet = messages?.closest('.motoai-sheet');
+    if (!messages || !sheet) return;
+    sheet.classList.toggle('motoai-conversation-started', Boolean(messages.querySelector('.motoai-response')));
+}
+
+function observeConversationState() {
+    const messages = document.getElementById('motoAiMessages');
+    if (!messages || messages.dataset.conversationObserverBound === 'true') return;
+    messages.dataset.conversationObserverBound = 'true';
+    new MutationObserver(syncConversationState).observe(messages, { childList: true });
+    syncConversationState();
 }
 
 function setMotoAiOpen(open) {
     const backdrop = document.getElementById('motoAiBackdrop');
     if (!backdrop) return;
     if (open) {
+        syncConversationState();
         getMotoContext();
         backdrop.hidden = false;
         requestAnimationFrame(() => backdrop.classList.add('is-open'));
@@ -516,6 +540,7 @@ function bindMotoAi() {
     const backdrop = document.getElementById('motoAiBackdrop');
     if (!form || form.dataset.bound === 'true') return;
     form.dataset.bound = 'true';
+    observeConversationState();
     form?.addEventListener('submit', (event) => {
         event.preventDefault();
         submitPrompt(input.value);

@@ -1,34 +1,66 @@
 import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
-import { getFirestoreDocs } from './firebaseUtils.js';
+import { getFirestoreDocs, addFirestoreDoc, updateFirestoreDoc, ensureMotorcyclesTrackedFromOdo } from './firebaseUtils.js?v=4';
 import { collection, doc, query, runTransaction, serverTimestamp, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { normalizeRecord } from './utils-module.js';
-import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js';
+import { MAINTENANCE_RULES, classifyMotorcycleCategory } from './maintenanceOptions.js?v=2';
+import { showToast } from './toast.js?v=1';
+import { syncMaintenanceNotifications } from './maintenanceNotifications.js?v=1';
 import {
     getMaintenanceTaskStatus,
     getCompletionMileage,
     getReminderThreshold
-} from './maintenanceStatus.js';
+} from './maintenanceStatus.js?v=2';
 
 let currentUserId = null;
 let currentUserEmail = '';
 let scheduleItems = [];
 let motorcycles = [];
+let maintenanceRecords = [];
+let maintenanceRecordsReady = false;
 let selectedMotorcycleId = '';
 let motorcyclesUnsub = null;
 let maintenanceUnsub = null;
 let currentScheduleFilter = 'all';
+let activeCompletionItem = null;
+const completionSaveProgress = new Map();
+const completedSubmissionKeys = new Set();
 
 const SELECTED_MOTORCYCLE_STORAGE_KEY = 'motocare.selectedMotorcycleId';
+
+function deferMaintenanceNotificationSync(uid, options) {
+    window.setTimeout(() => {
+        void syncMaintenanceNotifications(uid, options);
+    }, 0);
+}
 
 function bindScheduleControls() {
     const drawerButton = document.getElementById('motorcycleDrawerButton');
     const drawerBackdrop = document.getElementById('motorcycleDrawerBackdrop');
     const closeButton = document.getElementById('motorcycleDrawerCloseButton');
+    const scheduleList = document.getElementById('scheduleList');
+    const completionBackdrop = document.getElementById('scheduleDoneBackdrop');
+    const completionForm = document.getElementById('scheduleDoneForm');
 
     drawerButton?.addEventListener('click', openMotorcycleDrawer);
     drawerBackdrop?.addEventListener('click', closeMotorcycleDrawer);
     closeButton?.addEventListener('click', closeMotorcycleDrawer);
+    scheduleList?.addEventListener('click', (event) => {
+        const button = event.target.closest?.('[data-schedule-mark-done]');
+        if (!button) return;
+        openMarkDoneSheet(button.dataset.motorcycleId, button.dataset.ruleKey);
+    });
+    completionBackdrop?.addEventListener('click', (event) => {
+        if (event.target === completionBackdrop) closeMarkDoneSheet();
+    });
+    document.getElementById('scheduleDoneCancel')?.addEventListener('click', closeMarkDoneSheet);
+    document.getElementById('scheduleDoneClose')?.addEventListener('click', closeMarkDoneSheet);
+    completionForm?.addEventListener('submit', submitMarkDone);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && completionBackdrop && !completionBackdrop.hidden) {
+            closeMarkDoneSheet();
+        }
+    });
     document.getElementById('logoutBtn')?.addEventListener('click', () => window.openLogoutConfirmation?.(() => {
         window.resetMotoCareTheme?.();
         return signOut(auth);
@@ -85,34 +117,29 @@ function getMileageValue(motorcycle) {
     return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
 }
 
-function getCategoryIndicator(categoryKey, odo) {
-    const rules = {
-        scooter: [
-            { min: 20000, label: 'Full Inspection', icon: 'clipboard-check', className: 'bg-red-100 text-red-700' },
-            { min: 15000, label: 'Injector + Throttle Body Cleaning', icon: 'sparkles', className: 'bg-red-100 text-red-700' },
-            { min: 10000, label: 'Major Service Due', icon: 'alert-triangle', className: 'bg-red-100 text-red-700' },
-            { min: 5000, label: 'CVT Service Required', icon: 'settings-2', className: 'bg-orange-100 text-orange-700' },
-            { min: 1000, label: 'Oil Change Due', icon: 'droplets', className: 'bg-red-100 text-red-700' },
-            { min: 800, label: 'Due Soon', icon: 'clock', className: 'bg-yellow-100 text-yellow-700' }
-        ],
-        underbone: [
-            { min: 15000, label: 'Full Tune-up', icon: 'wrench', className: 'bg-red-100 text-red-700' },
-            { min: 10000, label: 'Valve Check Required', icon: 'settings-2', className: 'bg-red-100 text-red-700' },
-            { min: 3000, label: 'Chain Service Required', icon: 'link', className: 'bg-orange-100 text-orange-700' },
-            { min: 1000, label: 'Oil Change Due', icon: 'droplets', className: 'bg-red-100 text-red-700' },
-            { min: 800, label: 'Chain / Oil Due Soon', icon: 'clock', className: 'bg-yellow-100 text-yellow-700' }
-        ],
-        sport: [
-            { min: 15000, label: 'High Maintenance Alert', icon: 'alert-circle', className: 'bg-red-100 text-red-700' },
-            { min: 10000, label: 'Valve + Coolant Service', icon: 'thermometer', className: 'bg-red-100 text-red-700' },
-            { min: 5000, label: 'Engine Tune Check', icon: 'wrench', className: 'bg-orange-100 text-orange-700' },
-            { min: 1000, label: 'Oil Change Required', icon: 'droplets', className: 'bg-red-100 text-red-700' },
-            { min: 800, label: 'Break-in Service Soon', icon: 'clock', className: 'bg-yellow-100 text-yellow-700' }
-        ]
-    };
+function getCategoryIndicator(taskStatuses, odo) {
+    const priority = { overdue: 0, upcoming: 1, scheduled: 2 };
+    const mostUrgent = [...taskStatuses].sort((left, right) => {
+        const leftStatus = left.taskStatus.status.key;
+        const rightStatus = right.taskStatus.status.key;
+        const statusDiff = priority[leftStatus] - priority[rightStatus];
+        if (statusDiff !== 0) return statusDiff;
+        if (leftStatus === 'overdue') {
+            return (odo - right.taskStatus.dueMileage) - (odo - left.taskStatus.dueMileage);
+        }
+        return left.taskStatus.dueMileage - right.taskStatus.dueMileage;
+    })[0];
 
-    const list = rules[categoryKey] || rules.underbone;
-    return list.find((entry) => odo >= entry.min) || { label: 'OK', icon: 'check-circle-2', className: 'bg-green-100 text-green-700' };
+    if (!mostUrgent || mostUrgent.taskStatus.status.key === 'scheduled') {
+        return { label: 'OK', icon: 'check-circle-2', className: 'bg-green-100 text-green-700' };
+    }
+
+    const isOverdue = mostUrgent.taskStatus.status.key === 'overdue';
+    return {
+        label: isOverdue ? `${mostUrgent.rule.task} Overdue` : `${mostUrgent.rule.task} Due Soon`,
+        icon: mostUrgent.rule.icon,
+        className: isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+    };
 }
 
 function buildReminderSignature(item = {}) {
@@ -129,14 +156,19 @@ function buildScheduleForMotorcycle(motorcycle, maintenanceItems) {
     const category = classifyMotorcycleCategory(motorcycle);
     const odo = getMileageValue(motorcycle);
     const motorcycleLabel = getMotorcycleLabel(motorcycle);
-    const overall = getCategoryIndicator(category.key, odo);
+    const taskStatuses = MAINTENANCE_RULES[category.key].map((rule) => ({
+        rule,
+        taskStatus: getMaintenanceTaskStatus(motorcycle, rule, maintenanceItems)
+    }));
+    const overall = getCategoryIndicator(taskStatuses, odo);
 
-    return MAINTENANCE_RULES[category.key].map((rule) => {
-        const taskStatus = getMaintenanceTaskStatus(motorcycle, rule, maintenanceItems);
+    return taskStatuses.map(({ rule, taskStatus }) => {
         const completedRecord = taskStatus.completedRecord;
         const hasCompletion = taskStatus.hasCompletion;
-        const anchorMileage = completedRecord ? getCompletionMileage(completedRecord) : odo;
-        const anchorSource = completedRecord ? 'last completed service' : 'current odometer';
+        const anchorMileage = completedRecord
+            ? getCompletionMileage(completedRecord)
+            : Number(motorcycle.trackedFromOdo);
+        const anchorSource = completedRecord ? 'last completed service' : 'tracked odometer';
         const dueMileage = taskStatus.dueMileage;
         const status = taskStatus.status;
         const remaining = Math.max(0, dueMileage - odo);
@@ -315,14 +347,19 @@ function setupScheduleListeners(userId) {
     const motorcyclesQuery = query(collection(db, 'motorcycles'), where('uid', '==', userId));
     const maintenanceQuery = query(collection(db, 'maintenance'), where('uid', '==', userId));
 
-    let maintenanceItems = [];
-
-    motorcyclesUnsub = onSnapshot(motorcyclesQuery, (snap) => {
-        motorcycles = [];
+    motorcyclesUnsub = onSnapshot(motorcyclesQuery, async (snap) => {
+        const loadedMotorcycles = [];
         snap.forEach((doc) => {
             const data = normalizeRecord({ id: doc.id, ...doc.data() });
-            if (data.deleted !== true) motorcycles.push(data);
+            if (data.deleted !== true) loadedMotorcycles.push(data);
         });
+
+        try {
+            motorcycles = await ensureMotorcyclesTrackedFromOdo(loadedMotorcycles);
+        } catch (error) {
+            console.error('Could not persist tracked odometer baselines:', error);
+            return;
+        }
 
         if (!motorcycles.length) {
             scheduleItems = [];
@@ -340,7 +377,7 @@ function setupScheduleListeners(userId) {
 
         // Recompute schedule with latest maintenance items
         scheduleItems = motorcycles
-            .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceItems))
+            .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceRecords))
             .sort((a, b) => {
                 const priority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3, completed: 4 };
                 const statusDiff = priority[a.status.key] - priority[b.status.key];
@@ -353,6 +390,9 @@ function setupScheduleListeners(userId) {
         renderMotorcycleDrawer();
         displaySchedule(getSelectedScheduleItems());
         updateCounts(getSelectedScheduleItems());
+        if (maintenanceRecordsReady) {
+            deferMaintenanceNotificationSync(userId, { motorcycles, maintenance: maintenanceRecords });
+        }
         // create pending reminders from current schedule
         (async () => {
             try { await createPendingReminders(scheduleItems); } catch (err) { console.error('Error creating pending reminders:', err); }
@@ -362,16 +402,17 @@ function setupScheduleListeners(userId) {
     });
 
     maintenanceUnsub = onSnapshot(maintenanceQuery, (snap) => {
-        maintenanceItems = [];
+        maintenanceRecords = [];
         snap.forEach((doc) => {
             const data = normalizeRecord({ id: doc.id, ...doc.data() });
-            if (data.deleted !== true) maintenanceItems.push(data);
+            if (data.deleted !== true) maintenanceRecords.push(data);
         });
+        maintenanceRecordsReady = true;
 
         // Recompute schedule when maintenance changes
         if (motorcycles && motorcycles.length) {
             scheduleItems = motorcycles
-                .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceItems))
+                .flatMap((motorcycle) => buildScheduleForMotorcycle(motorcycle, maintenanceRecords))
                 .sort((a, b) => {
                     const priority = { overdue: 0, due: 1, upcoming: 2, scheduled: 3, completed: 4 };
                     const statusDiff = priority[a.status.key] - priority[b.status.key];
@@ -384,6 +425,7 @@ function setupScheduleListeners(userId) {
             renderMotorcycleDrawer();
             displaySchedule(getSelectedScheduleItems());
             updateCounts(getSelectedScheduleItems());
+            deferMaintenanceNotificationSync(userId, { motorcycles, maintenance: maintenanceRecords });
             (async () => {
                 try { await createPendingReminders(scheduleItems); } catch (err) { console.error('Error creating pending reminders:', err); }
             })();
@@ -503,7 +545,7 @@ function displaySchedule(items) {
             </div>
         </div>
 
-        ${visibleItems.map((item) => { const displayStatus = getDisplayStatus(item); return `
+        ${visibleItems.map((item) => { const displayStatus = getDisplayStatus(item); const canMarkDone = maintenanceRecordsReady && (item.status.key === 'upcoming' || item.status.key === 'overdue' || item.status.key === 'due'); return `
             <article class="schedule-card">
                 <div class="schedule-card__top">
                     <div class="schedule-icon">${scheduleIconMarkup(item.icon || item.overall.icon)}</div>
@@ -519,8 +561,18 @@ function displaySchedule(items) {
                     <div><p class="schedule-label">DUE</p><p class="schedule-value">At ${formatMileage(item.dueMileage)} km</p></div>
                     <div><p class="schedule-label">LAST DONE</p><p class="schedule-value">${formatServiceDate(item.lastCompletedDate)}</p></div>
                 </div>
-                <p class="schedule-interval">Every ${formatMileage(item.threshold)} km</p>
-                <button class="schedule-complete-button" onclick="markComplete('${item.id}'); return false;">Mark as Complete</button>
+                <div class="schedule-card__footer">
+                    <p class="schedule-interval">Every ${formatMileage(item.threshold)} km</p>
+                    <div class="schedule-card__footer-actions">
+                        ${canMarkDone ? `
+                            <button type="button" class="schedule-mark-done-button" data-schedule-mark-done data-motorcycle-id="${escapeHtml(item.motorcycleId)}" data-rule-key="${escapeHtml(item.ruleKey)}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+                                <span>Mark as done</span>
+                            </button>
+                        ` : ''}
+                        <button class="schedule-complete-button" onclick="markComplete('${item.id}'); return false;">Mark as Complete</button>
+                    </div>
+                </div>
             </article>
         `; }).join('')}
     `;
@@ -535,7 +587,7 @@ function displaySchedule(items) {
             const raw = thresholdInput.value;
             const val = Number(raw);
             if (!Number.isFinite(val) || val < 0) {
-                alert('Please enter a valid threshold (0 or greater).');
+                showToast({ type: 'error', title: 'Invalid threshold', message: 'Enter a threshold of 0 or greater.' });
                 return;
             }
             // guard unrealistic values
@@ -554,12 +606,12 @@ function displaySchedule(items) {
                 } else {
                     localStorage.setItem('motocare.reminderThreshold.default', String(Math.floor(val)));
                 }
-                showToast('Reminder threshold saved.', 'success');
+                showToast({ type: 'success', title: 'Threshold saved', message: 'Reminder threshold saved.' });
                 // reload schedule so statuses recompute
                 setTimeout(() => loadSchedule(currentUserId), 250);
             } catch (e) {
                 console.warn('Could not save threshold', e);
-                showToast('Could not save threshold.', 'error');
+                showToast({ type: 'error', title: 'Threshold save failed', message: 'Could not save threshold.' });
             } finally {
                 btn.disabled = false;
                 btn.textContent = prevText;
@@ -578,11 +630,11 @@ function displaySchedule(items) {
                 }
                 const newVal = getReminderThreshold(selected?.id);
                 thresholdInput.value = String(newVal);
-                showToast('Threshold reset to ' + String(newVal) + ' km', 'info');
+                showToast({ type: 'info', title: 'Threshold reset', message: `Threshold reset to ${String(newVal)} km.` });
                 loadSchedule(currentUserId);
             } catch (e) {
                 console.warn('Could not reset threshold', e);
-                showToast('Could not reset threshold.', 'error');
+                showToast({ type: 'error', title: 'Threshold reset failed', message: 'Could not reset threshold.' });
             }
         });
     }
@@ -620,7 +672,7 @@ window.markComplete = async function(id) {
 
     const item = scheduleItems.find((entry) => entry.id === id);
     if (!item) {
-        alert('Could not find the selected maintenance reminder.');
+        showToast({ type: 'error', title: 'Reminder not found', message: 'Could not find the selected maintenance reminder.' });
         return;
     }
     // Redirect to add-record page with prefilled fields so the user can confirm and save the record
@@ -648,9 +700,199 @@ window.markComplete = async function(id) {
         }
     } catch (error) {
         console.error('Error redirecting to add-record:', error);
-        alert('Could not open Add Record form. Please try again.');
+        showToast({ type: 'error', title: 'Could not open form', message: 'Could not open Add Record form. Please try again.' });
     }
 };
+
+function getLocalDateInputValue(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getCompletionKey(item, mileage) {
+    return `${currentUserId}::${item.motorcycleId}::${item.ruleKey}::${mileage}`;
+}
+
+function isMatchingCompletedRecord(record, item, mileage) {
+    if (String(record.motorcycleId || '') !== String(item.motorcycleId || '')) return false;
+
+    const status = String(record.status || '').toLowerCase().trim();
+    const hasCompletion = ['completed', 'complete', 'done', 'logged'].includes(status)
+        || (record.completedMileage !== undefined && record.completedMileage !== null)
+        || (record.completedAt !== undefined && record.completedAt !== null);
+    if (!hasCompletion || getCompletionMileage(record) !== mileage) return false;
+
+    const recordTaskKey = String(record.taskKey || '').trim();
+    if (recordTaskKey) return recordTaskKey === item.ruleKey;
+
+    const recordTask = normalizeText(record.task || record.title || record.name || '');
+    const scheduledTask = normalizeText(item.task);
+    return Boolean(recordTask && (recordTask === scheduledTask
+        || recordTask.includes(scheduledTask)
+        || scheduledTask.includes(recordTask)));
+}
+
+function openMarkDoneSheet(motorcycleId, ruleKey) {
+    const item = scheduleItems.find((entry) =>
+        String(entry.motorcycleId) === String(motorcycleId)
+        && String(entry.ruleKey) === String(ruleKey)
+    );
+    if (!item || !['upcoming', 'overdue', 'due'].includes(item.status.key)) return;
+
+    const motorcycle = motorcycles.find((entry) => String(entry.id) === String(item.motorcycleId));
+    const backdrop = document.getElementById('scheduleDoneBackdrop');
+    const form = document.getElementById('scheduleDoneForm');
+    if (!motorcycle || !backdrop || !form) {
+        showToast({ type: 'error', title: 'Sheet unavailable', message: 'Could not open the completion form.' });
+        return;
+    }
+
+    activeCompletionItem = item;
+    document.getElementById('scheduleDoneTitle').textContent = item.task;
+    document.getElementById('scheduleDoneMotorcycle').textContent = item.motorcycleName;
+    document.getElementById('scheduleDoneOdo').value = String(getMileageValue(motorcycle));
+    document.getElementById('scheduleDoneDate').value = getLocalDateInputValue();
+    document.getElementById('scheduleDoneCost').value = '';
+
+    backdrop.hidden = false;
+    document.body.classList.add('schedule-done-open');
+    requestAnimationFrame(() => {
+        backdrop.classList.add('is-open');
+        document.getElementById('scheduleDoneOdo').focus({ preventScroll: true });
+    });
+}
+
+function closeMarkDoneSheet() {
+    const backdrop = document.getElementById('scheduleDoneBackdrop');
+    if (!backdrop || backdrop.hidden) return;
+    backdrop.classList.remove('is-open');
+    document.body.classList.remove('schedule-done-open');
+    window.setTimeout(() => {
+        if (!backdrop.classList.contains('is-open')) backdrop.hidden = true;
+    }, 220);
+    activeCompletionItem = null;
+}
+
+async function submitMarkDone(event) {
+    event.preventDefault();
+    if (!activeCompletionItem) return;
+
+    const confirmButton = document.getElementById('scheduleDoneConfirm');
+    const odoInput = document.getElementById('scheduleDoneOdo');
+    const dateInput = document.getElementById('scheduleDoneDate');
+    const costInput = document.getElementById('scheduleDoneCost');
+    const odoText = odoInput.value.trim();
+    const date = dateInput.value;
+    const costText = costInput.value.trim();
+    const mileage = Number(odoText);
+    const cost = costText === '' ? 0 : Number(costText);
+    const item = activeCompletionItem;
+    const motorcycle = motorcycles.find((entry) => String(entry.id) === String(item.motorcycleId));
+
+    if (!odoText || !Number.isFinite(mileage) || mileage < 0 || !date) {
+        showToast({ type: 'error', title: 'Check required fields', message: 'Enter a valid odometer and date.' });
+        return;
+    }
+    if (costText !== '' && (!Number.isFinite(cost) || cost < 0)) {
+        showToast({ type: 'error', title: 'Invalid cost', message: 'Cost must be 0 or greater.' });
+        return;
+    }
+    if (!motorcycle) {
+        showToast({ type: 'error', title: 'Motorcycle unavailable', message: 'Could not find this motorcycle.' });
+        return;
+    }
+
+    const currentMileage = getMileageValue(motorcycle);
+    if (mileage < currentMileage) {
+        showToast({ type: 'error', title: 'Mileage too low', message: `Mileage cannot be below current ODO (${currentMileage.toLocaleString()} km).` });
+        return;
+    }
+
+    const completionKey = getCompletionKey(item, mileage);
+    const progress = completionSaveProgress.get(completionKey);
+    const alreadyCompleted = completedSubmissionKeys.has(completionKey)
+        || maintenanceRecords.some((record) => isMatchingCompletedRecord(record, item, mileage));
+    if (!progress?.maintenanceWritten && alreadyCompleted) {
+        showToast({ type: 'error', title: 'Already completed', message: `${item.task} is already logged at ${formatMileage(mileage)} km.` });
+        return;
+    }
+
+    if (confirmButton.disabled) return;
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Saving...';
+
+    const recordName = `${motorcycle.brand} ${motorcycle.model}`;
+    const saveProgress = progress || {
+        repairWritten: false,
+        maintenanceWritten: false
+    };
+    const formData = {
+        title: item.task,
+        date,
+        cost,
+        mileage,
+        mechanic: '',
+        category: item.categoryLabel,
+        motorcycleId: motorcycle.id,
+        motorcycleName: recordName,
+        recordKind: 'scheduled',
+        taskKey: item.ruleKey
+    };
+
+    try {
+        if (!saveProgress.repairWritten) {
+            await addFirestoreDoc('repairs', formData);
+            saveProgress.repairWritten = true;
+            completionSaveProgress.set(completionKey, saveProgress);
+        }
+
+        if (!saveProgress.maintenanceWritten) {
+            await addFirestoreDoc('maintenance', {
+                motorcycleId: motorcycle.id,
+                motorcycleName: recordName,
+                category: item.categoryLabel,
+                taskKey: item.ruleKey,
+                task: item.task,
+                status: 'completed',
+                dueMileage: mileage,
+                completedMileage: mileage,
+                completedAt: date,
+                source: 'add-record'
+            });
+            saveProgress.maintenanceWritten = true;
+            completionSaveProgress.set(completionKey, saveProgress);
+            completedSubmissionKeys.add(completionKey);
+        }
+
+        const motorcycleMileageUpdate = { mileage };
+        if (mileage < Number(motorcycle.trackedFromOdo)) {
+            motorcycleMileageUpdate.trackedFromOdo = mileage;
+        }
+        await updateFirestoreDoc('motorcycles', motorcycle.id, motorcycleMileageUpdate);
+
+        completionSaveProgress.delete(completionKey);
+        deferMaintenanceNotificationSync(currentUserId);
+        closeMarkDoneSheet();
+        const nextDue = mileage + Number(item.threshold);
+        showToast({
+            type: 'success',
+            title: 'Marked as done',
+            message: `${item.task} done. Next due at ${formatMileage(nextDue)} km.`
+        });
+    } catch (error) {
+        console.error('Error marking scheduled maintenance as done:', error);
+        showToast({
+            type: 'error',
+            title: 'Save failed',
+            message: error?.message || 'Could not save this maintenance completion. Please try again.'
+        });
+    } finally {
+        confirmButton.disabled = false;
+        confirmButton.textContent = 'Confirm';
+    }
+}
 
 // Per-card manual send removed — email sends are handled automatically by createPendingReminders
 
@@ -667,7 +909,7 @@ async function createPendingReminders(items = []) {
         // Only proceed when we have the authenticated user's email available
         if (!currentUserEmail) {
             console.warn('createPendingReminders: no authenticated email available');
-            try { showToast('No authenticated email found — reminders will not be sent.', 'error'); } catch (e) {}
+            showToast({ type: 'error', title: 'Email unavailable', message: 'Reminders cannot be sent without an authenticated email.' });
             return;
         }
 
@@ -736,7 +978,7 @@ async function createPendingReminders(items = []) {
                 createdSignatures.add(signature);
                 existingSignatures.add(signature);
                 console.log('Created reminder for', item.task, item.motorcycleName, 'signature:', signature);
-                try { showToast(`Created reminder: ${item.task} (${item.motorcycleName})`, 'info'); } catch (e) {}
+                showToast({ type: 'info', title: 'Reminder created', message: `${item.task} for ${item.motorcycleName}.` });
             } catch (err) {
                 console.warn('Could not create reminder doc for', item.id, err?.message || err);
             }
@@ -744,7 +986,7 @@ async function createPendingReminders(items = []) {
 
         if (!createdSignatures.size) {
             console.log('createPendingReminders: no new reminder docs created');
-            try { showToast('No new reminders to create.', 'info'); } catch (e) {}
+            showToast({ type: 'info', title: 'No new reminders', message: 'There are no new reminders to create.' });
         }
     } catch (err) {
         console.error('createPendingReminders error:', err);
@@ -754,10 +996,13 @@ async function createPendingReminders(items = []) {
 // Manual trigger for debugging/send tests from Console or UI
 window.triggerReminderSend = async function() {
     try {
-        if (!window.scheduleItems) { try { showToast('No schedule items available', 'error'); } catch (e) {} ; return; }
+        if (!window.scheduleItems) {
+            showToast({ type: 'error', title: 'Schedule unavailable', message: 'No schedule items are available.' });
+            return;
+        }
         await createPendingReminders(window.scheduleItems);
     } catch (e) {
         console.error('triggerReminderSend error', e);
-        try { showToast('Trigger failed: ' + (e?.message || ''), 'error'); } catch (e) {}
+        showToast({ type: 'error', title: 'Trigger failed', message: `Could not trigger reminders: ${e?.message || 'Unknown error.'}` });
     }
 };

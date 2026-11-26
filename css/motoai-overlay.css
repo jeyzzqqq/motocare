@@ -42,6 +42,9 @@
 .motoai-chat { display: flex; align-items: flex-end; gap: 7px; margin-top: 14px; }
 .motoai-avatar { display: none; }
 .motoai-message { max-width: 85%; margin: 0; padding: 12px; border-radius: 4px 20px 20px 20px; color: var(--moto-text); background: var(--moto-icon-tile); font-size: 10px; line-height: 1.45; }
+.motoai-message--thinking::after { display: inline-block; width: 0; height: 1em; overflow: hidden; content: "..."; vertical-align: bottom; white-space: nowrap; animation: motoai-thinking-dots 1.4s steps(1, end) infinite; }
+@keyframes motoai-thinking-dots { 0%, 12% { width: 0; } 25% { width: .35em; } 37% { width: .7em; } 50%, 62% { width: 1.05em; } 75% { width: .7em; } 87% { width: .35em; } 100% { width: 0; } }
+body:not(.motoai-open) .motoai-message--thinking::after { animation-play-state: paused; }
 .motoai-response { width: fit-content; max-width: 80%; margin: 14px 0 0 auto; padding: 12px; border-radius: 20px 4px 20px 20px; color: #fff; background: var(--moto-primary); font-size: 10px; line-height: 1.35; }
 .motoai-rich-card { margin-top: 18px; padding: 16px; border-radius: var(--moto-radius-card, 16px); background: var(--moto-surface); box-shadow: 0 2px 10px rgba(17, 22, 19, .04); }
 .motoai-rich-card h2 { margin: 0; color: var(--moto-text); font-size: 12px; }
@@ -50,6 +53,7 @@
 .motoai-rich-card__link { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--moto-border); color: var(--moto-primary); font-size: 9px; text-decoration: none; }
 .motoai-rich-card__link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .motoai-disclaimer { flex: 0 0 auto; margin: 0 16px 8px; color: var(--moto-muted); font-size: 8px; }
+.motoai-conversation-started .motoai-disclaimer, .motoai-conversation-started .motoai-suggestions { display: none !important; }
 .motoai-suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; flex: 0 0 auto; padding: 8px 16px; }
 .motoai-suggestion { min-width: 0; min-height: 24px; overflow: hidden; padding: 5px 9px; border: 0; border-radius: 999px; color: var(--moto-muted); background: var(--moto-surface); font-size: 8px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .motoai-input-bar { display: flex; flex: 0 0 auto; gap: 8px; margin: 0; padding: 8px 14px max(12px, env(safe-area-inset-bottom)); background: var(--moto-bg); }
@@ -64,4 +68,5 @@ body.motoai-open { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) {
     .motoai-backdrop, .motoai-sheet { transition: none; }
+    .motoai-message--thinking::after { width: auto; animation: none; }
 }

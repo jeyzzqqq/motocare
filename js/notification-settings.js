@@ -1,5 +1,6 @@
 import { auth, db, onAuthStateChanged } from './firebase-config.js?v=3';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
+import { showToast } from './toast.js?v=1';
 
 const GREEN = '#2e9e4f';
 const DEFAULTS = {
@@ -71,10 +72,10 @@ async function saveSettings() {
     try {
         await setDoc(doc(db, 'userSettings', currentUser.uid), { ...settings, uid: currentUser.uid, updatedAt: serverTimestamp() }, { merge: true });
         closeNotificationSettings();
-        window.showToast?.('Notification preferences saved.', 'success');
+        showToast({ type: 'success', title: 'Preferences saved', message: 'Notification preferences were saved.' });
     } catch (error) {
         console.error('Notification preferences save failed:', error);
-        window.showToast?.('Could not save notification preferences.', 'error');
+        showToast({ type: 'error', title: 'Preferences save failed', message: 'Could not save notification preferences.' });
     } finally { button.disabled = false; }
 }
 

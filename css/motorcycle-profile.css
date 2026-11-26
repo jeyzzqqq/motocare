@@ -95,8 +95,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .motorcycle-profile-form-actions button { min-height: 44px; flex: 1; border: 0; border-radius: 999px; font: 600 11px var(--moto-font); cursor: pointer; }
 .motorcycle-profile-cancel { color: var(--moto-text); background: var(--moto-icon-tile); }
 .motorcycle-profile-save { color: #fff; background: var(--moto-primary); }
-.motorcycle-profile-toasts { position: fixed; z-index: 140; top: 12px; right: 12px; left: 12px; display: grid; justify-items: end; gap: 8px; pointer-events: none; }
-.motorcycle-profile-toasts > * { pointer-events: auto; }
 @media (min-width: 481px) {
     .motorcycle-profile-page { padding-top: 28px; }
     .motorcycle-profile-modal { align-items: center; padding: 20px; }

@@ -295,12 +295,6 @@ html[data-theme="dark"] .app-header:not(.schedule-header):not(.expenses-header) 
     background: rgba(16, 23, 19, .12) !important;
 }
 
-html[data-theme="dark"] .notification-badge {
-    border-color: #4caf50 !important;
-    color: #101713 !important;
-    background: #f87171 !important;
-}
-
 html[data-theme="dark"] .motorcycles-sheet {
     --moto-primary: #4caf50;
     --moto-deep: #4caf50;

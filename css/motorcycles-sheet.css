@@ -56,5 +56,4 @@
 .motorcycles-sheet .motorcycle-card__edit-odo button { padding: 8px 10px; border: 0; border-radius: 999px; color: #fff; background: var(--moto-primary); font: 600 9px var(--moto-font); cursor: pointer; }
 .motorcycles-sheet .motorcycle-card__edit-odo button:last-child { color: var(--moto-text); background: var(--moto-icon-tile); }
 .motorcycles-sheet button:focus-visible, .motorcycles-sheet [tabindex="0"]:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 3px; }
-body.motorcycles-modal-open #toastContainer { z-index: 140; }
 @media (prefers-reduced-motion: reduce) { .motorcycles-sheet *, .motorcycle-card__menu { animation: none !important; transition: none !important; } }

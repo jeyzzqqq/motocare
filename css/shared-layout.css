@@ -109,17 +109,38 @@
 
 .notification-badge {
     position: absolute;
-    top: -3px;
-    right: -3px;
-    min-width: 17px;
-    height: 17px;
+    top: 6px;
+    right: 6px;
+    display: inline-flex;
+    min-width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
     padding: 0 4px;
-    border: 2px solid var(--moto-green);
+    border: 2px solid var(--moto-bg);
     border-radius: 999px;
     color: #fff;
-    background: #ef4444;
-    font: 700 9px/13px sans-serif;
+    background: #EF4444;
+    font: 600 10px/1 var(--moto-font, Geist, sans-serif);
     text-align: center;
+    transform-origin: top right;
+}
+
+.notification-badge[hidden] {
+    display: none;
+}
+
+.notification-badge--changed {
+    animation: notification-badge-scale-in 150ms ease-out;
+}
+
+@keyframes notification-badge-scale-in {
+    from { opacity: .8; transform: scale(.82); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification-badge--changed { animation: none; }
 }
 
 .page-content {

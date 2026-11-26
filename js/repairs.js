@@ -2,6 +2,7 @@ import { auth, db } from './firebase-config.js?v=3';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 import { collection, query, where, getDocs, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { getFirestoreDocs, deleteFirestoreDoc, updateFirestoreDoc } from './firebaseUtils.js';
+import { showToast } from './toast.js?v=1';
 import './logout-confirmation.js';
 
 let cachedRepairs = [];
@@ -29,16 +30,15 @@ onAuthStateChanged(auth, async (user) => {
 async function logoutFromRepairs() {
     try {
         await signOut(auth);
-        showToast('Logged out successfully', 'success');
+        showToast({ type: 'success', title: 'Logged out', message: 'You have been logged out.' });
         setTimeout(() => {
             window.location.href = 'index.html';
         }, 500);
     } catch (error) {
         console.error('Logout error:', error);
-        showToast('Error logging out', 'error');
+        showToast({ type: 'error', title: 'Logout failed', message: 'Could not log out.' });
     }
 }
-
 logoutButton?.addEventListener('click', () => window.openLogoutConfirmation?.(logoutFromRepairs));
 
 function showRepairsSkeleton() {
@@ -76,7 +76,7 @@ async function loadRepairs(userId) {
         }
     } catch (error) {
         console.error('Error loading repairs:', error);
-        showToast('Error loading repairs', 'error');
+        showToast({ type: 'error', title: 'Repair load failed', message: 'Could not load repairs.' });
         renderEmptyState();
     } finally {
         isLoading = false;
@@ -230,10 +230,10 @@ async function handleDeleteRepair(e) {
             updateStats();
         }
         
-        showToast('Repair deleted successfully', 'success');
+        showToast({ type: 'success', title: 'Repair deleted', message: 'Repair record deleted successfully.' });
     } catch (error) {
         console.error('Error deleting repair:', error);
-        showToast('Error deleting repair', 'error');
+        showToast({ type: 'error', title: 'Delete failed', message: 'Could not delete repair record.' });
     }
 }
 
@@ -257,17 +257,4 @@ function setupEventListeners() {
             }
         }
     });
-}
-
-function showToast(message, type = 'info') {
-    const el = document.createElement('div');
-    el.className = 'fixed bottom-4 right-4 rounded-xl px-4 py-3 shadow-xl flex items-center gap-3 bg-white z-50';
-    const icon = type === 'success' ? 'fa-circle-check text-green-600' : 'fa-circle-exclamation text-red-600';
-    el.innerHTML = `<i class="fa-solid ${icon}"></i><p class="flex-1 text-sm font-medium">${message}</p><button class="hover:bg-gray-100 rounded-full p-1"><i class="fa-solid fa-xmark"></i></button>`;
-    
-    const btn = el.querySelector('button');
-    btn.addEventListener('click', () => el.remove());
-    document.body.appendChild(el);
-    
-    setTimeout(() => el.remove(), 3000);
 }

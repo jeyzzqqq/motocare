@@ -3,6 +3,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { deleteFirestoreDoc, cleanupOrphanedMotorcycleRecords } from './firebaseUtils.js';
 import { normalizeRecord } from './utils-module.js';
+import { showToast } from './toast.js?v=1';
 
 let expenses = [];
 let registeredMotorcycles = [];
@@ -605,9 +606,9 @@ function displayRecentExpenses(shouldAnimate = false) {
                 if (currentUser) {
                     await loadExpenses(currentUser.uid);
                 }
-                showToast('Expense deleted', 'success');
+                showToast({ type: 'success', title: 'Expense deleted', message: 'The expense was deleted.' });
             } catch (err) {
-                showToast('Error deleting expense', 'error');
+                showToast({ type: 'error', title: 'Delete failed', message: 'Could not delete the expense.' });
             }
         });
     });

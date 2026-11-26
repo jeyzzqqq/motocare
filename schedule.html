@@ -13,16 +13,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.16.29/font/lucide.min.css?v=4" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css?v=3">
-    <link rel="stylesheet" href="./css/shared-layout.css?v=2">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
     <style>
         * { box-sizing: border-box; }
-        html { background: #e6e9e5; }
+        html { background: var(--moto-bg); }
         body { min-width: 320px; min-height: 100dvh; margin: 0; overflow-x: hidden; background: var(--moto-bg); color: var(--moto-text); font-family: var(--moto-font); -webkit-font-smoothing: antialiased; }
         .schedule-header { min-height: 0; padding: 28px 16px 8px; color: var(--moto-text); background: var(--moto-bg); border-radius: 0; }
         .schedule-header .app-header__inner { width: min(100%, 448px); min-height: 0; }
         .schedule-header .app-header__top { position: relative; align-items: flex-start; }
         .schedule-header .app-header__title p,
-        .schedule-header .app-header__second,
         .schedule-header .app-header__actions { display: flex; }
         .schedule-header .app-header__title h1 { margin: 0; color: var(--moto-text); font-size: 20px; font-weight: 700; line-height: 1.2; }
         .schedule-header .app-header__title { z-index: 1; padding-right: 52px; }
@@ -49,7 +48,6 @@
         .schedule-status--ok,
         .schedule-status--scheduled { color: var(--moto-primary); background: transparent; }
         .schedule-controls { display: none; }
-        .schedule-complete-button { display: none; }
         .schedule-main { width: min(100%, 480px); margin: 0 auto; padding: 0 16px 112px; }
         .schedule-subtitle { margin: 0 0 14px; color: var(--moto-muted); font-size: 10px; }
         .schedule-filters { display: flex; gap: 6px; margin: 0 -2px 16px; overflow-x: auto; scrollbar-width: none; }
@@ -61,12 +59,56 @@
         .schedule-card__bike { overflow: hidden; margin: 2px 0 0; color: var(--moto-muted); font-size: 8px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
         .schedule-card__details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 12px; padding: 8px 0 7px; border-top: 1px solid #e8ebe8; }
         .schedule-value { margin: 3px 0 0; color: #1a1a1a; font-size: 9px; font-weight: 500; line-height: 1.2; }
-        .schedule-interval { margin: 0; padding: 0 12px 10px; color: var(--moto-muted); font-size: 8px; line-height: 1.2; }
+        .schedule-card__footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 8px; padding: 0 12px 10px; }
+        .schedule-interval { margin: 0; padding: 0; color: var(--moto-muted); font-size: 8px; line-height: 1.2; }
+        .schedule-card__footer-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
         .schedule-card__actions { display: none; }
+        .schedule-mark-done-button,
+        .schedule-complete-button { position: relative; display: inline-flex; height: 36px; min-height: 36px; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 0 14px; border: 1px solid currentColor; border-radius: 999px; color: var(--moto-primary); background: transparent; font: 600 12px var(--moto-font); white-space: nowrap; cursor: pointer; transition: background-color 140ms ease; }
+        .schedule-mark-done-button::before,
+        .schedule-complete-button::before { position: absolute; inset: -6px 0; content: ""; }
+        .schedule-mark-done-button svg { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .schedule-mark-done-button:hover,
+        .schedule-mark-done-button:active,
+        .schedule-complete-button:hover,
+        .schedule-complete-button:active { background: var(--moto-accent-tint); }
+        .schedule-mark-done-button:focus-visible,
+        .schedule-complete-button:focus-visible { outline: 2px solid var(--moto-primary); outline-offset: 3px; }
+        .schedule-mark-done-button:disabled,
+        .schedule-complete-button:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
+        .schedule-complete-button { display: none; }
+        html[data-theme="dark"] .schedule-mark-done-button:hover,
+        html[data-theme="dark"] .schedule-mark-done-button:active,
+        html[data-theme="dark"] .schedule-complete-button:hover,
+        html[data-theme="dark"] .schedule-complete-button:active { background: color-mix(in srgb, var(--moto-primary) 12%, transparent); }
+        .schedule-done-backdrop { position: fixed; inset: 0; z-index: 130; display: flex; align-items: flex-end; justify-content: center; padding: 0; background: rgba(27, 35, 30, .42); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
+        .schedule-done-backdrop[hidden] { display: none; }
+        .schedule-done-backdrop.is-open { opacity: 1; pointer-events: auto; }
+        .schedule-done-sheet { width: min(100%, 480px); max-height: 90dvh; overflow-y: auto; padding: 18px 16px max(18px, env(safe-area-inset-bottom, 0px)); border-radius: 24px 24px 0 0; color: var(--moto-text); background: var(--moto-bg); box-shadow: 0 -12px 40px rgba(20, 35, 25, .2); transform: translateY(24px); transition: transform 260ms cubic-bezier(.22, 1, .36, 1); }
+        .schedule-done-backdrop.is-open .schedule-done-sheet { transform: translateY(0); }
+        .schedule-done-header { display: flex; align-items: flex-start; gap: 8px; }
+        .schedule-done-heading { min-width: 0; flex: 1; }
+        .schedule-done-heading h2 { margin: 0; color: var(--moto-text); font-size: 18px; font-weight: 700; line-height: 1.3; }
+        .schedule-done-heading p { margin: 4px 0 0; color: var(--moto-muted); font-size: 12px; }
+        .schedule-done-close { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--moto-muted); background: transparent; cursor: pointer; }
+        .schedule-done-close svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; }
+        .schedule-done-fields { display: grid; gap: 14px; margin-top: 20px; }
+        .schedule-done-field { display: grid; gap: 6px; color: var(--moto-muted); font-size: 11px; font-weight: 600; }
+        .schedule-done-field input { width: 100%; height: 48px; padding: 0 12px; border: 1px solid var(--moto-border); border-radius: 12px; outline: none; color: var(--moto-text); background: var(--moto-surface); font: 500 14px var(--moto-font); }
+        .schedule-done-field input:focus { border-color: var(--moto-primary); box-shadow: 0 0 0 3px rgba(46, 125, 50, .14); }
+        .schedule-done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 22px; }
+        .schedule-done-actions button { min-height: 48px; border: 0; border-radius: 999px; font: 600 13px var(--moto-font); cursor: pointer; }
+        .schedule-done-cancel { color: var(--moto-text); background: var(--moto-icon-tile); }
+        .schedule-done-confirm { color: #fff; background: #2e7d32; }
+        .schedule-done-confirm:disabled { opacity: .65; cursor: wait; }
+        body.schedule-done-open { overflow: hidden; }
         .schedule-empty { padding: 48px 16px; border: 1px dashed #dfe4df; border-radius: 16px; color: #7a817c; text-align: center; }
+        @media (min-width: 481px) { .schedule-done-backdrop { align-items: center; padding: 20px; } .schedule-done-sheet { width: min(100%, 420px); border-radius: 24px; transform: scale(.97); } .schedule-done-backdrop.is-open .schedule-done-sheet { transform: scale(1); } }
         @media (min-width: 640px) { .schedule-header { padding-top: 36px; } .schedule-main { padding-right: 20px; padding-left: 20px; } }
+        @media (prefers-reduced-motion: reduce) { .schedule-done-backdrop, .schedule-done-sheet { transition: none; } }
     </style>
-    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
+    <link rel="stylesheet" href="./css/theme-dark.css?v=2">
+    <link rel="stylesheet" href="./css/page-transitions.css?v=1">
 </head>
 <body>
     <header class="app-header schedule-header">
@@ -84,10 +126,9 @@
                             <line x1="4" y1="18" x2="20" y2="18"></line>
                         </svg>
                     </button>
-                    <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge hidden"></span></button>
+                    <button id="notificationBtn" type="button" aria-label="Notifications" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg><span id="notificationBadge" class="notification-badge" data-unread-count="0" aria-hidden="true" hidden></span></button>
                     <button id="logoutBtn" type="button" aria-label="Log out" class="header-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M12 12h9M17 8l4 4-4 4" /></svg></button>
                     </div>
-                    <div class="app-header__second"><div><p id="overdueSubtitle" class="text-xs text-green-50">0 overdue</p></div></div>
                 </div>
         </div>
     </header>
@@ -123,19 +164,50 @@
         </div>
     </aside>
 
-    <div id="mobileNav"></div>
+    <div id="scheduleDoneBackdrop" class="schedule-done-backdrop" hidden>
+        <section class="schedule-done-sheet" role="dialog" aria-modal="true" aria-labelledby="scheduleDoneTitle">
+            <form id="scheduleDoneForm" novalidate>
+                <header class="schedule-done-header">
+                    <div class="schedule-done-heading">
+                        <h2 id="scheduleDoneTitle"></h2>
+                        <p id="scheduleDoneMotorcycle"></p>
+                    </div>
+                    <button id="scheduleDoneClose" class="schedule-done-close" type="button" aria-label="Close completion form">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>
+                    </button>
+                </header>
+                <div class="schedule-done-fields">
+                    <label class="schedule-done-field" for="scheduleDoneOdo">
+                        Odometer when done
+                        <input id="scheduleDoneOdo" type="number" min="0" step="any" inputmode="decimal" required>
+                    </label>
+                    <label class="schedule-done-field" for="scheduleDoneDate">
+                        Date
+                        <input id="scheduleDoneDate" type="date" required>
+                    </label>
+                    <label class="schedule-done-field" for="scheduleDoneCost">
+                        Cost (optional)
+                        <input id="scheduleDoneCost" type="number" min="0" step="any" inputmode="decimal">
+                    </label>
+                </div>
+                <div class="schedule-done-actions">
+                    <button id="scheduleDoneCancel" class="schedule-done-cancel" type="button">Cancel</button>
+                    <button id="scheduleDoneConfirm" class="schedule-done-confirm" type="submit">Confirm</button>
+                </div>
+            </form>
+        </section>
+    </div>
 
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm"></div>
+    <div id="mobileNav"></div>
 
     <script type="module" src="./js/firebase-config.js?v=3"></script>
     <script type="module" src="./js/theme-auth.js?v=1"></script>
-    <script src="./js/utils.js"></script>
+    <script type="module" src="./js/utils.js?v=1"></script>
     <script type="module" src="./js/mobile-nav.js?v=4"></script>
-    <script type="module" src="./js/motoai.js?v=4"></script>
+    <script type="module" src="./js/motoai.js?v=6"></script>
     <script type="module" src="./js/add-record-overlay.js"></script>
     <script type="module" src="./js/logout-confirmation.js"></script>
-    <script type="module" src="./js/notification-panel.js?v=6"></script>
-    <script type="module" src="./js/schedule.js?v=7"></script>
+    <script type="module" src="./js/notification-panel.js?v=8"></script>
+    <script type="module" src="./js/schedule.js?v=12"></script>
 </body>
 </html>

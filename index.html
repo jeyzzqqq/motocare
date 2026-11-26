@@ -390,7 +390,6 @@
         .google-btn svg { width: 16px; height: 16px; }
         .switch-copy { margin: 26px 0 0; color: var(--auth-muted); text-align: center; font-size: 14px; }
         .switch-copy .auth-link { margin-left: 3px; font-weight: 600; }
-        .toast-container { max-width: min(90vw, 360px); }
         .auth-error { color: #ef4444; font-size: 12px; }
         .password-strength--weak { color: #ef4444; }
         .password-strength--okay { color: #f59e0b; }
@@ -472,7 +471,8 @@
             .switch-copy { margin-top: 20px; }
         }
     </style>
-    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
+    <link rel="stylesheet" href="./css/theme-dark.css?v=2">
+    <link rel="stylesheet" href="./css/page-transitions.css?v=1">
 </head>
 <body>
     <main class="auth-shell">
@@ -558,13 +558,13 @@
         </div>
     </main>
 
-    <div id="toastContainer" class="toast-container fixed top-4 right-4 z-50 space-y-2"></div>
     <script type="module" src="./js/firebase-config.js?v=3"></script>
     <script type="module" src="./js/theme-auth.js?v=1"></script>
     <script type="module" src="./js/auth.js"></script>
-    <script src="./js/utils.js"></script>
+    <script type="module" src="./js/utils.js?v=1"></script>
     <script type="module">
         import { login, signUp, googleSignIn } from "./js/auth.js";
+        import { showToast } from "./js/toast.js?v=1";
 
         let isLoginMode = true;
         let copyTransitionTimer;
@@ -683,31 +683,31 @@
                 try {
                     await login(email, password);
                     localStorage.setItem('motocare-streak-login-pending', 'true');
-                    showToast('Login successful!', 'success');
+                    showToast({ type: 'success', title: 'Login successful', message: 'Welcome back to MotoCare.' });
                     setTimeout(() => { window.location.href = './dashboard.html'; }, 1000);
                 } catch (error) {
-                    showToast(error.message || 'Login failed', 'error');
+                    showToast({ type: 'error', title: 'Login failed', message: error.message || 'Please check your email and password.' });
                     console.error('Login error:', error);
                 } finally { setLoading(form, false); }
                 return;
             }
 
             if (password !== document.getElementById('signupConfirmPassword').value) {
-                showToast('Passwords do not match', 'error');
+                showToast({ type: 'error', title: 'Passwords do not match', message: 'Enter the same password in both fields.' });
                 return;
             }
             if (password.length < 6) {
-                showToast('Password must be at least 6 characters', 'error');
+                showToast({ type: 'error', title: 'Password is too short', message: 'Use at least 6 characters.' });
                 return;
             }
             setLoading(form, true);
             let signupSucceeded = false;
             try {
                 await signUp(email, password);
-                showToast('Account created. Please log in.', 'success');
+                showToast({ type: 'success', title: 'Account created', message: 'Please log in.' });
                 signupSucceeded = true;
             } catch (error) {
-                showToast(`${error.message || 'Sign up failed'} (${error.code || 'unknown'})`, 'error');
+                showToast({ type: 'error', title: 'Sign up failed', message: `${error.message || 'Unable to create account.'} (${error.code || 'unknown'})` });
                 console.error('Sign up error:', error);
             } finally {
                 setLoading(form, false);
@@ -726,10 +726,10 @@
             try {
                 await googleSignIn();
                 localStorage.setItem('motocare-streak-login-pending', 'true');
-                showToast('Signed in with Google', 'success');
+                showToast({ type: 'success', title: 'Signed in with Google', message: 'Welcome to MotoCare.' });
                 setTimeout(() => { window.location.href = './dashboard.html'; }, 800);
             } catch (error) {
-                showToast(error.message ? `${error.message} (${error.code || 'unknown'})` : 'Google sign-in failed', 'error');
+                showToast({ type: 'error', title: 'Google sign-in failed', message: error.message ? `${error.message} (${error.code || 'unknown'})` : 'Please try again.' });
                 console.error('Google sign-in error:', error);
             } finally { button.disabled = false; }
         });

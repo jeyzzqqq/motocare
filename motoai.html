@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="./css/shared-layout.css?v=3">
+    <link rel="stylesheet" href="./css/shared-layout.css?v=4">
     <style>
         * { box-sizing: border-box; }
         html { background: var(--moto-bg); }
@@ -57,6 +57,9 @@
         .motoai-messages::-webkit-scrollbar { display: none; }
         .motoai-date { margin: 2px 0 14px; color: var(--moto-muted); font-size: 8px; text-align: center; }
         .motoai-message { max-width: 85%; margin: 0; padding: 12px; border-radius: 4px 20px 20px 20px; color: var(--moto-text); background: var(--moto-icon-tile); font-size: 10px; font-weight: 400; line-height: 1.45; animation: motoai-message-in 180ms ease-out; }
+        .motoai-message--thinking::after { display: inline-block; width: 0; height: 1em; overflow: hidden; content: "..."; vertical-align: bottom; white-space: nowrap; animation: motoai-thinking-dots 1.4s steps(1, end) infinite; }
+        @keyframes motoai-thinking-dots { 0%, 12% { width: 0; } 25% { width: .35em; } 37% { width: .7em; } 50%, 62% { width: 1.05em; } 75% { width: .7em; } 87% { width: .35em; } 100% { width: 0; } }
+        body:not(.motoai-open) .motoai-message--thinking::after { animation-play-state: paused; }
         .motoai-response { width: fit-content; max-width: 80%; margin: 14px 0 0 auto; padding: 12px; border-radius: 20px 4px 20px 20px; color: #fff; background: var(--moto-primary); font-size: 10px; font-weight: 400; line-height: 1.35; }
         .motoai-rich-card { margin-top: 18px; padding: 16px; border-radius: var(--moto-radius-card); background: var(--moto-surface); box-shadow: 0 2px 10px rgba(17, 22, 19, .04); }
         .motoai-rich-card h2 { margin: 0; color: var(--moto-text); font-size: 12px; font-weight: 600; line-height: 1.3; }
@@ -65,6 +68,7 @@
         .motoai-rich-card__link { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--moto-border); color: var(--moto-primary); font-size: 9px; font-weight: 500; text-decoration: none; }
         .motoai-rich-card__link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
         .motoai-disclaimer { flex: 0 0 auto; margin: 0 16px 8px; color: var(--moto-muted); font-size: 8px; }
+        .motoai-conversation-started .motoai-disclaimer, .motoai-conversation-started .motoai-suggestions { display: none !important; }
         .motoai-quick-label { display: none; }
         .motoai-suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; flex: 0 0 auto; padding: 8px 16px 8px; }
         .motoai-suggestion { min-width: 0; min-height: 24px; overflow: hidden; padding: 5px 9px; border: 0; border-radius: 999px; color: var(--moto-muted); background: var(--moto-surface); font-size: 8px; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; transition: background 160ms ease, transform 160ms ease; }
@@ -78,15 +82,17 @@
         .motoai-send:hover { background: var(--moto-deep); }
         @keyframes motoai-message-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @media (min-width: 600px) { .motoai-sheet { margin: 0 auto; } }
+        @media (prefers-reduced-motion: reduce) { .motoai-message--thinking::after { width: auto; animation: none; } }
     </style>
-    <link rel="stylesheet" href="./css/theme-dark.css?v=1">
+    <link rel="stylesheet" href="./css/theme-dark.css?v=2">
+    <link rel="stylesheet" href="./css/page-transitions.css?v=1">
 </head>
 <body class="min-h-screen bg-gray-100 pb-32">
     <div class="motoai-backdrop" id="motoAiBackdrop">
         <section class="motoai-sheet" role="dialog" aria-modal="true" aria-labelledby="motoAiTitle">
             <div class="motoai-sheet__inner">
                 <header class="motoai-header">
-                    <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z"></path><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"></path></svg></div>
+                    <div class="motoai-header__badge"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" /></svg></div>
                     <div class="motoai-header__content">
                         <div class="motoai-title-row"><h1 id="motoAiTitle" class="motoai-title">MotoAI</h1><span class="motoai-ai-pill">AI</span></div>
                         <p class="motoai-online">● Online</p>
@@ -124,8 +130,8 @@
 
     <script type="module" src="./js/firebase-config.js?v=3"></script>
     <script type="module" src="./js/theme-auth.js?v=1"></script>
-    <script src="./js/utils.js"></script>
+    <script type="module" src="./js/utils.js?v=1"></script>
     <script type="module" src="./js/mobile-nav.js?v=2"></script>
-    <script type="module" src="./js/motoai.js?v=4"></script>
+    <script type="module" src="./js/motoai.js?v=6"></script>
 </body>
 </html>
